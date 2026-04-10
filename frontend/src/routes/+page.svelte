@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { listImages } from '$lib/api';
 	import type { ImageSummary, SortField, SortDirection } from '$lib/types';
@@ -66,10 +66,12 @@
 	// Re-fetch when source_id query param changes (clicking different sources)
 	$effect(() => {
 		const newId = readSourceId();
-		if (newId !== sourceId) {
-			sourceId = newId;
-			fetchImages(true);
-		}
+		untrack(() => {
+			if (newId !== sourceId) {
+				sourceId = newId;
+				fetchImages(true);
+			}
+		});
 	});
 </script>
 

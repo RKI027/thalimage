@@ -28,3 +28,11 @@
 3. ~~mp4 thumbnail ok, no video rendering~~ — expected: Sprint 2 only added thumbnail extraction, not video playback. Video player deferred.
 
 4. ~~no UI to enter ELO mode~~ — ELO link is on collection detail page. Bridge: added "Create Collection" button per source in Settings so ELO can be tested without manual collection creation. Will be replaced by unified collections (Phase 2.5).
+
+5. ~~on create collection, the sidebar doesn't register the new collection~~ — fixed via shared stores
+
+6. ~~rapid GET /api/v1/collections requests~~ — fixed: $effect reactivity loop (untrack async calls) + route-group keying in layout
+
+7. ~~toolbar flash on collection switch~~ — fixed: toolbar always rendered, route-group key avoids remount between sibling routes
+
+8. remove a source doesn't remove the collection. creating a collection from a non-scanned source then scanning the source doesn't update the collection (can still create a new collection). this doesn't need to be fixed as it's part of phase 2.5.

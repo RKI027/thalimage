@@ -1,12 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
 	import { sourcesStore, collectionsStore } from '$lib/stores';
 
 	let open = $state(true);
 
-	// Re-fetch on route change so changes from Settings/Collections are picked up
-	$effect(() => {
-		void $page.url.pathname;
+	onMount(() => {
 		sourcesStore.refresh();
 		collectionsStore.refresh();
 	});

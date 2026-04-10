@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { listImages, getCollection as fetchCollection } from '$lib/api';
 	import type { ImageSummary, Collection } from '$lib/types';
@@ -53,8 +54,10 @@
 
 	$effect(() => {
 		const _id = $page.params.id;
-		loadCollection();
-		fetchImages(true);
+		untrack(() => {
+			loadCollection();
+			fetchImages(true);
+		});
 	});
 </script>
 

@@ -4,6 +4,8 @@
 
 	let { children } = $props();
 
+	const routeGroup = $derived($page.url.pathname.split('/')[1] || 'home');
+
 	const settingsHref = $derived(
 		$page.url.pathname === '/settings'
 			? '/settings'
@@ -26,7 +28,7 @@
 	<div class="body">
 		<Sidebar />
 		<main>
-			{#key $page.url.pathname}
+			{#key routeGroup}
 				{@render children()}
 			{/key}
 		</main>

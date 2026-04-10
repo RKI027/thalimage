@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { getEloPair, recordEloVote, getEloRankings, listCollections } from '$lib/api';
+	import { getEloPair, recordEloVote, getEloRankings, getCollection } from '$lib/api';
 	import type { ImageSummary, EloRanking, Collection } from '$lib/types';
 	import SideBySideView from '$lib/components/views/SideBySideView.svelte';
 
@@ -80,10 +81,10 @@
 
 	$effect(() => {
 		const _id = $page.params.collectionId;
-		listCollections().then((colls) => {
-			collection = colls.find((c) => c.id === collectionId()) ?? null;
+		untrack(() => {
+			getCollection(collectionId()).then((c) => { collection = c; });
+			loadPair();
 		});
-		loadPair();
 	});
 </script>
 
