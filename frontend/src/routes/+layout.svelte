@@ -1,4 +1,6 @@
 <script lang="ts">
+	import Sidebar from '$lib/components/Sidebar.svelte';
+
 	let { children } = $props();
 </script>
 
@@ -14,9 +16,12 @@
 			<a href="/settings">Settings</a>
 		</nav>
 	</header>
-	<main>
-		{@render children()}
-	</main>
+	<div class="body">
+		<Sidebar />
+		<main>
+			{@render children()}
+		</main>
+	</div>
 </div>
 
 <style>
@@ -65,6 +70,12 @@
 	nav {
 		display: flex;
 		gap: 16px;
+	}
+
+	.body {
+		flex: 1;
+		display: flex;
+		overflow: hidden;
 	}
 
 	main {
