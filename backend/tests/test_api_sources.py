@@ -55,11 +55,8 @@ def test_trigger_scan(client: TestClient, image_dir: Path) -> None:
     source_id = resp.json()["id"]
 
     resp = client.post(f"/api/v1/sources/{source_id}/scan")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["scanned"] == 3
-    assert data["added"] == 3
-    assert data["errors"] == 0
+    assert resp.status_code == 202
+    assert resp.json()["status"] == "started"
 
 
 def test_trigger_scan_not_found(client: TestClient) -> None:

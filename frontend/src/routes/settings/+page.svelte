@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { listSources, createSource, deleteSource, triggerScan } from '$lib/api';
-	import type { Source, ScanResult } from '$lib/types';
+	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress } from '$lib/api';
+	import type { Source } from '$lib/types';
 
 	let sources: Source[] = $state([]);
 	let newPath = $state('');
@@ -32,11 +32,21 @@
 	}
 
 	async function scan(id: number) {
-		scanStatus[id] = 'Scanning…';
+		scanStatus[id] = 'Starting…';
 		try {
-			const result: ScanResult = await triggerScan(id);
-			scanStatus[id] = `Done: ${result.added} added, ${result.skipped} skipped, ${result.errors} errors`;
-			await refresh();
+			await triggerScan(id);
+			const unsubscribe = subscribeScanProgress(id, (p) => {
+				if (p.phase === 'processing') {
+					scanStatus[id] = `Processing ${p.current}/${p.total}…`;
+				} else if (p.phase === 'complete') {
+					scanStatus[id] = `Done: ${p.added} added, ${p.skipped} skipped, ${p.errors} errors`;
+					unsubscribe();
+					refresh();
+				} else if (p.phase === 'error') {
+					scanStatus[id] = `Error: ${p.message || 'Scan failed'}`;
+					unsubscribe();
+				}
+			});
 		} catch {
 			scanStatus[id] = 'Scan failed';
 		}

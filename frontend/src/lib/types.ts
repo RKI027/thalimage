@@ -49,11 +49,15 @@ export interface Collection {
 	image_count: number;
 }
 
-export interface ScanResult {
-	scanned: number;
+export interface ScanProgress {
+	source_id: number;
+	phase: string;
+	current: number;
+	total: number;
 	added: number;
 	skipped: number;
 	errors: number;
+	message: string;
 }
 
 export type SortField = 'name' | 'date_modified' | 'date_created' | 'size' | 'aspect_ratio';

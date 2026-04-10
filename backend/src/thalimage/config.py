@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
+    concurrent_scans: bool = True
 
     # Paths
     data_dir: Path = default_data_dir()

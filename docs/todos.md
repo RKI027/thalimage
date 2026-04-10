@@ -10,3 +10,5 @@
 4. favicon
 
 5. ~~settings close button~~ — done via `returnTo` query param pattern
+
+6. when clicking on a picture, there's a back button which doesn't honor the provenance (eg: it doesn't go back to the previously selected source and in the future, collections, etc...)

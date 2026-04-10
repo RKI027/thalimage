@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from thalimage.api import images, sources, collections
 from thalimage.config import get_settings
 from thalimage.db.engine import connect, migrate
+from thalimage.services.scan_manager import ScanManager
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "build"
 
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     migrate(conn)
     app.state.db = conn
     app.state.settings = settings
+    app.state.scan_manager = ScanManager(concurrent=settings.concurrent_scans)
     yield
     conn.close()
 

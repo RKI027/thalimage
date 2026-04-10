@@ -3,7 +3,7 @@ import type {
 	ImageDetail,
 	Source,
 	Collection,
-	ScanResult,
+	ScanProgress,
 	SortField,
 	SortDirection
 } from './types';
@@ -69,8 +69,20 @@ export async function deleteSource(id: number): Promise<void> {
 	if (!resp.ok) throw new Error(`Delete failed: ${resp.status}`);
 }
 
-export function triggerScan(sourceId: number): Promise<ScanResult> {
+export async function triggerScan(sourceId: number): Promise<{ status: string }> {
 	return fetchJSON(`${BASE}/sources/${sourceId}/scan`, { method: 'POST' });
+}
+
+export function subscribeScanProgress(
+	sourceId: number,
+	onProgress: (data: ScanProgress) => void
+): () => void {
+	const es = new EventSource(`${BASE}/sources/${sourceId}/scan/status`);
+	es.addEventListener('status', (e) => {
+		onProgress(JSON.parse(e.data));
+	});
+	es.onerror = () => { es.close(); };
+	return () => es.close();
 }
 
 // Collections

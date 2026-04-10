@@ -3,6 +3,7 @@
 import json
 import logging
 import sqlite3
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -35,7 +36,7 @@ def run_scan(
     source_id: int,
     thumb_dir: Path,
     *,
-    progress_callback: Optional[object] = None,
+    progress_callback: Optional[Callable[..., None]] = None,
 ) -> ScanResult:
     """Run a full scan for a source folder.
 
@@ -59,6 +60,9 @@ def run_scan(
 
     result = ScanResult(scanned=len(paths))
 
+    if progress_callback:
+        progress_callback(phase="processing", total=len(paths), current=0)
+
     # Build lookup of existing images for this source
     existing = {}
     for row in conn.execute(
@@ -69,6 +73,7 @@ def run_scan(
         existing[row["relative_path"]] = row
 
     seen_hashes: set[str] = set()
+    processed = 0
 
     for file_path in paths:
         try:
@@ -201,6 +206,15 @@ def run_scan(
 
         except Exception:
             result.errors += 1
+
+        processed += 1
+        if progress_callback:
+            progress_callback(
+                current=processed,
+                added=result.added,
+                skipped=result.skipped,
+                errors=result.errors,
+            )
 
     conn.commit()
 
