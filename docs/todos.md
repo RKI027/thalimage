@@ -13,11 +13,11 @@
 
 5. ~~settings close button~~ — done via `returnTo` query param pattern
 
-6. when clicking on a picture, there's a back button which doesn't honor the provenance (eg: it doesn't go back to the previously selected source and in the future, collections, etc...)
+6. ~~back button doesn't honor provenance~~ — fixed: browsing context store tracks origin, back returns to correct grid with label
 
-7. can we persist the scroll location in the gallery so when we click an image and we come back, we are back to the same place (linked to 6.)
+7. ~~scroll position lost on back navigation~~ — fixed: scroll position saved to sessionStorage, restored on return
 
-8. probably related to 6+7: if we click an image left/right and prev/next circulate among the full library, not the selected collection. the fix should probably not be about fixing each of this symptom but maintaining a state of selected source/collection/filter/etc so that actions refer to that selection
+8. ~~prev/next circulates full library instead of current collection~~ — fixed: browsing context scopes prev/next to current collection
 
 # Phase 2
 
@@ -35,4 +35,10 @@
 
 15. ~~toolbar flash on collection switch~~ — fixed: toolbar always rendered, route-group key avoids remount between sibling routes
 
-16. remove a source doesn't remove the collection. creating a collection from a non-scanned source then scanning the source doesn't update the collection (can still create a new collection). this doesn't need to be fixed as it's part of phase 2.5.
+16. ~~source/collection sync issues~~ — fixed: source presets auto-created/synced in Phase 2.5
+
+# Phase 2.5
+
+17. navigating to the /collections isn't easy (go to a collection then click back)
+
+18. from /collections, deleting or creating one doesn't update the sidebar
