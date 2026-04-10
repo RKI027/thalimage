@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
 	import { listImages } from '$lib/api';
 	import type { ImageSummary, SortField, SortDirection } from '$lib/types';
 	import ImageGrid from '$lib/components/ImageGrid.svelte';
@@ -9,6 +11,7 @@
 	let nextCursor: string | null = $state(null);
 	let sort: SortField = $state('name');
 	let dir: SortDirection = $state('asc');
+	let sourceId: number | undefined = $state(undefined);
 	let loading = $state(false);
 	let error: string | null = $state(null);
 	let initialLoad = $state(true);
@@ -18,19 +21,20 @@
 		loading = true;
 		error = null;
 		try {
-			const page = await listImages({
+			const pg = await listImages({
 				cursor: reset ? undefined : (nextCursor ?? undefined),
 				limit: 500,
 				sort,
-				dir
+				dir,
+				source_id: sourceId
 			});
 			if (reset) {
-				images = page.items;
+				images = pg.items;
 			} else {
-				images = [...images, ...page.items];
+				images = [...images, ...pg.items];
 			}
-			totalCount = page.total_count;
-			nextCursor = page.next_cursor;
+			totalCount = pg.total_count;
+			nextCursor = pg.next_cursor;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load images';
 		} finally {
@@ -45,8 +49,24 @@
 		fetchImages(true);
 	}
 
-	import { onMount } from 'svelte';
-	onMount(() => { fetchImages(true); });
+	function readSourceId(): number | undefined {
+		const v = $page.url.searchParams.get('source_id');
+		return v ? Number(v) : undefined;
+	}
+
+	onMount(() => {
+		sourceId = readSourceId();
+		fetchImages(true);
+	});
+
+	// Re-fetch when source_id query param changes (clicking different sources)
+	$effect(() => {
+		const newId = readSourceId();
+		if (newId !== sourceId) {
+			sourceId = newId;
+			fetchImages(true);
+		}
+	});
 </script>
 
 {#if error}

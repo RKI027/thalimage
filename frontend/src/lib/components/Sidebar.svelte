@@ -32,6 +32,7 @@
 					<p class="empty">No sources. <a href="/settings">Add one</a></p>
 				{:else}
 					<ul>
+						<li><a href="/">All</a></li>
 						{#each sources as source}
 							<li>
 								<a href="/?source_id={source.id}">
