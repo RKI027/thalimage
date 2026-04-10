@@ -242,4 +242,14 @@ def run_scan(
     )
     conn.commit()
 
+    # Sync source preset collection
+    from thalimage.services.collection_service import (
+        get_or_create_source_preset,
+        sync_source_preset_images,
+    )
+
+    label = source["label"] or Path(source["path"]).name
+    preset = get_or_create_source_preset(conn, source_id, label)
+    sync_source_preset_images(conn, preset.id, source_id)
+
     return result

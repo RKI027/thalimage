@@ -64,5 +64,5 @@ def test_migrate_idempotent(tmp_path: Path) -> None:
 def test_current_version_after_migrate(tmp_path: Path) -> None:
     conn = connect(tmp_path / "test.db")
     migrate(conn)
-    assert current_version(conn) == 1
+    assert current_version(conn) == 2
     conn.close()

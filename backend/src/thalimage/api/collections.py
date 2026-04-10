@@ -38,9 +38,10 @@ class CollectionImagesBody(BaseModel):
 
 @router.get("", response_model=list[Collection])
 def get_collections(
+    type: Optional[str] = None,
     db: sqlite3.Connection = Depends(get_db),
 ) -> list[Collection]:
-    return list_collections(db)
+    return list_collections(db, type=type)
 
 
 @router.post("", response_model=Collection, status_code=201)
@@ -68,15 +69,17 @@ def patch_collection(
     body: CollectionUpdate,
     db: sqlite3.Connection = Depends(get_db),
 ) -> Collection:
-    coll = update_collection(
+    result = update_collection(
         db, collection_id,
         name=body.name,
         sort_by=body.sort_by,
         sort_dir=body.sort_dir,
     )
-    if coll is None:
+    if result is None:
         raise HTTPException(404, "Collection not found")
-    return coll
+    if isinstance(result, str):
+        raise HTTPException(403, "Cannot rename a preset collection")
+    return result
 
 
 @router.delete("/{collection_id}", status_code=204)
@@ -84,7 +87,10 @@ def del_collection(
     collection_id: int,
     db: sqlite3.Connection = Depends(get_db),
 ) -> None:
-    if not delete_collection(db, collection_id):
+    result = delete_collection(db, collection_id)
+    if isinstance(result, str):
+        raise HTTPException(403, "Cannot delete a preset collection")
+    if not result:
         raise HTTPException(404, "Collection not found")
 
 

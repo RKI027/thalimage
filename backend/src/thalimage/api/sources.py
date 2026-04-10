@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse  # type: ignore[import-untyped]
 
 from thalimage.deps import get_db, get_scan_manager, get_thumb_dir
+from thalimage.services.collection_service import get_or_create_source_preset
 from thalimage.services.scan_manager import ScanManager
 from thalimage.services.scan_service import run_scan
 
@@ -58,7 +59,9 @@ def create_source(
         raise HTTPException(409, "Source path already exists") from exc
 
     row = db.execute("SELECT * FROM sources WHERE id = ?", (cursor.lastrowid,)).fetchone()
-    return SourceResponse(**dict(row))
+    source = SourceResponse(**dict(row))
+    get_or_create_source_preset(db, source.id, body.label or source_path.name)
+    return source
 
 
 @router.delete("/{source_id}", status_code=204)
@@ -69,6 +72,11 @@ def delete_source(
     source = db.execute("SELECT id FROM sources WHERE id = ?", (source_id,)).fetchone()
     if source is None:
         raise HTTPException(404, "Source not found")
+    # Remove preset collection for this source
+    db.execute(
+        "DELETE FROM collections WHERE source_id = ? AND type = 'source_preset'",
+        (source_id,),
+    )
     # Remove dependent rows before deleting the source
     hashes = [
         r["content_hash"]
@@ -97,34 +105,6 @@ def delete_source(
         db.execute("DELETE FROM images WHERE source_id = ?", (source_id,))
     db.execute("DELETE FROM sources WHERE id = ?", (source_id,))
     db.commit()
-
-
-@router.post("/{source_id}/collection", status_code=201)
-def create_collection_from_source(
-    source_id: int,
-    db: sqlite3.Connection = Depends(get_db),
-) -> dict[str, object]:
-    """Create a collection populated with all images from this source."""
-    source = db.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone()
-    if source is None:
-        raise HTTPException(404, "Source not found")
-
-    name = source["label"] or Path(source["path"]).name
-    cursor = db.execute(
-        "INSERT INTO collections (name) VALUES (?)", (name,)
-    )
-    collection_id = cursor.lastrowid
-    db.execute(
-        """INSERT OR IGNORE INTO collection_images (collection_id, content_hash)
-           SELECT ?, content_hash FROM images WHERE source_id = ? AND deleted = 0""",
-        (collection_id, source_id),
-    )
-    db.commit()
-    count = db.execute(
-        "SELECT COUNT(*) as c FROM collection_images WHERE collection_id = ?",
-        (collection_id,),
-    ).fetchone()["c"]
-    return {"collection_id": collection_id, "name": name, "image_count": count}
 
 
 @router.post("/{source_id}/scan", status_code=202)
