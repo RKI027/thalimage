@@ -3,10 +3,13 @@
 import os
 from pathlib import Path
 
+from thalimage.core.video import VIDEO_EXTENSIONS
+
 IMAGE_EXTENSIONS: set[str] = {
     ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp",
-    ".mp4",
 }
+
+SUPPORTED_EXTENSIONS: set[str] = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 
 
 def scan_directory(root: Path, *, recursive: bool = True) -> list[Path]:
@@ -24,11 +27,11 @@ def scan_directory(root: Path, *, recursive: bool = True) -> list[Path]:
                 dir_path = Path(dir_path_str)
                 for name in file_names:
                     fp = dir_path / name
-                    if fp.suffix.lower() in IMAGE_EXTENSIONS:
+                    if fp.suffix.lower() in SUPPORTED_EXTENSIONS:
                         paths.append(fp)
         else:
             for entry in os.scandir(root):
-                if entry.is_file() and Path(entry.name).suffix.lower() in IMAGE_EXTENSIONS:
+                if entry.is_file() and Path(entry.name).suffix.lower() in SUPPORTED_EXTENSIONS:
                     paths.append(Path(entry.path))
     except (OSError, PermissionError):
         pass

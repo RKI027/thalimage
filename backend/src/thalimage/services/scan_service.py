@@ -1,6 +1,7 @@
 """Scan orchestration: discover → hash → metadata → thumbnail → DB."""
 
 import json
+import logging
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,6 +13,14 @@ from thalimage.core.hasher import content_hash
 from thalimage.core.metadata import extract_metadata
 from thalimage.core.scanner import scan_directory
 from thalimage.core.thumbnails import generate_thumbnail
+from thalimage.core.video import (
+    extract_video_info,
+    extract_video_thumbnail,
+    ffmpeg_available,
+    is_video,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class ScanResult(BaseModel):
@@ -87,68 +96,106 @@ def run_scan(
             h = content_hash(file_path)
             seen_hashes.add(h)
 
-            # Step 4: metadata
-            meta = extract_metadata(file_path)
+            if is_video(file_path):
+                if not ffmpeg_available():
+                    logger.warning("Skipping video %s: ffmpeg not available", file_path)
+                    result.errors += 1
+                    continue
 
-            # Step 5: thumbnail
-            generate_thumbnail(file_path, thumb_dir, h)
+                # Video: extract info via ffprobe, thumbnail via ffmpeg
+                info = extract_video_info(file_path)
+                extract_video_thumbnail(file_path, thumb_dir, h)
+                width = info["width"]
+                height = info["height"]
+                aspect = width / height if height else 1.0
+                fmt = file_path.suffix.lstrip(".").upper()
 
-            # Step 6: upsert image
-            conn.execute(
-                """INSERT INTO images
-                   (content_hash, filename, source_id, relative_path,
-                    file_size, width, height, aspect_ratio, format,
-                    file_modified, file_created, thumb_generated)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-                   ON CONFLICT(content_hash) DO UPDATE SET
-                    filename=excluded.filename,
-                    relative_path=excluded.relative_path,
-                    file_size=excluded.file_size,
-                    file_modified=excluded.file_modified,
-                    thumb_generated=1,
-                    deleted=0
-                """,
-                (
-                    h,
-                    file_path.name,
-                    source_id,
-                    relative,
-                    stat.st_size,
-                    meta.file_info.width,
-                    meta.file_info.height,
-                    meta.file_info.aspect_ratio,
-                    meta.file_info.format,
-                    mtime_iso,
-                    ctime_iso,
-                ),
-            )
+                conn.execute(
+                    """INSERT INTO images
+                       (content_hash, filename, source_id, relative_path,
+                        file_size, width, height, aspect_ratio, format,
+                        file_modified, file_created, thumb_generated)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                       ON CONFLICT(content_hash) DO UPDATE SET
+                        filename=excluded.filename,
+                        relative_path=excluded.relative_path,
+                        file_size=excluded.file_size,
+                        file_modified=excluded.file_modified,
+                        thumb_generated=1,
+                        deleted=0
+                    """,
+                    (h, file_path.name, source_id, relative,
+                     stat.st_size, width, height, aspect, fmt,
+                     mtime_iso, ctime_iso),
+                )
 
-            # Upsert metadata
-            ai = meta.ai_params
-            conn.execute(
-                """INSERT INTO image_metadata
-                   (content_hash, ai_tool, prompt, negative_prompt,
-                    raw_params, exif_data, png_text)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(content_hash) DO UPDATE SET
-                    ai_tool=excluded.ai_tool,
-                    prompt=excluded.prompt,
-                    negative_prompt=excluded.negative_prompt,
-                    raw_params=excluded.raw_params,
-                    exif_data=excluded.exif_data,
-                    png_text=excluded.png_text,
-                    extracted_at=datetime('now')
-                """,
-                (
-                    h,
-                    ai.tool if ai else None,
-                    ai.prompt if ai else None,
-                    ai.negative_prompt if ai else None,
-                    ai.raw_params if ai else None,
-                    json.dumps(meta.exif_data) if meta.exif_data else None,
-                    json.dumps(meta.png_text) if meta.png_text else None,
-                ),
-            )
+                # No AI metadata for videos
+                conn.execute(
+                    """INSERT INTO image_metadata (content_hash)
+                       VALUES (?)
+                       ON CONFLICT(content_hash) DO NOTHING
+                    """,
+                    (h,),
+                )
+            else:
+                # Image: extract metadata via PIL, thumbnail via PIL
+                meta = extract_metadata(file_path)
+                generate_thumbnail(file_path, thumb_dir, h)
+
+                conn.execute(
+                    """INSERT INTO images
+                       (content_hash, filename, source_id, relative_path,
+                        file_size, width, height, aspect_ratio, format,
+                        file_modified, file_created, thumb_generated)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                       ON CONFLICT(content_hash) DO UPDATE SET
+                        filename=excluded.filename,
+                        relative_path=excluded.relative_path,
+                        file_size=excluded.file_size,
+                        file_modified=excluded.file_modified,
+                        thumb_generated=1,
+                        deleted=0
+                    """,
+                    (
+                        h,
+                        file_path.name,
+                        source_id,
+                        relative,
+                        stat.st_size,
+                        meta.file_info.width,
+                        meta.file_info.height,
+                        meta.file_info.aspect_ratio,
+                        meta.file_info.format,
+                        mtime_iso,
+                        ctime_iso,
+                    ),
+                )
+
+                ai = meta.ai_params
+                conn.execute(
+                    """INSERT INTO image_metadata
+                       (content_hash, ai_tool, prompt, negative_prompt,
+                        raw_params, exif_data, png_text)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(content_hash) DO UPDATE SET
+                        ai_tool=excluded.ai_tool,
+                        prompt=excluded.prompt,
+                        negative_prompt=excluded.negative_prompt,
+                        raw_params=excluded.raw_params,
+                        exif_data=excluded.exif_data,
+                        png_text=excluded.png_text,
+                        extracted_at=datetime('now')
+                    """,
+                    (
+                        h,
+                        ai.tool if ai else None,
+                        ai.prompt if ai else None,
+                        ai.negative_prompt if ai else None,
+                        ai.raw_params if ai else None,
+                        json.dumps(meta.exif_data) if meta.exif_data else None,
+                        json.dumps(meta.png_text) if meta.png_text else None,
+                    ),
+                )
 
             result.added += 1
 

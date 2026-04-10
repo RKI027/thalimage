@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from thalimage.core.scanner import scan_directory, IMAGE_EXTENSIONS
+from thalimage.core.scanner import scan_directory, IMAGE_EXTENSIONS, SUPPORTED_EXTENSIONS
 
 
 def test_image_extensions_include_common_formats() -> None:
@@ -10,7 +10,13 @@ def test_image_extensions_include_common_formats() -> None:
     assert ".jpg" in IMAGE_EXTENSIONS
     assert ".jpeg" in IMAGE_EXTENSIONS
     assert ".webp" in IMAGE_EXTENSIONS
-    assert ".mp4" in IMAGE_EXTENSIONS
+
+
+def test_supported_extensions_include_video() -> None:
+    assert ".mp4" in SUPPORTED_EXTENSIONS
+    assert ".mov" in SUPPORTED_EXTENSIONS
+    assert ".webm" in SUPPORTED_EXTENSIONS
+    assert ".avi" in SUPPORTED_EXTENSIONS
 
 
 def test_scan_finds_images_recursively(image_dir: Path) -> None:
