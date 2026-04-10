@@ -4,6 +4,8 @@ import type {
 	Source,
 	Collection,
 	ScanProgress,
+	EloPair,
+	EloRanking,
 	SortField,
 	SortDirection
 } from './types';
@@ -135,4 +137,26 @@ export function removeImagesFromCollection(
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ hashes })
 	});
+}
+
+// ELO Voting
+
+export function getEloPair(collectionId: number): Promise<EloPair> {
+	return fetchJSON(`${BASE}/collections/${collectionId}/elo/pair`);
+}
+
+export function recordEloVote(
+	collectionId: number,
+	winnerHash: string,
+	loserHash: string
+): Promise<{ status: string }> {
+	return fetchJSON(`${BASE}/collections/${collectionId}/elo/vote`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ winner_hash: winnerHash, loser_hash: loserHash })
+	});
+}
+
+export function getEloRankings(collectionId: number, limit = 100): Promise<EloRanking[]> {
+	return fetchJSON(`${BASE}/collections/${collectionId}/elo/rankings?limit=${limit}`);
 }

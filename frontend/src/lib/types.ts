@@ -63,3 +63,15 @@ export interface ScanProgress {
 export type SortField = 'name' | 'date_modified' | 'date_created' | 'size' | 'aspect_ratio';
 export type SortDirection = 'asc' | 'desc';
 export type MetadataMode = 'hidden' | 'compact' | 'full';
+
+export interface EloPair {
+	left: ImageSummary;
+	right: ImageSummary;
+}
+
+export interface EloRanking {
+	content_hash: string;
+	filename: string;
+	score: number;
+	matches: number;
+}

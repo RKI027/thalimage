@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from thalimage.api import images, sources, collections
+from thalimage.api import collections, elo, images, sources
 from thalimage.config import get_settings
 from thalimage.db.engine import connect, migrate
 from thalimage.services.scan_manager import ScanManager
@@ -43,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(sources.router, prefix="/api/v1")
     app.include_router(images.router, prefix="/api/v1")
     app.include_router(collections.router, prefix="/api/v1")
+    app.include_router(elo.router, prefix="/api/v1")
 
     # Serve built frontend as static files (SPA with fallback to index.html)
     frontend_dir = FRONTEND_DIR

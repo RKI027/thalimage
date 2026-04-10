@@ -66,6 +66,7 @@
 		</div>
 		<SortControls {sort} {dir} onchange={onSortChange} />
 		<ThumbSizeSlider bind:size={thumbSize} />
+		<a class="elo-link" href="/elo/{collection.id}">ELO Vote</a>
 		<span class="count">{totalCount} images</span>
 	</div>
 
@@ -92,6 +93,20 @@
 	h2 {
 		margin: 0;
 		font-size: 1.1rem;
+	}
+
+	.elo-link {
+		padding: 4px 12px;
+		border: 1px solid #444;
+		border-radius: 4px;
+		background: #2a2a2a;
+		color: #ccc;
+		text-decoration: none;
+		font-size: 0.85rem;
+	}
+
+	.elo-link:hover {
+		background: #3a3a3a;
 	}
 
 	.count {
