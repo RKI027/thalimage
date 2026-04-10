@@ -66,10 +66,65 @@ def delete_source(
     source_id: int,
     db: sqlite3.Connection = Depends(get_db),
 ) -> None:
-    cursor = db.execute("DELETE FROM sources WHERE id = ?", (source_id,))
-    db.commit()
-    if cursor.rowcount == 0:
+    source = db.execute("SELECT id FROM sources WHERE id = ?", (source_id,)).fetchone()
+    if source is None:
         raise HTTPException(404, "Source not found")
+    # Remove dependent rows before deleting the source
+    hashes = [
+        r["content_hash"]
+        for r in db.execute(
+            "SELECT content_hash FROM images WHERE source_id = ?", (source_id,)
+        ).fetchall()
+    ]
+    if hashes:
+        placeholders = ",".join("?" * len(hashes))
+        db.execute(
+            f"DELETE FROM image_metadata WHERE content_hash IN ({placeholders})",
+            hashes,
+        )
+        db.execute(
+            f"DELETE FROM collection_images WHERE content_hash IN ({placeholders})",
+            hashes,
+        )
+        db.execute(
+            f"DELETE FROM elo_scores WHERE content_hash IN ({placeholders})",
+            hashes,
+        )
+        db.execute(
+            f"DELETE FROM votes WHERE winner_hash IN ({placeholders}) OR loser_hash IN ({placeholders})",
+            hashes + hashes,
+        )
+        db.execute("DELETE FROM images WHERE source_id = ?", (source_id,))
+    db.execute("DELETE FROM sources WHERE id = ?", (source_id,))
+    db.commit()
+
+
+@router.post("/{source_id}/collection", status_code=201)
+def create_collection_from_source(
+    source_id: int,
+    db: sqlite3.Connection = Depends(get_db),
+) -> dict[str, object]:
+    """Create a collection populated with all images from this source."""
+    source = db.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone()
+    if source is None:
+        raise HTTPException(404, "Source not found")
+
+    name = source["label"] or Path(source["path"]).name
+    cursor = db.execute(
+        "INSERT INTO collections (name) VALUES (?)", (name,)
+    )
+    collection_id = cursor.lastrowid
+    db.execute(
+        """INSERT OR IGNORE INTO collection_images (collection_id, content_hash)
+           SELECT ?, content_hash FROM images WHERE source_id = ? AND deleted = 0""",
+        (collection_id, source_id),
+    )
+    db.commit()
+    count = db.execute(
+        "SELECT COUNT(*) as c FROM collection_images WHERE collection_id = ?",
+        (collection_id,),
+    ).fetchone()["c"]
+    return {"collection_id": collection_id, "name": name, "image_count": count}
 
 
 @router.post("/{source_id}/scan", status_code=202)

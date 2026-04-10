@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress } from '$lib/api';
+	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress, createCollectionFromSource } from '$lib/api';
 	import type { Source } from '$lib/types';
 
 	let sources: Source[] = $state([]);
@@ -29,6 +29,15 @@
 	async function remove(id: number) {
 		await deleteSource(id);
 		await refresh();
+	}
+
+	async function makeCollection(id: number) {
+		try {
+			const result = await createCollectionFromSource(id);
+			scanStatus[id] = `Collection "${result.name}" created with ${result.image_count} images`;
+		} catch (e) {
+			scanStatus[id] = e instanceof Error ? e.message : 'Failed to create collection';
+		}
 	}
 
 	async function scan(id: number) {
@@ -91,6 +100,7 @@
 					</div>
 					<div class="source-actions">
 						<button onclick={() => scan(source.id)}>Scan</button>
+						<button onclick={() => makeCollection(source.id)}>Create Collection</button>
 						<button class="danger" onclick={() => remove(source.id)}>Remove</button>
 					</div>
 				</li>

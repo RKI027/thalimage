@@ -14,6 +14,30 @@
 - Thumbnail size slider
 - View mode toggle for metadata (none/custom/all with keybind)
 
+## Phase 2.5 — Unified Collections
+
+Collections become the universal container for images. A collection is a set of images — either static (manually curated or snapshot of a query result) or dynamic (backed by a live query).
+
+### Design
+- **Dynamic collections** are defined by a query (source, date range, metadata filters, tags — eventually the full DSL from Phase 3). The query runs on access; results are always current.
+- **Static collections** hold a fixed set of image hashes. Can be created manually or by snapshotting a query result. The originating query and snapshot date are stored for reference.
+- **Preset collections** are built-in dynamic collections: "All Images", one per source, "Photos", "Videos", etc. Not user-deletable.
+
+### Source removal UX
+When removing a source, the user chooses:
+1. **Keep DB entries or not** — convenience (preserve ELO scores, tags, collection memberships) vs. clean-up (privacy, declutter). Kept entries are flagged as orphaned and recoverable if the source is re-added.
+2. **Generate sidecar files or not** — write metadata (ELO scores, tags, prompt data) to sidecar files alongside the original images before removal, so data survives independently of the DB.
+
+### Migration path
+- Sources UI is replaced by collections UI; source management moves to per-collection settings for source-backed collections.
+- Sidebar shows collections (preset + user-created) instead of raw sources.
+- ELO, tagging, and all future features operate on collections, never raw sources.
+- The current `sources` table remains as backend plumbing (scan targets), but users interact only through collections.
+
+### Open questions
+- Ordering: this could come before or after Phase 3. The DSL isn't needed for source presets, but designing the collection query model well requires knowing what Phase 3 filters look like. A minimal version (source presets only) can land first, with the query system added in Phase 3.
+- Schema changes: `collections` table gains `type` (static/dynamic), `query` (JSON), `source_id` (nullable, for source-backed presets). Migration from current schema is straightforward.
+
 ## Phase 3 — Organization & Search
 - Tagging system with author tracking + tag ontology
 - Auto-tagging (CLIP, face detection)
