@@ -1,14 +1,19 @@
 """FastAPI application factory."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from thalimage.api import images, sources, collections
 from thalimage.config import get_settings
 from thalimage.db.engine import connect, migrate
+
+FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "build"
 
 
 @asynccontextmanager
@@ -36,5 +41,17 @@ def create_app() -> FastAPI:
     app.include_router(sources.router, prefix="/api/v1")
     app.include_router(images.router, prefix="/api/v1")
     app.include_router(collections.router, prefix="/api/v1")
+
+    # Serve built frontend as static files (SPA with fallback to index.html)
+    frontend_dir = FRONTEND_DIR
+    if frontend_dir.is_dir():
+        app.mount("/_app", StaticFiles(directory=frontend_dir / "_app"), name="static")
+
+        @app.get("/{path:path}")
+        async def spa_fallback(path: str) -> FileResponse:
+            file = frontend_dir / path
+            if file.is_file():
+                return FileResponse(file)
+            return FileResponse(frontend_dir / "index.html")
 
     return app

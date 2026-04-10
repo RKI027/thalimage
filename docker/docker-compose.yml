@@ -1,0 +1,17 @@
+services:
+  thalimage:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - thalimage-data:/data
+      # Mount your image folders read-only
+      # - /path/to/your/images:/images:ro
+    environment:
+      - THALIMAGE_DATA_DIR=/data
+    restart: unless-stopped
+
+volumes:
+  thalimage-data:
