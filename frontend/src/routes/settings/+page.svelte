@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress, createCollectionFromSource } from '$lib/api';
+	import { collectionsStore, sourcesStore } from '$lib/stores';
 	import type { Source } from '$lib/types';
 
 	let sources: Source[] = $state([]);
@@ -21,6 +22,7 @@
 			newPath = '';
 			newLabel = '';
 			await refresh();
+			sourcesStore.refresh();
 		} catch (e) {
 			alert(e instanceof Error ? e.message : 'Failed to add source');
 		}
@@ -29,12 +31,14 @@
 	async function remove(id: number) {
 		await deleteSource(id);
 		await refresh();
+		sourcesStore.refresh();
 	}
 
 	async function makeCollection(id: number) {
 		try {
 			const result = await createCollectionFromSource(id);
 			scanStatus[id] = `Collection "${result.name}" created with ${result.image_count} images`;
+			collectionsStore.refresh();
 		} catch (e) {
 			scanStatus[id] = e instanceof Error ? e.message : 'Failed to create collection';
 		}
@@ -51,6 +55,7 @@
 					scanStatus[id] = `Done: ${p.added} added, ${p.skipped} skipped, ${p.errors} errors`;
 					unsubscribe();
 					refresh();
+					sourcesStore.refresh();
 				} else if (p.phase === 'error') {
 					scanStatus[id] = `Error: ${p.message || 'Scan failed'}`;
 					unsubscribe();

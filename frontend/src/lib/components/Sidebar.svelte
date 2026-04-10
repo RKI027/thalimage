@@ -1,21 +1,14 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
-	import { listSources, listCollections } from '$lib/api';
-	import type { Source, Collection } from '$lib/types';
+	import { sourcesStore, collectionsStore } from '$lib/stores';
 
-	let sources: Source[] = $state([]);
-	let collections: Collection[] = $state([]);
 	let open = $state(true);
-
-	async function refresh() {
-		[sources, collections] = await Promise.all([listSources(), listCollections()]);
-	}
 
 	// Re-fetch on route change so changes from Settings/Collections are picked up
 	$effect(() => {
 		void $page.url.pathname;
-		untrack(() => { refresh(); });
+		sourcesStore.refresh();
+		collectionsStore.refresh();
 	});
 
 	const settingsHref = $derived(
@@ -34,12 +27,12 @@
 		<nav>
 			<section>
 				<h3>Sources</h3>
-				{#if sources.length === 0}
+				{#if $sourcesStore.length === 0}
 					<p class="empty">No sources. <a href={settingsHref}>Add one</a></p>
 				{:else}
 					<ul>
 						<li><a href="/">All</a></li>
-						{#each sources as source}
+						{#each $sourcesStore as source}
 							<li>
 								<a href="/?source_id={source.id}">
 									{source.label || source.path}
@@ -55,11 +48,11 @@
 
 			<section>
 				<h3>Collections</h3>
-				{#if collections.length === 0}
+				{#if $collectionsStore.length === 0}
 					<p class="empty">No collections yet</p>
 				{:else}
 					<ul>
-						{#each collections as coll}
+						{#each $collectionsStore as coll}
 							<li>
 								<a href="/collections/{coll.id}">
 									{coll.name}

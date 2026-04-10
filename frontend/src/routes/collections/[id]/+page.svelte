@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { listImages } from '$lib/api';
-	import { listCollections } from '$lib/api';
+	import { listImages, getCollection as fetchCollection } from '$lib/api';
 	import type { ImageSummary, Collection } from '$lib/types';
 	import ImageGrid from '$lib/components/ImageGrid.svelte';
 	import SortControls from '$lib/components/SortControls.svelte';
@@ -19,9 +18,12 @@
 
 	$effect(() => { localStorage.setItem('thumbSize', String(thumbSize)); });
 
+	function collectionId(): number {
+		return Number($page.params.id);
+	}
+
 	async function fetchImages(reset = false) {
 		if (loading) return;
-		const id = Number($page.params.id);
 		loading = true;
 		try {
 			const pg = await listImages({
@@ -29,7 +31,7 @@
 				limit: 500,
 				sort,
 				dir,
-				collection_id: id
+				collection_id: collectionId()
 			});
 			images = reset ? pg.items : [...images, ...pg.items];
 			totalCount = pg.total_count;
@@ -40,9 +42,7 @@
 	}
 
 	async function loadCollection() {
-		const id = Number($page.params.id);
-		const colls = await listCollections();
-		collection = colls.find((c) => c.id === id) ?? null;
+		collection = await fetchCollection(collectionId());
 	}
 
 	function onSortChange(newSort: SortField, newDir: SortDirection) {
@@ -58,28 +58,26 @@
 	});
 </script>
 
-{#if collection}
-	<div class="toolbar">
-		<div class="left">
-			<a href="/collections">← Collections</a>
-			<h2>{collection.name}</h2>
-		</div>
-		<SortControls {sort} {dir} onchange={onSortChange} />
-		<ThumbSizeSlider bind:size={thumbSize} />
-		<a class="elo-link" href="/elo/{collection.id}">ELO Vote</a>
-		<span class="count">{totalCount} images</span>
+<div class="toolbar">
+	<div class="left">
+		<a href="/collections">← Collections</a>
+		<h2>{collection?.name ?? ''}</h2>
 	</div>
+	<SortControls {sort} {dir} onchange={onSortChange} />
+	<ThumbSizeSlider bind:size={thumbSize} />
+	{#if collection}
+		<a class="elo-link" href="/elo/{collection.id}">ELO Vote</a>
+	{/if}
+	<span class="count">{totalCount} images</span>
+</div>
 
-	<ImageGrid {images} {totalCount} thumbSize={thumbSize} onLoadMore={() => nextCursor && fetchImages()} />
-{:else}
-	<div class="loading">Loading…</div>
-{/if}
+<ImageGrid {images} {totalCount} thumbSize={thumbSize} onLoadMore={() => nextCursor && fetchImages()} />
 
 <style>
 	.toolbar {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		gap: 12px;
 		padding: 0 8px;
 		flex-shrink: 0;
 	}
@@ -113,11 +111,6 @@
 		color: #888;
 		font-size: 0.85rem;
 		padding-right: 8px;
-	}
-
-	.loading {
-		padding: 32px;
-		color: #888;
-		text-align: center;
+		margin-left: auto;
 	}
 </style>

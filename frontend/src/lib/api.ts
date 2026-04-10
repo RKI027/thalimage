@@ -99,6 +99,10 @@ export function listCollections(): Promise<Collection[]> {
 	return fetchJSON(`${BASE}/collections`);
 }
 
+export function getCollection(id: number): Promise<Collection> {
+	return fetchJSON(`${BASE}/collections/${id}`);
+}
+
 export function createCollection(name: string, parentId?: number): Promise<Collection> {
 	return fetchJSON(`${BASE}/collections`, {
 		method: 'POST',
