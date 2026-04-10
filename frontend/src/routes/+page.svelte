@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
 	import { page } from '$app/stores';
+	import { beforeNavigate } from '$app/navigation';
 	import { listImages } from '$lib/api';
+	import { setBrowsingContext, saveScrollPosition, getScrollPosition } from '$lib/browsingContext';
 	import type { ImageSummary, SortField, SortDirection } from '$lib/types';
 	import ImageGrid from '$lib/components/ImageGrid.svelte';
 	import SortControls from '$lib/components/SortControls.svelte';
@@ -17,8 +19,14 @@
 	let loading = $state(false);
 	let error: string | null = $state(null);
 	let initialLoad = $state(true);
+	let currentScrollTop = $state(0);
+	let restoredScrollTop = $state(0);
 
 	$effect(() => { localStorage.setItem('thumbSize', String(thumbSize)); });
+
+	beforeNavigate(() => {
+		saveScrollPosition(currentScrollTop);
+	});
 
 	async function fetchImages(reset = false) {
 		if (loading) return;
@@ -59,6 +67,8 @@
 	}
 
 	onMount(() => {
+		setBrowsingContext({ type: 'all' });
+		restoredScrollTop = getScrollPosition();
 		sourceId = readSourceId();
 		fetchImages(true);
 	});
@@ -98,7 +108,9 @@
 		{images}
 		{totalCount}
 		thumbSize={thumbSize}
+		initialScrollTop={restoredScrollTop}
 		onLoadMore={() => nextCursor && fetchImages()}
+		onScroll={(s) => { currentScrollTop = s; }}
 	/>
 {/if}
 

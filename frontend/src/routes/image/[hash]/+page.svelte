@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getImage, listImages } from '$lib/api';
+	import { browsingContext, backDestination, backLabel } from '$lib/browsingContext';
 	import type { ImageDetail, ImageSummary, MetadataMode } from '$lib/types';
 	import ImageViewer from '$lib/components/ImageViewer.svelte';
 	import MetadataPanel from '$lib/components/MetadataPanel.svelte';
@@ -12,6 +13,10 @@
 	let error: string | null = $state(null);
 	let metadataMode: MetadataMode = $state('full');
 	const metadataModes: MetadataMode[] = ['hidden', 'compact', 'full'];
+
+	const ctx = $derived($browsingContext);
+	const back = $derived(backDestination(ctx));
+	const backText = $derived(backLabel(ctx));
 
 	async function load(hash: string) {
 		error = null;
@@ -29,7 +34,15 @@
 	}
 
 	async function loadNeighbors() {
-		const pg = await listImages({ limit: 1000 });
+		if (!ctx) {
+			neighbors = [];
+			return;
+		}
+		const params: Parameters<typeof listImages>[0] = { limit: 1000 };
+		if (ctx.type === 'collection') {
+			params.collection_id = ctx.collectionId;
+		}
+		const pg = await listImages(params);
 		neighbors = pg.items;
 		updateIndex();
 	}
@@ -55,7 +68,7 @@
 			navigate(1);
 		} else if (e.key === 'Escape') {
 			e.preventDefault();
-			goto('/');
+			goto(back);
 		} else if (e.key === 'i') {
 			e.preventDefault();
 			const idx = metadataModes.indexOf(metadataMode);
@@ -79,7 +92,7 @@
 {:else if image}
 	<div class="image-page">
 		<div class="top-bar">
-			<a href="/">← Back</a>
+			<a href={back}>{backText}</a>
 			<span class="filename">{image.filename}</span>
 			<div class="nav-buttons">
 				<button disabled={currentIndex <= 0} onclick={() => navigate(-1)}>← Prev</button>

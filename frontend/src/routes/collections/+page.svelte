@@ -6,7 +6,8 @@
 	let newName = $state('');
 
 	async function refresh() {
-		collections = await listCollections();
+		const all = await listCollections();
+		collections = all.filter((c) => c.type === 'manual');
 	}
 
 	async function addCollection() {

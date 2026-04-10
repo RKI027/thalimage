@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
+	import { beforeNavigate } from '$app/navigation';
 	import { listImages, getCollection as fetchCollection } from '$lib/api';
+	import { setBrowsingContext, saveScrollPosition, getScrollPosition } from '$lib/browsingContext';
 	import type { ImageSummary, Collection } from '$lib/types';
 	import ImageGrid from '$lib/components/ImageGrid.svelte';
 	import SortControls from '$lib/components/SortControls.svelte';
@@ -16,8 +18,14 @@
 	let dir: SortDirection = $state('asc');
 	let thumbSize = $state(Number(localStorage.getItem('thumbSize')) || 200);
 	let loading = $state(false);
+	let currentScrollTop = $state(0);
+	let restoredScrollTop = $state(0);
 
 	$effect(() => { localStorage.setItem('thumbSize', String(thumbSize)); });
+
+	beforeNavigate(() => {
+		saveScrollPosition(currentScrollTop);
+	});
 
 	function collectionId(): number {
 		return Number($page.params.id);
@@ -44,6 +52,9 @@
 
 	async function loadCollection() {
 		collection = await fetchCollection(collectionId());
+		if (collection) {
+			setBrowsingContext({ type: 'collection', collectionId: collection.id, name: collection.name });
+		}
 	}
 
 	function onSortChange(newSort: SortField, newDir: SortDirection) {
@@ -55,6 +66,7 @@
 	$effect(() => {
 		const _id = $page.params.id;
 		untrack(() => {
+			restoredScrollTop = getScrollPosition();
 			loadCollection();
 			fetchImages(true);
 		});
@@ -74,7 +86,14 @@
 	<span class="count">{totalCount} images</span>
 </div>
 
-<ImageGrid {images} {totalCount} thumbSize={thumbSize} onLoadMore={() => nextCursor && fetchImages()} />
+<ImageGrid
+	{images}
+	{totalCount}
+	thumbSize={thumbSize}
+	initialScrollTop={restoredScrollTop}
+	onLoadMore={() => nextCursor && fetchImages()}
+	onScroll={(s) => { currentScrollTop = s; }}
+/>
 
 <style>
 	.toolbar {

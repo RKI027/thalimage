@@ -71,12 +71,6 @@ export async function deleteSource(id: number): Promise<void> {
 	if (!resp.ok) throw new Error(`Delete failed: ${resp.status}`);
 }
 
-export function createCollectionFromSource(
-	sourceId: number
-): Promise<{ collection_id: number; name: string; image_count: number }> {
-	return fetchJSON(`${BASE}/sources/${sourceId}/collection`, { method: 'POST' });
-}
-
 export async function triggerScan(sourceId: number): Promise<{ status: string }> {
 	return fetchJSON(`${BASE}/sources/${sourceId}/scan`, { method: 'POST' });
 }

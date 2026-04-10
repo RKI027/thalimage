@@ -1,4 +1,4 @@
-# Previous phases
+# Phase 1 / MCP
 
 1. ~~split pane bug~~ — fixed by keying layout render on `$page.url.pathname`
 
@@ -21,18 +21,18 @@
 
 # Phase 2
 
-1. ~~source switch flash~~ — fixed toolbar layout (gap instead of space-between)
+9. ~~source switch flash~~ — fixed toolbar layout (gap instead of space-between)
 
-2. ~~removing a source folder fails~~ — fixed: cascade-delete dependent rows (images, metadata, collection_images, elo_scores, votes). Future: source removal UX with keep/sidecar options (see Phase 2.5 in phases.md).
+10. ~~removing a source folder fails~~ — fixed: cascade-delete dependent rows (images, metadata, collection_images, elo_scores, votes). Future: source removal UX with keep/sidecar options (see Phase 2.5 in phases.md).
 
-3. ~~mp4 thumbnail ok, no video rendering~~ — expected: Sprint 2 only added thumbnail extraction, not video playback. Video player deferred.
+11. ~~mp4 thumbnail ok, no video rendering~~ — expected: Sprint 2 only added thumbnail extraction, not video playback. Video player deferred.
 
-4. ~~no UI to enter ELO mode~~ — ELO link is on collection detail page. Bridge: added "Create Collection" button per source in Settings so ELO can be tested without manual collection creation. Will be replaced by unified collections (Phase 2.5).
+12. ~~no UI to enter ELO mode~~ — ELO link is on collection detail page. Bridge: added "Create Collection" button per source in Settings so ELO can be tested without manual collection creation. Will be replaced by unified collections (Phase 2.5).
 
-5. ~~on create collection, the sidebar doesn't register the new collection~~ — fixed via shared stores
+13. ~~on create collection, the sidebar doesn't register the new collection~~ — fixed via shared stores
 
-6. ~~rapid GET /api/v1/collections requests~~ — fixed: $effect reactivity loop (untrack async calls) + route-group keying in layout
+14. ~~rapid GET /api/v1/collections requests~~ — fixed: $effect reactivity loop (untrack async calls) + route-group keying in layout
 
-7. ~~toolbar flash on collection switch~~ — fixed: toolbar always rendered, route-group key avoids remount between sibling routes
+15. ~~toolbar flash on collection switch~~ — fixed: toolbar always rendered, route-group key avoids remount between sibling routes
 
-8. remove a source doesn't remove the collection. creating a collection from a non-scanned source then scanning the source doesn't update the collection (can still create a new collection). this doesn't need to be fixed as it's part of phase 2.5.
+16. remove a source doesn't remove the collection. creating a collection from a non-scanned source then scanning the source doesn't update the collection (can still create a new collection). this doesn't need to be fixed as it's part of phase 2.5.

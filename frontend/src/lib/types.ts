@@ -42,6 +42,8 @@ export interface Collection {
 	id: number;
 	name: string;
 	parent_id: number | null;
+	type: string;
+	source_id: number | null;
 	sort_by: string;
 	sort_dir: string;
 	created_at: string;

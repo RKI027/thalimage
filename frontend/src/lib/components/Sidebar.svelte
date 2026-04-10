@@ -1,20 +1,36 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
-	import { sourcesStore, collectionsStore } from '$lib/stores';
+	import { collectionsStore } from '$lib/stores';
 
 	let open = $state(true);
+	let presetsOpen = $state(true);
+	let collectionsOpen = $state(true);
 
-	onMount(() => {
-		sourcesStore.refresh();
-		collectionsStore.refresh();
-	});
+	const presets = $derived($collectionsStore.filter((c) => c.type === 'source_preset'));
+	const userCollections = $derived($collectionsStore.filter((c) => c.type === 'manual'));
 
 	const settingsHref = $derived(
 		$page.url.pathname === '/settings'
 			? '/settings'
 			: `/settings?returnTo=${encodeURIComponent($page.url.pathname + $page.url.search)}`
 	);
+
+	onMount(() => {
+		collectionsStore.refresh();
+		presetsOpen = localStorage.getItem('sidebar:presets') !== 'false';
+		collectionsOpen = localStorage.getItem('sidebar:collections') !== 'false';
+	});
+
+	function togglePresets() {
+		presetsOpen = !presetsOpen;
+		localStorage.setItem('sidebar:presets', String(presetsOpen));
+	}
+
+	function toggleCollections() {
+		collectionsOpen = !collectionsOpen;
+		localStorage.setItem('sidebar:collections', String(collectionsOpen));
+	}
 </script>
 
 <aside class="sidebar" class:collapsed={!open}>
@@ -25,20 +41,19 @@
 	{#if open}
 		<nav>
 			<section>
-				<h3>Sources</h3>
-				{#if $sourcesStore.length === 0}
-					<p class="empty">No sources. <a href={settingsHref}>Add one</a></p>
-				{:else}
+				<button class="section-header" onclick={togglePresets}>
+					<span>{presetsOpen ? '▼' : '▶'}</span>
+					<h3>Presets</h3>
+				</button>
+				{#if presetsOpen}
 					<ul>
-						<li><a href="/">All</a></li>
-						{#each $sourcesStore as source}
+						<li><a href="/">All Images</a></li>
+						{#each presets as preset}
 							<li>
-								<a href="/?source_id={source.id}">
-									{source.label || source.path}
+								<a href="/collections/{preset.id}">
+									{preset.name}
+									<span class="badge">{preset.image_count}</span>
 								</a>
-								{#if source.last_scan}
-									<span class="meta">Last scan: {new Date(source.last_scan).toLocaleDateString()}</span>
-								{/if}
 							</li>
 						{/each}
 					</ul>
@@ -46,20 +61,25 @@
 			</section>
 
 			<section>
-				<h3>Collections</h3>
-				{#if $collectionsStore.length === 0}
-					<p class="empty">No collections yet</p>
-				{:else}
-					<ul>
-						{#each $collectionsStore as coll}
-							<li>
-								<a href="/collections/{coll.id}">
-									{coll.name}
-									<span class="badge">{coll.image_count}</span>
-								</a>
-							</li>
-						{/each}
-					</ul>
+				<button class="section-header" onclick={toggleCollections}>
+					<span>{collectionsOpen ? '▼' : '▶'}</span>
+					<h3>Collections</h3>
+				</button>
+				{#if collectionsOpen}
+					{#if userCollections.length === 0}
+						<p class="empty">No collections yet</p>
+					{:else}
+						<ul>
+							{#each userCollections as coll}
+								<li>
+									<a href="/collections/{coll.id}">
+										{coll.name}
+										<span class="badge">{coll.image_count}</span>
+									</a>
+								</li>
+							{/each}
+						</ul>
+					{/if}
 				{/if}
 			</section>
 
@@ -107,12 +127,34 @@
 		margin-bottom: 16px;
 	}
 
-	h3 {
-		margin: 0 0 8px;
+	.section-header {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		width: 100%;
+		margin-bottom: 8px;
+	}
+
+	.section-header span {
+		color: #666;
+		font-size: 0.7rem;
+		width: 12px;
+	}
+
+	.section-header h3 {
+		margin: 0;
 		font-size: 0.8rem;
 		color: #888;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
+	}
+
+	.section-header:hover h3 {
+		color: #aaa;
 	}
 
 	ul {
@@ -146,13 +188,6 @@
 		border-radius: 10px;
 		font-size: 0.75rem;
 		color: #888;
-	}
-
-	.meta {
-		display: block;
-		font-size: 0.75rem;
-		color: #666;
-		padding-left: 8px;
 	}
 
 	.empty {

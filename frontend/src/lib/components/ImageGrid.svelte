@@ -7,13 +7,17 @@
 		totalCount,
 		thumbSize = 200,
 		gap = 8,
-		onLoadMore
+		initialScrollTop = 0,
+		onLoadMore,
+		onScroll: onScrollCallback
 	}: {
 		images: ImageSummary[];
 		totalCount: number;
 		thumbSize?: number;
 		gap?: number;
+		initialScrollTop?: number;
 		onLoadMore?: () => void;
+		onScroll?: (scrollTop: number) => void;
 	} = $props();
 
 	let containerEl: HTMLDivElement | undefined = $state();
@@ -34,6 +38,7 @@
 	function onScroll() {
 		if (!containerEl) return;
 		scrollTop = containerEl.scrollTop;
+		onScrollCallback?.(scrollTop);
 
 		// Pre-fetch at 70% scroll through loaded items
 		const scrollRatio = (scrollTop + viewportHeight) / totalHeight;
@@ -50,11 +55,20 @@
 		}
 	}
 
+	let scrollRestored = false;
+
 	$effect(() => {
 		if (!containerEl) return;
 		const observer = new ResizeObserver(onResize);
 		observer.observe(containerEl);
 		return () => observer.disconnect();
+	});
+
+	$effect(() => {
+		if (!scrollRestored && containerEl && images.length > 0 && containerWidth > 0 && initialScrollTop > 0) {
+			containerEl.scrollTop = initialScrollTop;
+			scrollRestored = true;
+		}
 	});
 </script>
 
