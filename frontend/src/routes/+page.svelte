@@ -5,6 +5,7 @@
 	import type { ImageSummary, SortField, SortDirection } from '$lib/types';
 	import ImageGrid from '$lib/components/ImageGrid.svelte';
 	import SortControls from '$lib/components/SortControls.svelte';
+	import ThumbSizeSlider from '$lib/components/ThumbSizeSlider.svelte';
 
 	let images: ImageSummary[] = $state([]);
 	let totalCount = $state(0);
@@ -12,9 +13,12 @@
 	let sort: SortField = $state('name');
 	let dir: SortDirection = $state('asc');
 	let sourceId: number | undefined = $state(undefined);
+	let thumbSize = $state(Number(localStorage.getItem('thumbSize')) || 200);
 	let loading = $state(false);
 	let error: string | null = $state(null);
 	let initialLoad = $state(true);
+
+	$effect(() => { localStorage.setItem('thumbSize', String(thumbSize)); });
 
 	async function fetchImages(reset = false) {
 		if (loading) return;
@@ -81,6 +85,7 @@
 {:else}
 	<div class="toolbar">
 		<SortControls {sort} {dir} onchange={onSortChange} />
+		<ThumbSizeSlider bind:size={thumbSize} />
 		<span class="count">
 			{totalCount} images
 			{#if loading}<span class="loading-hint"> (loading…)</span>{/if}
@@ -90,6 +95,7 @@
 	<ImageGrid
 		{images}
 		{totalCount}
+		thumbSize={thumbSize}
 		onLoadMore={() => nextCursor && fetchImages()}
 	/>
 {/if}

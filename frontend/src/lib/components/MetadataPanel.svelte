@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { ImageDetail } from '$lib/types';
+	import type { ImageDetail, MetadataMode } from '$lib/types';
 
-	let { image, open = true }: { image: ImageDetail; open?: boolean } = $props();
+	let { image, mode = 'full' }: { image: ImageDetail; mode?: MetadataMode } = $props();
 
 	function formatSize(bytes: number): string {
 		if (bytes < 1024) return `${bytes} B`;
@@ -19,12 +19,17 @@
 	}
 </script>
 
-<aside class="panel" class:collapsed={!open}>
-	<button class="toggle" onclick={() => (open = !open)}>
-		{open ? '▶' : '◀'} Metadata
-	</button>
-
-	{#if open}
+{#if mode !== 'hidden'}
+<aside class="panel" class:compact={mode === 'compact'}>
+	{#if mode === 'compact'}
+		<div class="content">
+			<dl>
+				<dt>Name</dt><dd>{image.filename}</dd>
+				<dt>Dimensions</dt><dd>{image.width} × {image.height}</dd>
+				<dt>Format</dt><dd>{image.format}</dd>
+			</dl>
+		</div>
+	{:else}
 		<div class="content">
 			<section>
 				<h3>File</h3>
@@ -77,6 +82,7 @@
 		</div>
 	{/if}
 </aside>
+{/if}
 
 <style>
 	.panel {
@@ -89,22 +95,8 @@
 		flex-direction: column;
 	}
 
-	.panel.collapsed {
-		width: auto;
-	}
-
-	.toggle {
-		background: #2a2a2a;
-		border: none;
-		color: #ccc;
-		padding: 8px 12px;
-		cursor: pointer;
-		text-align: left;
-		border-bottom: 1px solid #333;
-	}
-
-	.toggle:hover {
-		background: #3a3a3a;
+	.panel.compact {
+		width: 200px;
 	}
 
 	.content {

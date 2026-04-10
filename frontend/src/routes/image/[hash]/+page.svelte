@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getImage, listImages } from '$lib/api';
-	import type { ImageDetail, ImageSummary } from '$lib/types';
+	import type { ImageDetail, ImageSummary, MetadataMode } from '$lib/types';
 	import ImageViewer from '$lib/components/ImageViewer.svelte';
 	import MetadataPanel from '$lib/components/MetadataPanel.svelte';
 
@@ -10,6 +10,8 @@
 	let neighbors: ImageSummary[] = $state([]);
 	let currentIndex = $state(-1);
 	let error: string | null = $state(null);
+	let metadataMode: MetadataMode = $state('full');
+	const metadataModes: MetadataMode[] = ['hidden', 'compact', 'full'];
 
 	async function load(hash: string) {
 		error = null;
@@ -54,6 +56,10 @@
 		} else if (e.key === 'Escape') {
 			e.preventDefault();
 			goto('/');
+		} else if (e.key === 'i') {
+			e.preventDefault();
+			const idx = metadataModes.indexOf(metadataMode);
+			metadataMode = metadataModes[(idx + 1) % metadataModes.length];
 		}
 	}
 
@@ -97,7 +103,7 @@
 				width={image.width}
 				height={image.height}
 			/>
-			<MetadataPanel {image} />
+			<MetadataPanel {image} mode={metadataMode} />
 		</div>
 	</div>
 {:else}
