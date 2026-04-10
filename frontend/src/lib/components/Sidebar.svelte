@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/stores';
 	import { listSources, listCollections } from '$lib/api';
 	import type { Source, Collection } from '$lib/types';
 
@@ -10,7 +11,9 @@
 		[sources, collections] = await Promise.all([listSources(), listCollections()]);
 	}
 
+	// Re-fetch on every navigation so changes from Settings/Collections are picked up
 	$effect(() => {
+		$page.url;
 		refresh();
 	});
 </script>
