@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { listCollections, createCollection, deleteCollection } from '$lib/api';
+	import { collectionsStore } from '$lib/stores';
 	import type { Collection } from '$lib/types';
 
 	let collections: Collection[] = $state([]);
@@ -15,11 +16,13 @@
 		await createCollection(newName.trim());
 		newName = '';
 		await refresh();
+		collectionsStore.refresh();
 	}
 
 	async function remove(id: number) {
 		await deleteCollection(id);
 		await refresh();
+		collectionsStore.refresh();
 	}
 
 	import { onMount } from 'svelte';

@@ -39,6 +39,6 @@
 
 # Phase 2.5
 
-17. navigating to the /collections isn't easy (go to a collection then click back)
+17. ~~navigating to the /collections isn't easy~~ — fixed: gear icon on sidebar Collections header links to /collections
 
-18. from /collections, deleting or creating one doesn't update the sidebar
+18. ~~from /collections, deleting or creating one doesn't update the sidebar~~ — fixed: collectionsStore.refresh() after create/delete

@@ -61,10 +61,13 @@
 			</section>
 
 			<section>
-				<button class="section-header" onclick={toggleCollections}>
-					<span>{collectionsOpen ? '▼' : '▶'}</span>
-					<h3>Collections</h3>
-				</button>
+				<div class="section-header-row">
+					<button class="section-header" onclick={toggleCollections}>
+						<span>{collectionsOpen ? '▼' : '▶'}</span>
+						<h3>Collections</h3>
+					</button>
+					<a href="/collections" class="manage-link" title="Manage collections">⚙</a>
+				</div>
 				{#if collectionsOpen}
 					{#if userCollections.length === 0}
 						<p class="empty">No collections yet</p>
@@ -125,6 +128,28 @@
 
 	section {
 		margin-bottom: 16px;
+	}
+
+	.section-header-row {
+		display: flex;
+		align-items: center;
+		margin-bottom: 8px;
+	}
+
+	.section-header-row .section-header {
+		margin-bottom: 0;
+	}
+
+	.manage-link {
+		margin-left: auto;
+		color: #666;
+		font-size: 0.85rem;
+		text-decoration: none;
+		padding: 0 4px;
+	}
+
+	.manage-link:hover {
+		color: #ccc;
 	}
 
 	.section-header {
