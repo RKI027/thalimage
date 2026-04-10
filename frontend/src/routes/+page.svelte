@@ -45,9 +45,8 @@
 		fetchImages(true);
 	}
 
-	$effect(() => {
-		fetchImages(true);
-	});
+	import { onMount } from 'svelte';
+	onMount(() => { fetchImages(true); });
 </script>
 
 {#if error}

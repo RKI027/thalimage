@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { listSources, listCollections } from '$lib/api';
 	import type { Source, Collection } from '$lib/types';
@@ -11,10 +12,10 @@
 		[sources, collections] = await Promise.all([listSources(), listCollections()]);
 	}
 
-	// Re-fetch on every navigation so changes from Settings/Collections are picked up
+	// Re-fetch on route change so changes from Settings/Collections are picked up
 	$effect(() => {
-		$page.url;
-		refresh();
+		void $page.url.pathname;
+		untrack(() => { refresh(); });
 	});
 </script>
 

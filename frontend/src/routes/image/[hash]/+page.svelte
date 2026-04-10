@@ -15,6 +15,11 @@
 		error = null;
 		try {
 			image = await getImage(hash);
+			if (neighbors.length === 0) {
+				await loadNeighbors();
+			} else {
+				updateIndex();
+			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load image';
 			image = null;
@@ -22,10 +27,8 @@
 	}
 
 	async function loadNeighbors() {
-		// Fetch all images to enable prev/next navigation
-		// In production this would be smarter (fetch a window around current)
-		const page = await listImages({ limit: 1000 });
-		neighbors = page.items;
+		const pg = await listImages({ limit: 1000 });
+		neighbors = pg.items;
 		updateIndex();
 	}
 
@@ -61,13 +64,6 @@
 		}
 	});
 
-	$effect(() => {
-		if (image && neighbors.length === 0) {
-			loadNeighbors();
-		} else if (image) {
-			updateIndex();
-		}
-	});
 </script>
 
 <svelte:window onkeydown={onKeydown} />

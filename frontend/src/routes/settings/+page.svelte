@@ -39,9 +39,8 @@
 		}
 	}
 
-	$effect(() => {
-		refresh();
-	});
+	import { onMount } from 'svelte';
+	onMount(() => { refresh(); });
 </script>
 
 <div class="settings-page">
