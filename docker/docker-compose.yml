@@ -7,10 +7,18 @@ services:
       - "8000:8000"
     volumes:
       - thalimage-data:/data
-      # Mount your image folders read-only
-      # - /path/to/your/images:/images:ro
+      # Mount image folders read-only. The app only reads originals;
+      # thumbnails and DB are stored in /data.
+      # You can mount multiple source directories:
+      #   - /photos/ai:/images/ai:ro
+      #   - /photos/comfy:/images/comfy:ro
+      # Then add each as a source in Settings (e.g. /images/ai).
+      - /path/to/your/images:/images:ro
     environment:
       - THALIMAGE_DATA_DIR=/data
+      # Match these to your host user so the container can read your images
+      - PUID=1000
+      - PGID=1000
     restart: unless-stopped
 
 volumes:

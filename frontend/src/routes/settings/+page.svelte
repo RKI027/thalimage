@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/stores';
 	import { listSources, createSource, deleteSource, triggerScan } from '$lib/api';
 	import type { Source, ScanResult } from '$lib/types';
 
@@ -6,6 +7,8 @@
 	let newPath = $state('');
 	let newLabel = $state('');
 	let scanStatus: Record<number, string> = $state({});
+
+	const backHref = $derived($page.url.searchParams.get('returnTo') || '/');
 
 	async function refresh() {
 		sources = await listSources();
@@ -44,7 +47,10 @@
 </script>
 
 <div class="settings-page">
-	<h2>Source Folders</h2>
+	<div class="page-header">
+		<h2>Source Folders</h2>
+		<a href={backHref} class="close-btn">Close</a>
+	</div>
 	<p class="description">Add folders containing your AI-generated images. Thalimage will scan them for images and extract metadata.</p>
 
 	<div class="add-form">
@@ -89,8 +95,29 @@
 		max-width: 700px;
 	}
 
+	.page-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 8px;
+	}
+
 	h2 {
-		margin: 0 0 8px;
+		margin: 0;
+	}
+
+	.close-btn {
+		padding: 4px 12px;
+		border: 1px solid #444;
+		border-radius: 4px;
+		background: #2a2a2a;
+		color: #ccc;
+		font-size: 0.85rem;
+	}
+
+	.close-btn:hover {
+		background: #3a3a3a;
+		text-decoration: none;
 	}
 
 	.description {

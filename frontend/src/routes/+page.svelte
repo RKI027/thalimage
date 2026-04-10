@@ -76,7 +76,7 @@
 {:else if totalCount === 0}
 	<div class="status empty">
 		<p>No images found.</p>
-		<p>Add a source folder in <a href="/settings">Settings</a> and trigger a scan.</p>
+		<p>Add a source folder in <a href="/settings?returnTo=/">Settings</a> and trigger a scan.</p>
 	</div>
 {:else}
 	<div class="toolbar">

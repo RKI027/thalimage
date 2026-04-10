@@ -17,6 +17,12 @@
 		void $page.url.pathname;
 		untrack(() => { refresh(); });
 	});
+
+	const settingsHref = $derived(
+		$page.url.pathname === '/settings'
+			? '/settings'
+			: `/settings?returnTo=${encodeURIComponent($page.url.pathname + $page.url.search)}`
+	);
 </script>
 
 <aside class="sidebar" class:collapsed={!open}>
@@ -29,7 +35,7 @@
 			<section>
 				<h3>Sources</h3>
 				{#if sources.length === 0}
-					<p class="empty">No sources. <a href="/settings">Add one</a></p>
+					<p class="empty">No sources. <a href={settingsHref}>Add one</a></p>
 				{:else}
 					<ul>
 						<li><a href="/">All</a></li>
@@ -66,7 +72,7 @@
 			</section>
 
 			<section>
-				<a href="/settings" class="settings-link">Settings</a>
+				<a href={settingsHref} class="settings-link">Settings</a>
 			</section>
 		</nav>
 	{/if}

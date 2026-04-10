@@ -1,7 +1,14 @@
 <script lang="ts">
+	import { page } from '$app/stores';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 
 	let { children } = $props();
+
+	const settingsHref = $derived(
+		$page.url.pathname === '/settings'
+			? '/settings'
+			: `/settings?returnTo=${encodeURIComponent($page.url.pathname + $page.url.search)}`
+	);
 </script>
 
 <svelte:head>
@@ -13,13 +20,15 @@
 		<a href="/" class="logo">Thalimage</a>
 		<nav>
 			<a href="/">Gallery</a>
-			<a href="/settings">Settings</a>
+			<a href={settingsHref}>Settings</a>
 		</nav>
 	</header>
 	<div class="body">
 		<Sidebar />
 		<main>
-			{@render children()}
+			{#key $page.url.pathname}
+				{@render children()}
+			{/key}
 		</main>
 	</div>
 </div>
