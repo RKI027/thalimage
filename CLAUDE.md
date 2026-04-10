@@ -35,3 +35,9 @@ make dev          # Run backend dev server
 - Thumbnails: WebP files at `{cache_dir}/thumbs/{hash[:2]}/{hash}.webp`
 - All dates stored as ISO 8601 text in SQLite
 - TDD: tests first, then implementation
+
+## Documentation
+
+- `docs/agent/reboot.org` — original vision and requirements document
+- `docs/agent/mvp-plan.md` — implementation plan for the MVP (sprints 1-5, completed)
+- `docs/agent/phases.md` — roadmap of future phases (2-6)
