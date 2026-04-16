@@ -73,4 +73,15 @@
 	.arrow {
 		margin-left: 2px;
 	}
+
+	@media (max-width: 768px) {
+		.sort-controls {
+			flex-wrap: wrap;
+			padding: 4px;
+		}
+
+		button {
+			padding: 10px 12px;
+		}
+	}
 </style>

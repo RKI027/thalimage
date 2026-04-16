@@ -16,6 +16,7 @@
 	let dir: SortDirection = $state('asc');
 	let sourceId: number | undefined = $state(undefined);
 	let thumbSize = $state(Number(localStorage.getItem('thumbSize')) || 200);
+	let filtersOpen = $state(true);
 	let loading = $state(false);
 	let error: string | null = $state(null);
 	let initialLoad = $state(true);
@@ -96,8 +97,13 @@
 	</div>
 {:else}
 	<div class="toolbar">
-		<SortControls {sort} {dir} onchange={onSortChange} />
-		<ThumbSizeSlider bind:size={thumbSize} />
+		<button class="collapse-btn" onclick={() => (filtersOpen = !filtersOpen)} title="Toggle sort controls">⊟</button>
+		{#if filtersOpen}
+			<div class="filter-row">
+				<SortControls {sort} {dir} onchange={onSortChange} />
+				<ThumbSizeSlider bind:size={thumbSize} />
+			</div>
+		{/if}
 		<span class="count">
 			{totalCount} images
 			{#if loading}<span class="loading-hint"> (loading…)</span>{/if}
@@ -123,11 +129,50 @@
 		flex-shrink: 0;
 	}
 
+	.collapse-btn {
+		background: none;
+		border: 1px solid #444;
+		border-radius: 4px;
+		color: #888;
+		cursor: pointer;
+		font-size: 1rem;
+		padding: 4px 8px;
+		flex-shrink: 0;
+	}
+
+	.filter-row {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+	}
+
 	.count {
 		color: #888;
 		font-size: 0.85rem;
 		padding-right: 8px;
 		margin-left: auto;
+	}
+
+	@media (max-width: 768px) {
+		.toolbar {
+			flex-wrap: wrap;
+			padding: 4px 8px;
+			gap: 4px;
+		}
+
+		.collapse-btn {
+			order: 1;
+		}
+
+		.count {
+			order: 2;
+			margin-left: auto;
+		}
+
+		.filter-row {
+			width: 100%;
+			order: 3;
+		}
 	}
 
 	.status {

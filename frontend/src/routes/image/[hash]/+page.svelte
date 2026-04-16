@@ -5,6 +5,7 @@
 	import { browsingContext, backDestination, backLabel } from '$lib/browsingContext';
 	import type { ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
+	import { attachSwipe } from '$lib/swipe';
 	import ImageViewer from '$lib/components/ImageViewer.svelte';
 	import MetadataPanel from '$lib/components/MetadataPanel.svelte';
 	import SlideshowOverlay from '$lib/components/SlideshowOverlay.svelte';
@@ -14,6 +15,12 @@
 	let currentIndex = $state(-1);
 	let error: string | null = $state(null);
 	let pageEl: HTMLElement | null = $state(null);
+	let bodyEl: HTMLElement | null = $state(null);
+	let sheetEl: HTMLElement | null = $state(null);
+
+	let bottomSheetOpen = $state(false);
+	let topBarVisible = $state(false);
+	let topBarTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const metadataModes: MetadataMode[] = ['hidden', 'compact', 'full'];
 	const overlayModes: OverlayMode[] = ['none', 'minimal', 'full'];
@@ -22,6 +29,20 @@
 	const back = $derived(backDestination(ctx));
 	const backText = $derived(backLabel(ctx));
 	const inSlideshow = $derived(slideshowStore.status !== 'idle');
+
+	function showTopBar() {
+		topBarVisible = true;
+		if (topBarTimer) clearTimeout(topBarTimer);
+		topBarTimer = setTimeout(() => (topBarVisible = false), 3000);
+	}
+
+	function handleTap() {
+		if (bottomSheetOpen) {
+			bottomSheetOpen = false;
+			return;
+		}
+		showTopBar();
+	}
 
 	async function load(hash: string) {
 		error = null;
@@ -74,7 +95,6 @@
 	}
 
 	function onKeydown(e: KeyboardEvent) {
-		// Don't intercept if focus is in a form element
 		const tag = (e.target as HTMLElement).tagName;
 		if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
@@ -124,9 +144,7 @@
 
 	$effect(() => {
 		const hash = $page.params.hash;
-		if (hash) {
-			load(hash);
-		}
+		if (hash) load(hash);
 	});
 
 	$effect(() => {
@@ -135,6 +153,27 @@
 		};
 		document.addEventListener('fullscreenchange', handler);
 		return () => document.removeEventListener('fullscreenchange', handler);
+	});
+
+	// Swipe navigation on the viewer body (non-slideshow)
+	$effect(() => {
+		if (!bodyEl || inSlideshow) return;
+		return attachSwipe(bodyEl, {
+			onSwipeLeft: () => navigate(1),
+			onSwipeRight: () => navigate(-1),
+			onTap: handleTap
+		});
+	});
+
+	// Swipe-down to close bottom sheet
+	$effect(() => {
+		if (!sheetEl || !bottomSheetOpen) return;
+		return attachSwipe(sheetEl, { onSwipeDown: () => (bottomSheetOpen = false) }, { threshold: 60 });
+	});
+
+	// Cleanup top-bar timer on unmount
+	$effect(() => () => {
+		if (topBarTimer) clearTimeout(topBarTimer);
 	});
 </script>
 
@@ -170,7 +209,7 @@
 		</div>
 	{:else}
 		<div class="image-page" bind:this={pageEl}>
-			<div class="top-bar">
+			<div class="top-bar" class:visible={topBarVisible}>
 				<a href={back}>{backText}</a>
 				<span class="filename">{image.filename}</span>
 				<div class="nav-buttons">
@@ -190,16 +229,36 @@
 						▶ Slideshow
 					</button>
 				</div>
+				<!-- Mobile-only: counter + metadata button -->
+				<span class="mobile-counter">
+					{#if currentIndex >= 0}{currentIndex + 1} / {neighbors.length}{/if}
+				</span>
+				<button class="info-btn" onclick={() => { bottomSheetOpen = true; showTopBar(); }}>ℹ</button>
 			</div>
-			<div class="body">
+
+			<!-- body: desktop flex row; mobile full-screen -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="body" bind:this={bodyEl} style="touch-action: pan-y">
 				<ImageViewer
 					hash={image.content_hash}
 					filename={image.filename}
 					width={image.width}
 					height={image.height}
 				/>
-				<MetadataPanel {image} mode={slideshowStore.metadataMode} />
+				<!-- Desktop: metadata side panel. Hidden on mobile via CSS. -->
+				<div class="metadata-side">
+					<MetadataPanel {image} mode={slideshowStore.metadataMode} />
+				</div>
 			</div>
+
+			<!-- Mobile bottom sheet -->
+			{#if bottomSheetOpen}
+				<button class="sheet-backdrop" onclick={() => (bottomSheetOpen = false)} aria-label="Close metadata"></button>
+				<div class="bottom-sheet" bind:this={sheetEl}>
+					<div class="sheet-handle"></div>
+					<MetadataPanel {image} mode="full" />
+				</div>
+			{/if}
 		</div>
 	{/if}
 {:else}
@@ -266,6 +325,20 @@
 		min-height: 0;
 	}
 
+	/* metadata-side passes display through to the panel */
+	.metadata-side {
+		display: contents;
+	}
+
+	/* Mobile-only elements hidden on desktop */
+	.mobile-counter {
+		display: none;
+	}
+
+	.info-btn {
+		display: none;
+	}
+
 	.error {
 		padding: 32px;
 		text-align: center;
@@ -276,5 +349,109 @@
 		padding: 32px;
 		text-align: center;
 		color: #888;
+	}
+
+	@media (max-width: 768px) {
+		/* top-bar becomes a transparent overlay that fades in on tap */
+		.top-bar {
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			z-index: 10;
+			opacity: 0;
+			pointer-events: none;
+			background: linear-gradient(rgba(0, 0, 0, 0.7), transparent);
+			border-bottom: none;
+			transition: opacity 0.4s;
+		}
+
+		.top-bar.visible {
+			opacity: 1;
+			pointer-events: auto;
+		}
+
+		/* Hide desktop controls and filename on mobile */
+		.nav-buttons {
+			display: none;
+		}
+
+		.filename {
+			display: none;
+		}
+
+		/* Show mobile-only elements */
+		.mobile-counter {
+			display: block;
+			color: #ddd;
+			font-size: 0.85rem;
+		}
+
+		.info-btn {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			background: rgba(255, 255, 255, 0.15);
+			border: 1px solid rgba(255, 255, 255, 0.3);
+			border-radius: 4px;
+			color: #fff;
+			cursor: pointer;
+			font-size: 1rem;
+			padding: 4px 10px;
+		}
+
+		/* body fills the full image-page area */
+		.body {
+			position: absolute;
+			inset: 0;
+		}
+
+		/* hide desktop side panel */
+		.metadata-side {
+			display: none;
+		}
+
+		/* bottom sheet backdrop */
+		.sheet-backdrop {
+			position: fixed;
+			inset: 0;
+			background: rgba(0, 0, 0, 0.4);
+			z-index: 50;
+		}
+
+		/* bottom sheet */
+		.bottom-sheet {
+			position: fixed;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			height: 60%;
+			background: #1a1a1a;
+			border-top: 1px solid #444;
+			border-radius: 16px 16px 0 0;
+			z-index: 60;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+			animation: sheet-up 0.25s ease;
+		}
+
+		@keyframes sheet-up {
+			from {
+				transform: translateY(100%);
+			}
+			to {
+				transform: translateY(0);
+			}
+		}
+
+		.sheet-handle {
+			width: 40px;
+			height: 4px;
+			background: #555;
+			border-radius: 2px;
+			margin: 10px auto 4px;
+			flex-shrink: 0;
+		}
 	}
 </style>

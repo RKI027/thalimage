@@ -46,4 +46,15 @@
 		background: #333;
 		flex-shrink: 0;
 	}
+
+	@media (max-width: 768px) {
+		.side-by-side {
+			flex-direction: column;
+		}
+
+		.divider {
+			width: 100%;
+			height: 2px;
+		}
+	}
 </style>

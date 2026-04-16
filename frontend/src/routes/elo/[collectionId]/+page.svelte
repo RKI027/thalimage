@@ -135,9 +135,11 @@
 				onSelectRight={() => vote('right')}
 			/>
 			<div class="controls">
-				<span class="hint">← or 1</span>
+				<span class="hint desktop-hint">← or 1</span>
+				<span class="hint mobile-hint">Tap top image</span>
 				<span class="prompt">Which is better?</span>
-				<span class="hint">→ or 2</span>
+				<span class="hint desktop-hint">→ or 2</span>
+				<span class="hint mobile-hint">Tap bottom image</span>
 			</div>
 		{/if}
 	{/if}
@@ -282,5 +284,35 @@
 		font-size: 0.8rem;
 		min-width: 80px;
 		text-align: right;
+	}
+
+	.mobile-hint {
+		display: none;
+	}
+
+	@media (max-width: 768px) {
+		.mobile-hint {
+			display: inline;
+		}
+
+		.desktop-hint {
+			display: none;
+		}
+
+		.top-bar {
+			flex-wrap: wrap;
+			gap: 8px;
+		}
+
+		.vote-count {
+			width: 100%;
+			text-align: center;
+			order: 3;
+			font-size: 0.75rem;
+		}
+
+		.actions button {
+			padding: 0 16px;
+		}
 	}
 </style>

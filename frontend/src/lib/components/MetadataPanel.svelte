@@ -145,4 +145,13 @@
 		font-family: monospace;
 		font-size: 0.8rem;
 	}
+
+	@media (max-width: 768px) {
+		.panel,
+		.panel.compact {
+			width: 100%;
+			border-left: none;
+			border-top: 1px solid #333;
+		}
+	}
 </style>

@@ -5,8 +5,9 @@
 
 	let { children } = $props();
 
-	const isSlideshow = $derived(slideshowStore.status !== 'idle');
+	let mobileDrawerOpen = $state(false);
 
+	const isSlideshow = $derived(slideshowStore.status !== 'idle');
 	const routeGroup = $derived($page.url.pathname.split('/')[1] || 'home');
 
 	const settingsHref = $derived(
@@ -23,6 +24,9 @@
 <div class="app">
 	{#if !isSlideshow}
 		<header>
+			<button class="hamburger" onclick={() => (mobileDrawerOpen = true)} aria-label="Open menu">
+				☰
+			</button>
 			<a href="/" class="logo">Thalimage</a>
 			<nav>
 				<a href="/">Gallery</a>
@@ -32,7 +36,10 @@
 	{/if}
 	<div class="body">
 		{#if !isSlideshow}
-			<Sidebar />
+			{#if mobileDrawerOpen}
+				<button class="drawer-backdrop" onclick={() => (mobileDrawerOpen = false)} aria-label="Close menu"></button>
+			{/if}
+			<Sidebar mobileOpen={mobileDrawerOpen} onMobileClose={() => (mobileDrawerOpen = false)} />
 		{/if}
 		<main>
 			{#key routeGroup}
@@ -90,6 +97,10 @@
 		gap: 16px;
 	}
 
+	.hamburger {
+		display: none;
+	}
+
 	.body {
 		flex: 1;
 		display: flex;
@@ -101,5 +112,39 @@
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
+	}
+
+	@media (max-width: 768px) {
+		.hamburger {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			min-height: 44px;
+			min-width: 44px;
+			background: none;
+			border: none;
+			color: #eee;
+			font-size: 1.3rem;
+			cursor: pointer;
+			padding: 0;
+		}
+
+		nav {
+			display: none;
+		}
+
+		.drawer-backdrop {
+			position: fixed;
+			inset: 0;
+			background: rgba(0, 0, 0, 0.55);
+			z-index: 200;
+		}
+
+		/* Global touch targets */
+		:global(button),
+		:global(.tap-target) {
+			min-height: 44px;
+			min-width: 44px;
+		}
 	}
 </style>

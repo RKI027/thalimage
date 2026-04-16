@@ -17,6 +17,7 @@
 	let sort: SortField = $state('name');
 	let dir: SortDirection = $state('asc');
 	let thumbSize = $state(Number(localStorage.getItem('thumbSize')) || 200);
+	let filtersOpen = $state(true);
 	let loading = $state(false);
 	let currentScrollTop = $state(0);
 	let restoredScrollTop = $state(0);
@@ -77,11 +78,16 @@
 	<div class="left">
 		<a href="/collections">← Collections</a>
 		<h2>{collection?.name ?? ''}</h2>
+		{#if collection}
+			<a class="elo-link" href="/elo/{collection.id}">ELO Vote</a>
+		{/if}
 	</div>
-	<SortControls {sort} {dir} onchange={onSortChange} />
-	<ThumbSizeSlider bind:size={thumbSize} />
-	{#if collection}
-		<a class="elo-link" href="/elo/{collection.id}">ELO Vote</a>
+	<button class="collapse-btn" onclick={() => (filtersOpen = !filtersOpen)} title="Toggle sort controls">⊟</button>
+	{#if filtersOpen}
+		<div class="filter-row">
+			<SortControls {sort} {dir} onchange={onSortChange} />
+			<ThumbSizeSlider bind:size={thumbSize} />
+		</div>
 	{/if}
 	<span class="count">{totalCount} images</span>
 </div>
@@ -115,6 +121,23 @@
 		font-size: 1.1rem;
 	}
 
+	.collapse-btn {
+		background: none;
+		border: 1px solid #444;
+		border-radius: 4px;
+		color: #888;
+		cursor: pointer;
+		font-size: 1rem;
+		padding: 4px 8px;
+		flex-shrink: 0;
+	}
+
+	.filter-row {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+	}
+
 	.elo-link {
 		padding: 4px 12px;
 		border: 1px solid #444;
@@ -134,5 +157,42 @@
 		font-size: 0.85rem;
 		padding-right: 8px;
 		margin-left: auto;
+	}
+
+	@media (max-width: 768px) {
+		.toolbar {
+			flex-wrap: wrap;
+			padding: 4px 8px;
+			gap: 4px;
+		}
+
+		.left {
+			width: 100%;
+			order: 1;
+			flex-wrap: wrap;
+			gap: 8px;
+		}
+
+		h2 {
+			font-size: 0.95rem;
+		}
+
+		.elo-link {
+			padding: 10px 12px;
+		}
+
+		.collapse-btn {
+			order: 2;
+		}
+
+		.count {
+			order: 3;
+			margin-left: auto;
+		}
+
+		.filter-row {
+			width: 100%;
+			order: 4;
+		}
 	}
 </style>

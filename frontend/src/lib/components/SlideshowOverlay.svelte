@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { ImageDetail, SlideshowStatus, OverlayMode } from '$lib/types';
 	import type { SlideshowConfig } from '$lib/slideshowStore.svelte';
+	import { attachSwipe } from '$lib/swipe';
 
 	let {
 		image,
@@ -36,6 +37,7 @@
 
 	let controlsVisible = $state(true);
 	let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+	let overlayEl: HTMLElement | null = $state(null);
 
 	const overlayModes: OverlayMode[] = ['none', 'minimal', 'full'];
 
@@ -58,11 +60,21 @@
 			if (fadeTimer !== null) clearTimeout(fadeTimer);
 		};
 	});
+
+	$effect(() => {
+		if (!overlayEl) return;
+		return attachSwipe(overlayEl, {
+			onSwipeLeft: onNext,
+			onSwipeRight: onPrev,
+			onTap: resetFadeTimer
+		});
+	});
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	class="slideshow-overlay"
+	bind:this={overlayEl}
 	onpointermove={resetFadeTimer}
 	onpointerdown={resetFadeTimer}
 >

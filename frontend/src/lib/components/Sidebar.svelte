@@ -3,6 +3,14 @@
 	import { onMount } from 'svelte';
 	import { collectionsStore } from '$lib/stores';
 
+	let {
+		mobileOpen = false,
+		onMobileClose
+	}: {
+		mobileOpen?: boolean;
+		onMobileClose?: () => void;
+	} = $props();
+
 	let open = $state(true);
 	let presetsOpen = $state(true);
 	let collectionsOpen = $state(true);
@@ -33,12 +41,13 @@
 	}
 </script>
 
-<aside class="sidebar" class:collapsed={!open}>
+<aside class="sidebar" class:collapsed={!open} class:mobile-open={mobileOpen}>
 	<button class="toggle" onclick={() => (open = !open)}>
 		{open ? '◀' : '▶'}
 	</button>
 
-	{#if open}
+	{#if open || mobileOpen}
+		<button class="mobile-close" onclick={onMobileClose}>✕</button>
 		<nav>
 			<section>
 				<button class="section-header" onclick={togglePresets}>
@@ -47,10 +56,10 @@
 				</button>
 				{#if presetsOpen}
 					<ul>
-						<li><a href="/">All Images</a></li>
+						<li><a href="/" onclick={onMobileClose}>All Images</a></li>
 						{#each presets as preset}
 							<li>
-								<a href="/collections/{preset.id}">
+								<a href="/collections/{preset.id}" onclick={onMobileClose}>
 									{preset.name}
 									<span class="badge">{preset.image_count}</span>
 								</a>
@@ -66,7 +75,7 @@
 						<span>{collectionsOpen ? '▼' : '▶'}</span>
 						<h3>Collections</h3>
 					</button>
-					<a href="/collections" class="manage-link" title="Manage collections">⚙</a>
+					<a href="/collections" class="manage-link" title="Manage collections" onclick={onMobileClose}>⚙</a>
 				</div>
 				{#if collectionsOpen}
 					{#if userCollections.length === 0}
@@ -75,7 +84,7 @@
 						<ul>
 							{#each userCollections as coll}
 								<li>
-									<a href="/collections/{coll.id}">
+									<a href="/collections/{coll.id}" onclick={onMobileClose}>
 										{coll.name}
 										<span class="badge">{coll.image_count}</span>
 									</a>
@@ -87,7 +96,7 @@
 			</section>
 
 			<section>
-				<a href={settingsHref} class="settings-link">Settings</a>
+				<a href={settingsHref} class="settings-link" onclick={onMobileClose}>Settings</a>
 			</section>
 		</nav>
 	{/if}
@@ -226,5 +235,49 @@
 		padding: 8px;
 		color: #888;
 		font-size: 0.85rem;
+	}
+
+	.mobile-close {
+		display: none;
+	}
+
+	@media (max-width: 768px) {
+		.sidebar {
+			position: fixed;
+			top: 0;
+			left: 0;
+			bottom: 0;
+			width: 280px;
+			z-index: 210;
+			transform: translateX(-100%);
+			transition: transform 0.25s ease;
+		}
+
+		.sidebar.mobile-open {
+			transform: translateX(0);
+		}
+
+		.toggle {
+			display: none;
+		}
+
+		.mobile-close {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			min-height: 44px;
+			min-width: 44px;
+			background: none;
+			border: none;
+			color: #ccc;
+			font-size: 1.2rem;
+			cursor: pointer;
+			align-self: flex-end;
+			padding: 8px;
+		}
+
+		li a {
+			padding: 10px 8px;
+		}
 	}
 </style>
