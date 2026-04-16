@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import Sidebar from '$lib/components/Sidebar.svelte';
+	import { slideshowStore } from '$lib/slideshowStore.svelte';
 
 	let { children } = $props();
+
+	const isSlideshow = $derived(slideshowStore.status !== 'idle');
 
 	const routeGroup = $derived($page.url.pathname.split('/')[1] || 'home');
 
@@ -18,15 +21,19 @@
 </svelte:head>
 
 <div class="app">
-	<header>
-		<a href="/" class="logo">Thalimage</a>
-		<nav>
-			<a href="/">Gallery</a>
-			<a href={settingsHref}>Settings</a>
-		</nav>
-	</header>
+	{#if !isSlideshow}
+		<header>
+			<a href="/" class="logo">Thalimage</a>
+			<nav>
+				<a href="/">Gallery</a>
+				<a href={settingsHref}>Settings</a>
+			</nav>
+		</header>
+	{/if}
 	<div class="body">
-		<Sidebar />
+		{#if !isSlideshow}
+			<Sidebar />
+		{/if}
 		<main>
 			{#key routeGroup}
 				{@render children()}

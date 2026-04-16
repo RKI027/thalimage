@@ -65,6 +65,8 @@ export interface ScanProgress {
 export type SortField = 'name' | 'date_modified' | 'date_created' | 'size' | 'aspect_ratio';
 export type SortDirection = 'asc' | 'desc';
 export type MetadataMode = 'hidden' | 'compact' | 'full';
+export type SlideshowStatus = 'idle' | 'playing' | 'paused';
+export type OverlayMode = 'none' | 'minimal' | 'full';
 
 export interface EloPair {
 	left: ImageSummary;

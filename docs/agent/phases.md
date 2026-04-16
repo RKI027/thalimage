@@ -8,7 +8,8 @@
 - Settings page, sidebar, Docker deployment
 
 ## Phase 2 — Core UX improvements
-- ELO voting mode (schema ready, needs API + UI: show two images, swipe/click to vote, update scores)
+- ELO voting mode (schema ready, needs API + UI: show two images,
+  swipe/click to vote, update scores)
 - SSE scan progress (placeholder exists, wire up real progress)
 - Video thumbnails via ffmpeg
 - Thumbnail size slider
@@ -16,44 +17,88 @@
 
 ## Phase 2.5 — Unified Collections
 
-Collections become the universal container for images. A collection is a set of images — either static (manually curated or snapshot of a query result) or dynamic (backed by a live query).
+Collections become the universal container for images. A collection is
+a set of images — either static (manually curated or snapshot of a
+query result) or dynamic (backed by a live query).
 
 ### Design Decisions (confirmed)
-- **Browsing context is always a collection.** Even "All Images" and transient searches are collection-like objects. Code paths unified. A transient search is just an unnamed, possibly ephemeral, dynamic collection.
-- **ELO scores are per-collection.** Context-dependent ranking is desired. Same image can rank differently in different collections.
-- **Tags and perceptual hashes are global on the image.** Not per-collection. An image tagged "landscape" is tagged "landscape" everywhere. Collections filter by tags.
-- **Source presets: static for Phase 2.5** (auto-populated when scan runs). Become dynamic queries (`WHERE source_id = X`, always live) in Phase 3.
-- **"All Images" is virtual.** No DB row, no collection_images entries. Represented as `id: null` in the browsing context. ELO not available on it.
-- **Sidebar: grouped, collapsible.** Two sections: "Presets" (All Images + per-source) and "Collections" (user-created).
-- **Browsing context passing: Svelte store + sessionStorage.** Clean URLs (`/image/hash`), survives refresh per tab, lost on tab close (acceptable). Direct link to an image works but without prev/next context.
+- **Browsing context is always a collection.** Even "All Images" and
+  transient searches are collection-like objects. Code paths unified.
+  A transient search is just an unnamed, possibly ephemeral, dynamic
+  collection.
+- **ELO scores are per-collection.** Context-dependent ranking is
+  desired. Same image can rank differently in different collections.
+- **Tags and perceptual hashes are global on the image.** Not
+  per-collection. An image tagged "landscape" is tagged "landscape"
+  everywhere. Collections filter by tags.
+- **Source presets: static for Phase 2.5** (auto-populated when scan
+  runs). Become dynamic queries (`WHERE source_id = X`, always live)
+  in Phase 3.
+- **"All Images" is virtual.** No DB row, no collection_images
+  entries. Represented as `id: null` in the browsing context. ELO not
+  available on it.
+- **Sidebar: grouped, collapsible.** Two sections: "Presets" (All
+  Images + per-source) and "Collections" (user-created).
+- **Browsing context passing: Svelte store + sessionStorage.** Clean
+  URLs (`/image/hash`), survives refresh per tab, lost on tab close
+  (acceptable). Direct link to an image works but without prev/next
+  context.
 
 ### Collection Types
-- **Static collections** hold a fixed set of image hashes. Can be created manually or by snapshotting a query result. The originating query and snapshot date are stored for reference.
-- **Dynamic collections** (Phase 3) are defined by a query (source, date range, metadata filters, tags — eventually the full DSL). The query runs on access; results are always current.
-- **Preset collections** are built-in: one per source (auto-synced on scan), not user-deletable. "All Images" is virtual (no DB row). Future presets: "Photos", "Videos", etc.
+- **Static collections** hold a fixed set of image hashes. Can be
+  created manually or by snapshotting a query result. The originating
+  query and snapshot date are stored for reference.
+- **Dynamic collections** (Phase 3) are defined by a query (source,
+  date range, metadata filters, tags — eventually the full DSL). The
+  query runs on access; results are always current.
+- **Preset collections** are built-in: one per source (auto-synced on
+  scan), not user-deletable. "All Images" is virtual (no DB row).
+  Future presets: "Photos", "Videos", etc.
 
 ### Schema
-- `collections` table gains `type TEXT NOT NULL DEFAULT 'manual'` and `source_id INTEGER REFERENCES sources(id)`
-- Type values: `'manual'`, `'source_preset'`. Phase 3 adds `'dynamic_query'` + `query JSON` column.
-- Unique partial index on `(source_id) WHERE type = 'source_preset'` prevents duplicate presets.
+- `collections` table gains `type TEXT NOT NULL DEFAULT 'manual'` and
+  `source_id INTEGER REFERENCES sources(id)`
+- Type values: `'manual'`, `'source_preset'`. Phase 3 adds
+  `'dynamic_query'` + `query JSON` column.
+- Unique partial index on `(source_id) WHERE type = 'source_preset'`
+  prevents duplicate presets.
 
 ### Source Removal UX (deferred to later)
 When removing a source, the user will choose:
-1. **Keep DB entries or not** — convenience (preserve ELO scores, tags, collection memberships) vs. clean-up (privacy, declutter). Kept entries are flagged as orphaned and recoverable if the source is re-added.
-2. **Generate sidecar files or not** — write metadata (ELO scores, tags, prompt data) to sidecar files alongside the original images before removal, so data survives independently of the DB.
+1. **Keep DB entries or not** — convenience (preserve ELO scores,
+   tags, collection memberships) vs. clean-up (privacy, declutter).
+   Kept entries are flagged as orphaned and recoverable if the source
+   is re-added.
+2. **Generate sidecar files or not** — write metadata (ELO scores,
+   tags, prompt data) to sidecar files alongside the original images
+   before removal, so data survives independently of the DB.
 
 ### Migration Path
-- Sources UI is replaced by collections UI; source management stays in Settings.
-- Sidebar shows collections (preset + user-created) instead of raw sources.
-- ELO, tagging, and all future features operate on collections, never raw sources.
-- The `sources` table remains as backend plumbing (scan targets), but users interact only through collections.
+- Sources UI is replaced by collections UI; source management stays in
+  Settings.
+- Sidebar shows collections (preset + user-created) instead of raw
+  sources.
+- ELO, tagging, and all future features operate on collections, never
+  raw sources.
+- The `sources` table remains as backend plumbing (scan targets), but
+  users interact only through collections.
+
+## Phase 5a — Presenter: Slideshow & Metadata
+- Slideshow mode (manual/timed, shuffle, sort, temporary filters)
+- Configurable metadata display levels
+
+## Phase 5b — Presenter: Mobile
+- Mobile-friendly presentation (UX design-heavy)
 
 ## Phase 3 — Organization & Search
-- Tagging system with author tracking + tag ontology (tags are global on images, not per-collection)
+- Tagging system with author tracking + tag ontology (tags are global
+  on images, not per-collection)
 - Auto-tagging (CLIP, face detection)
 - Smart filters / DSL on metadata, prompts, models, LoRAs
-- Saved searches become dynamic collections (`type = 'dynamic_query'`, `query` JSON column in collections table)
-- Source presets transition from static (sync on scan) to dynamic (`WHERE source_id = X`, always live)
+- Saved searches become dynamic collections (`type = 'dynamic_query'`,
+  `query` JSON column in collections table)
+- Source presets transition from static (sync on scan) to dynamic
+  (`WHERE source_id = X`, always live)
 - Per-collection sort persistence
 - Archival flag (remove from active sets, space-efficient storage)
 
@@ -64,13 +109,30 @@ When removing a source, the user will choose:
 - Image comparison view (side-by-side or slider) with prompt diff
 - Prompt similarity (graph-based diff)
 
-## Phase 5 — Presenter
-- Slideshow mode (manual/timed, shuffle, sort, temporary filters)
-- Configurable metadata display levels
-- Mobile-friendly presentation
-
 ## Phase 6 — Advanced
 - Model interrogation for prompt inspiration
 - Multi-user support (auth, per-user votes/tags/ELO)
 - Batch operations
 - TIFF/GIF/AVIF support expansion
+
+## Unsorted
+
+- don't forget `Source Removal UX`
+- image flag nsfw (not tag, separate but auto-set if a tag implies nsfw)
+- collection flag nsfw
+- user settings show/hide nsfw
+- flexible grid layout so different A/R images generate consistent
+  white space. I'm not sure how other apps do but this approach could
+  be interesting. If there's no reference / usable library, it could
+  be interesting to design it as a separate tool to release
+  independently. Combine two things: given a thumbnail size, determine
+  appropriate landscape and portrait sizes that we can easily combine:
+  eg, if the majority of the collection's pics are L(andscape), we
+  make P(ortrait)'s height L's height and P's width half of L's
+  width - margin/padding so 2 P side by side is same as one L. With
+  that we can layout out a grid in which to display the thumbnails.
+  Thumbnails need to be resized since their A/R doesn't necessarily
+  match and for that we use seam cropping. if we predetermine the A/R
+  we use to display the thumbnails (app-wide probably), the
+  seam-cropping calculation should be a one-off at scan time and we
+  just need the basic resize dynamically.

@@ -1,22 +1,27 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
+	import { goto, beforeNavigate } from '$app/navigation';
 	import { getImage, listImages } from '$lib/api';
 	import { browsingContext, backDestination, backLabel } from '$lib/browsingContext';
-	import type { ImageDetail, ImageSummary, MetadataMode } from '$lib/types';
+	import type { ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
+	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import ImageViewer from '$lib/components/ImageViewer.svelte';
 	import MetadataPanel from '$lib/components/MetadataPanel.svelte';
+	import SlideshowOverlay from '$lib/components/SlideshowOverlay.svelte';
 
 	let image: ImageDetail | null = $state(null);
 	let neighbors: ImageSummary[] = $state([]);
 	let currentIndex = $state(-1);
 	let error: string | null = $state(null);
-	let metadataMode: MetadataMode = $state('full');
+	let pageEl: HTMLElement | null = $state(null);
+
 	const metadataModes: MetadataMode[] = ['hidden', 'compact', 'full'];
+	const overlayModes: OverlayMode[] = ['none', 'minimal', 'full'];
 
 	const ctx = $derived($browsingContext);
 	const back = $derived(backDestination(ctx));
 	const backText = $derived(backLabel(ctx));
+	const inSlideshow = $derived(slideshowStore.status !== 'idle');
 
 	async function load(hash: string) {
 		error = null;
@@ -50,16 +55,29 @@
 	function updateIndex() {
 		if (!image) return;
 		currentIndex = neighbors.findIndex((n) => n.content_hash === image!.content_hash);
+		if (inSlideshow) {
+			slideshowStore.updateCurrentIndex(currentIndex);
+		}
 	}
 
 	function navigate(delta: number) {
 		const newIndex = currentIndex + delta;
 		if (newIndex >= 0 && newIndex < neighbors.length) {
+			if (inSlideshow) slideshowStore.resetTimer();
 			goto(`/image/${neighbors[newIndex].content_hash}`);
 		}
 	}
 
+	function enterSlideshow() {
+		if (neighbors.length === 0) return;
+		slideshowStore.enter(neighbors, currentIndex, (hash) => goto(`/image/${hash}`));
+	}
+
 	function onKeydown(e: KeyboardEvent) {
+		// Don't intercept if focus is in a form element
+		const tag = (e.target as HTMLElement).tagName;
+		if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
 		if (e.key === 'ArrowLeft') {
 			e.preventDefault();
 			navigate(-1);
@@ -68,13 +86,41 @@
 			navigate(1);
 		} else if (e.key === 'Escape') {
 			e.preventDefault();
-			goto(back);
+			if (inSlideshow) {
+				slideshowStore.exit();
+			} else {
+				goto(back);
+			}
 		} else if (e.key === 'i') {
 			e.preventDefault();
-			const idx = metadataModes.indexOf(metadataMode);
-			metadataMode = metadataModes[(idx + 1) % metadataModes.length];
+			if (inSlideshow) {
+				const idx = overlayModes.indexOf(slideshowStore.overlayMode);
+				slideshowStore.setOverlayMode(overlayModes[(idx + 1) % overlayModes.length]);
+			} else {
+				const idx = metadataModes.indexOf(slideshowStore.metadataMode);
+				slideshowStore.setMetadataMode(metadataModes[(idx + 1) % metadataModes.length]);
+			}
+		} else if (e.key === ' ') {
+			e.preventDefault();
+			if (inSlideshow) {
+				slideshowStore.togglePlay();
+			} else {
+				enterSlideshow();
+			}
+		} else if (e.key === 'f' && inSlideshow) {
+			e.preventDefault();
+			if (pageEl) slideshowStore.toggleFullscreen(pageEl);
+		} else if (e.key === 's' && inSlideshow) {
+			e.preventDefault();
+			slideshowStore.toggleShuffle();
 		}
 	}
+
+	beforeNavigate(({ to }) => {
+		if (!to?.url.pathname.startsWith('/image/')) {
+			slideshowStore.exit();
+		}
+	});
 
 	$effect(() => {
 		const hash = $page.params.hash;
@@ -83,6 +129,13 @@
 		}
 	});
 
+	$effect(() => {
+		const handler = () => {
+			slideshowStore.setIsFullscreen(!!document.fullscreenElement);
+		};
+		document.addEventListener('fullscreenchange', handler);
+		return () => document.removeEventListener('fullscreenchange', handler);
+	});
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -90,35 +143,65 @@
 {#if error}
 	<div class="error">{error}</div>
 {:else if image}
-	<div class="image-page">
-		<div class="top-bar">
-			<a href={back}>{backText}</a>
-			<span class="filename">{image.filename}</span>
-			<div class="nav-buttons">
-				<button disabled={currentIndex <= 0} onclick={() => navigate(-1)}>← Prev</button>
-				<span class="position">
-					{#if currentIndex >= 0}
-						{currentIndex + 1} / {neighbors.length}
-					{/if}
-				</span>
-				<button
-					disabled={currentIndex < 0 || currentIndex >= neighbors.length - 1}
-					onclick={() => navigate(1)}
-				>
-					Next →
-				</button>
-			</div>
-		</div>
-		<div class="body">
+	{#if inSlideshow}
+		<div class="image-page" bind:this={pageEl}>
 			<ImageViewer
 				hash={image.content_hash}
 				filename={image.filename}
 				width={image.width}
 				height={image.height}
 			/>
-			<MetadataPanel {image} mode={metadataMode} />
+			<SlideshowOverlay
+				{image}
+				{currentIndex}
+				total={neighbors.length}
+				status={slideshowStore.status}
+				config={slideshowStore.config}
+				isFullscreen={slideshowStore.isFullscreen}
+				overlayMode={slideshowStore.overlayMode}
+				onPrev={() => navigate(-1)}
+				onNext={() => navigate(1)}
+				onExit={() => slideshowStore.exit()}
+				onTogglePlay={() => slideshowStore.togglePlay()}
+				onToggleShuffle={() => slideshowStore.toggleShuffle()}
+				onToggleFullscreen={() => pageEl && slideshowStore.toggleFullscreen(pageEl)}
+				onOverlayModeChange={(m) => slideshowStore.setOverlayMode(m)}
+			/>
 		</div>
-	</div>
+	{:else}
+		<div class="image-page" bind:this={pageEl}>
+			<div class="top-bar">
+				<a href={back}>{backText}</a>
+				<span class="filename">{image.filename}</span>
+				<div class="nav-buttons">
+					<button disabled={currentIndex <= 0} onclick={() => navigate(-1)}>← Prev</button>
+					<span class="position">
+						{#if currentIndex >= 0}
+							{currentIndex + 1} / {neighbors.length}
+						{/if}
+					</span>
+					<button
+						disabled={currentIndex < 0 || currentIndex >= neighbors.length - 1}
+						onclick={() => navigate(1)}
+					>
+						Next →
+					</button>
+					<button onclick={enterSlideshow} title="Start slideshow (Space)" disabled={neighbors.length === 0}>
+						▶ Slideshow
+					</button>
+				</div>
+			</div>
+			<div class="body">
+				<ImageViewer
+					hash={image.content_hash}
+					filename={image.filename}
+					width={image.width}
+					height={image.height}
+				/>
+				<MetadataPanel {image} mode={slideshowStore.metadataMode} />
+			</div>
+		</div>
+	{/if}
 {:else}
 	<div class="loading">Loading…</div>
 {/if}
@@ -128,6 +211,7 @@
 		display: flex;
 		flex-direction: column;
 		height: 100%;
+		position: relative;
 	}
 
 	.top-bar {
