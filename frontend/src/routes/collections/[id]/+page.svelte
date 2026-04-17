@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
-	import { beforeNavigate } from '$app/navigation';
+	import { goto, beforeNavigate } from '$app/navigation';
 	import { listImages, getCollection as fetchCollection } from '$lib/api';
 	import { setBrowsingContext, saveScrollPosition, getScrollPosition } from '$lib/browsingContext';
 	import type { ImageSummary, Collection } from '$lib/types';
 	import { responsiveThumbSize } from '$lib/mobileStore.svelte';
+	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import ImageGrid from '$lib/components/ImageGrid.svelte';
 	import SortControls from '$lib/components/SortControls.svelte';
 	import ThumbSizeSlider from '$lib/components/ThumbSizeSlider.svelte';
@@ -64,6 +65,12 @@
 		}
 	}
 
+	function startSlideshow() {
+		if (images.length === 0) return;
+		slideshowStore.scheduleStart();
+		goto(`/image/${images[0].content_hash}`);
+	}
+
 	function onSortChange(newSort: SortField, newDir: SortDirection) {
 		sort = newSort;
 		dir = newDir;
@@ -110,6 +117,7 @@
 		{#if collection}
 			<a class="elo-link" href="/elo/{collection.id}">ELO Vote</a>
 		{/if}
+		<button class="slideshow-btn" onclick={startSlideshow} disabled={images.length === 0}>▶ Slideshow</button>
 	</div>
 	<button class="collapse-btn" onclick={() => (filtersOpen = !filtersOpen)} title="Toggle sort controls">⊟</button>
 	{#if filtersOpen}
@@ -141,8 +149,9 @@
 			<SortControls {sort} {dir} onchange={(s, d) => { onSortChange(s, d); optionsOpen = false; }} />
 			<h3 class="sheet-section">Thumbnail size</h3>
 			<ThumbSizeSlider bind:size={thumbSize} />
+			<h3 class="sheet-section">Actions</h3>
+			<button class="sheet-action-btn" onclick={() => { startSlideshow(); optionsOpen = false; }} disabled={images.length === 0}>▶ Slideshow</button>
 			{#if collection}
-				<h3 class="sheet-section">Actions</h3>
 				<a class="elo-sheet-link" href="/elo/{collection.id}">ELO Vote →</a>
 			{/if}
 		</div>
@@ -198,6 +207,46 @@
 
 	.elo-link:hover {
 		background: #3a3a3a;
+	}
+
+	.slideshow-btn {
+		padding: 4px 12px;
+		border: 1px solid #444;
+		border-radius: 4px;
+		background: #2a2a2a;
+		color: #ccc;
+		cursor: pointer;
+		font-size: 0.85rem;
+		flex-shrink: 0;
+	}
+
+	.slideshow-btn:hover:not(:disabled) {
+		background: #3a3a3a;
+	}
+
+	.slideshow-btn:disabled {
+		opacity: 0.4;
+		cursor: default;
+	}
+
+	.sheet-action-btn {
+		display: block;
+		padding: 12px 0;
+		color: #6ea8fe;
+		font-size: 0.95rem;
+		background: none;
+		border: none;
+		cursor: pointer;
+		text-align: left;
+	}
+
+	.sheet-action-btn:hover:not(:disabled) {
+		color: #90c0ff;
+	}
+
+	.sheet-action-btn:disabled {
+		opacity: 0.4;
+		cursor: default;
 	}
 
 	.count {

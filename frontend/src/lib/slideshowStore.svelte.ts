@@ -38,6 +38,7 @@ function fisherYates(length: number, startIndex: number): number[] {
 function createSlideshowStore() {
 	let status = $state<SlideshowStatus>('idle');
 	let isFullscreen = $state(false);
+	let pendingStart = $state(false);
 	let config = $state<SlideshowConfig>({
 		interval: readLocalStorage('slideshow:interval', 5000),
 		shuffle: readLocalStorage('slideshow:shuffle', false)
@@ -87,6 +88,18 @@ function createSlideshowStore() {
 	function startTimer() {
 		stop();
 		timerId = setInterval(tick, config.interval);
+	}
+
+	function scheduleStart(): void {
+		pendingStart = true;
+	}
+
+	function consumePendingStart(): boolean {
+		if (pendingStart) {
+			pendingStart = false;
+			return true;
+		}
+		return false;
 	}
 
 	function enter(
@@ -201,9 +214,12 @@ function createSlideshowStore() {
 	return {
 		get status() { return status; },
 		get isFullscreen() { return isFullscreen; },
+		get pendingStart() { return pendingStart; },
 		get config() { return config; },
 		get metadataMode() { return metadataMode; },
 		get overlayMode() { return overlayMode; },
+		scheduleStart,
+		consumePendingStart,
 		enter,
 		exit,
 		play,

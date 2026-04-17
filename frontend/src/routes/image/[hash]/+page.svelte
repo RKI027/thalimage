@@ -71,6 +71,9 @@
 		const pg = await listImages(params);
 		neighbors = pg.items;
 		updateIndex();
+		if (slideshowStore.consumePendingStart()) {
+			enterSlideshow();
+		}
 	}
 
 	function updateIndex() {
