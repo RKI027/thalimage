@@ -142,3 +142,54 @@ def test_unarchive_restores_to_gallery(client: TestClient, image_dir: Path) -> N
 def test_archive_not_found(client: TestClient) -> None:
     resp = client.patch("/api/v1/images/nonexistent/archive", json={"archived": True})
     assert resp.status_code == 404
+
+
+def test_filter_by_aspect_ratio_square(client: TestClient, image_dir: Path) -> None:
+    _seed_images(client, image_dir)
+    # a.png (10x10) and c.png (5x5) are square; b.jpg (20x15) is landscape
+    resp = client.get("/api/v1/images?aspect_ratio_filter=square")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_count"] == 2
+    assert all(abs(i["aspect_ratio"] - 1.0) < 0.2 for i in data["items"])
+
+
+def test_filter_by_aspect_ratio_landscape(client: TestClient, image_dir: Path) -> None:
+    _seed_images(client, image_dir)
+    # b.jpg (20x15, aspect_ratio ~1.33) is landscape
+    resp = client.get("/api/v1/images?aspect_ratio_filter=landscape")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_count"] == 1
+    assert data["items"][0]["filename"] == "b.jpg"
+
+
+def test_filter_by_media_type_image(client: TestClient, image_dir: Path) -> None:
+    _seed_images(client, image_dir)
+    resp = client.get("/api/v1/images?media_type=image")
+    assert resp.status_code == 200
+    # All test images are images (no videos in the fixture)
+    assert resp.json()["total_count"] == 3
+
+
+def test_filter_by_media_type_video(client: TestClient, image_dir: Path) -> None:
+    _seed_images(client, image_dir)
+    resp = client.get("/api/v1/images?media_type=video")
+    assert resp.status_code == 200
+    assert resp.json()["total_count"] == 0
+
+
+def test_filter_by_date_from(client: TestClient, image_dir: Path) -> None:
+    _seed_images(client, image_dir)
+    # A future date should return no images
+    resp = client.get("/api/v1/images?date_from=2099-01-01T00:00:00")
+    assert resp.status_code == 200
+    assert resp.json()["total_count"] == 0
+
+
+def test_filter_by_date_to(client: TestClient, image_dir: Path) -> None:
+    _seed_images(client, image_dir)
+    # A past date should return no images
+    resp = client.get("/api/v1/images?date_to=1970-01-01T00:00:00")
+    assert resp.status_code == 200
+    assert resp.json()["total_count"] == 0

@@ -63,6 +63,13 @@ export interface ScanProgress {
 	message: string;
 }
 
+export interface FilterState {
+	date_from?: string;
+	date_to?: string;
+	aspect_ratio?: string;
+	media_type?: string;
+}
+
 export type SortField = 'name' | 'date_modified' | 'date_created' | 'size' | 'aspect_ratio';
 export type SortDirection = 'asc' | 'desc';
 export type MetadataMode = 'hidden' | 'compact' | 'full';

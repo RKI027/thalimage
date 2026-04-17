@@ -6,6 +6,7 @@ import type {
 	ScanProgress,
 	EloPair,
 	EloRanking,
+	FilterState,
 	SortField,
 	SortDirection
 } from './types';
@@ -29,6 +30,7 @@ export function listImages(params: {
 	dir?: SortDirection;
 	source_id?: number;
 	collection_id?: number;
+	filters?: FilterState;
 } = {}): Promise<ImagePage> {
 	const q = new URLSearchParams();
 	if (params.cursor) q.set('cursor', params.cursor);
@@ -37,6 +39,13 @@ export function listImages(params: {
 	if (params.dir) q.set('dir', params.dir);
 	if (params.source_id) q.set('source_id', String(params.source_id));
 	if (params.collection_id) q.set('collection_id', String(params.collection_id));
+	if (params.filters) {
+		const f = params.filters;
+		if (f.date_from) q.set('date_from', f.date_from);
+		if (f.date_to) q.set('date_to', f.date_to);
+		if (f.aspect_ratio) q.set('aspect_ratio_filter', f.aspect_ratio);
+		if (f.media_type) q.set('media_type', f.media_type);
+	}
 	return fetchJSON(`${BASE}/images?${q}`);
 }
 

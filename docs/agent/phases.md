@@ -100,7 +100,7 @@ When removing a source, the user will choose:
 - ELO vote stacks vertically on mobile with tap hints
 - 44px minimum touch targets throughout
 
-## Phase 3 — Quick Wins
+## Phase 3 — Quick Wins ✓
 - Per-collection sort persistence (sort resets on every open today)
 - Basic filtering UI: source, date range, aspect ratio, media type (dropdowns, no DSL)
 - Source presets transition from static (sync on scan) to dynamic

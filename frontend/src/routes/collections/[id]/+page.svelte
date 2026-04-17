@@ -9,9 +9,11 @@
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import ImageGrid from '$lib/components/ImageGrid.svelte';
 	import SortControls from '$lib/components/SortControls.svelte';
+	import FilterBar from '$lib/components/FilterBar.svelte';
 	import ThumbSizeSlider from '$lib/components/ThumbSizeSlider.svelte';
 	import MobilePageHeader from '$lib/components/MobilePageHeader.svelte';
-	import type { SortField, SortDirection } from '$lib/types';
+	import { attachSwipe } from '$lib/swipe';
+	import type { FilterState, SortField, SortDirection } from '$lib/types';
 
 	let images: ImageSummary[] = $state([]);
 	let totalCount = $state(0);
@@ -22,12 +24,15 @@
 	const backLabel = $derived(collection !== null && collection.type === 'source_preset' ? '← Gallery' : '← Collections');
 	let sort: SortField = $state('name');
 	let dir: SortDirection = $state('asc');
+	let filters: FilterState = $state({});
 	let thumbSize = $state(Number(localStorage.getItem('thumbSize')) || 200);
 	let filtersOpen = $state(true);
 	let optionsOpen = $state(false);
 	let loading = $state(false);
 	let currentScrollTop = $state(0);
 	let restoredScrollTop = $state(0);
+	let sheetEl: HTMLElement | null = $state(null);
+	let sheetHandleEl: HTMLElement | null = $state(null);
 
 	$effect(() => { localStorage.setItem('thumbSize', String(thumbSize)); });
 
@@ -48,7 +53,8 @@
 				limit: 500,
 				sort,
 				dir,
-				collection_id: collectionId()
+				collection_id: collectionId(),
+				filters
 			});
 			images = reset ? pg.items : [...images, ...pg.items];
 			totalCount = pg.total_count;
@@ -66,6 +72,7 @@
 			sort = collection.sort_by as SortField;
 			dir = collection.sort_dir as SortDirection;
 		}
+		filters = JSON.parse(localStorage.getItem(`collection:${collectionId()}:filters`) ?? '{}');
 		await fetchImages(true);
 	}
 
@@ -82,6 +89,12 @@
 		if (collection) {
 			updateCollection(collection.id, { sort_by: newSort, sort_dir: newDir });
 		}
+	}
+
+	function onFilterChange(newFilters: FilterState) {
+		filters = newFilters;
+		localStorage.setItem(`collection:${collectionId()}:filters`, JSON.stringify(newFilters));
+		fetchImages(true);
 	}
 
 	$effect(() => {
@@ -101,6 +114,12 @@
 		updateThumbSize();
 		window.addEventListener('resize', updateThumbSize);
 		return () => window.removeEventListener('resize', updateThumbSize);
+	});
+
+	// Swipe-down on the handle bar to close options sheet
+	$effect(() => {
+		if (!sheetHandleEl || !optionsOpen) return;
+		return attachSwipe(sheetHandleEl, { onSwipeDown: () => (optionsOpen = false) }, { threshold: 40 });
 	});
 </script>
 
@@ -128,6 +147,7 @@
 	{#if filtersOpen}
 		<div class="filter-row">
 			<SortControls {sort} {dir} onchange={onSortChange} />
+			<FilterBar {filters} onchange={onFilterChange} />
 			<ThumbSizeSlider bind:size={thumbSize} />
 		</div>
 	{/if}
@@ -146,12 +166,16 @@
 <!-- Mobile options sheet -->
 {#if optionsOpen}
 	<button class="sheet-backdrop" onclick={() => (optionsOpen = false)} aria-label="Close menu"></button>
-	<div class="options-sheet">
-		<div class="sheet-handle"></div>
+	<div class="options-sheet" bind:this={sheetEl}>
+		<div class="sheet-handle-area" bind:this={sheetHandleEl}>
+			<div class="sheet-handle"></div>
+		</div>
 		<div class="sheet-content">
 			<div class="sheet-count">{totalCount} images</div>
 			<h3 class="sheet-section">Sort by</h3>
 			<SortControls {sort} {dir} onchange={(s, d) => { onSortChange(s, d); optionsOpen = false; }} />
+			<h3 class="sheet-section">Filter</h3>
+			<FilterBar {filters} onchange={(f) => { onFilterChange(f); }} />
 			<h3 class="sheet-section">Thumbnail size</h3>
 			<ThumbSizeSlider bind:size={thumbSize} />
 			<h3 class="sheet-section">Actions</h3>
@@ -280,6 +304,7 @@
 		left: 0;
 		right: 0;
 		bottom: 0;
+		max-height: 85dvh;
 		background: #1a1a1a;
 		border-top: 1px solid #444;
 		border-radius: 16px 16px 0 0;
@@ -295,18 +320,27 @@
 		to   { transform: translateY(0); }
 	}
 
+	.sheet-handle-area {
+		padding: 12px 0 8px;
+		flex-shrink: 0;
+		touch-action: none;
+		cursor: grab;
+	}
+
 	.sheet-handle {
 		width: 40px;
 		height: 4px;
 		background: #555;
 		border-radius: 2px;
-		margin: 10px auto 4px;
-		flex-shrink: 0;
+		margin: 0 auto;
 	}
 
 	.sheet-content {
-		padding: 8px 16px 24px;
+		padding: 8px 16px max(24px, env(safe-area-inset-bottom, 24px));
 		overflow-y: auto;
+		overscroll-behavior: contain;
+		flex: 1;
+		min-height: 0;
 	}
 
 	.sheet-count {
