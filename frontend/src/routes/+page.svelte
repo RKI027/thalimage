@@ -5,23 +5,26 @@
 	import { listImages } from '$lib/api';
 	import { setBrowsingContext, saveScrollPosition, getScrollPosition } from '$lib/browsingContext';
 	import type { ImageSummary, SortField, SortDirection } from '$lib/types';
+	import { responsiveThumbSize } from '$lib/mobileStore.svelte';
 	import ImageGrid from '$lib/components/ImageGrid.svelte';
 	import SortControls from '$lib/components/SortControls.svelte';
 	import ThumbSizeSlider from '$lib/components/ThumbSizeSlider.svelte';
+	import MobilePageHeader from '$lib/components/MobilePageHeader.svelte';
 
 	let images: ImageSummary[] = $state([]);
 	let totalCount = $state(0);
 	let nextCursor: string | null = $state(null);
 	let sort: SortField = $state('name');
 	let dir: SortDirection = $state('asc');
-	let sourceId: number | undefined = $state(undefined);
 	let thumbSize = $state(Number(localStorage.getItem('thumbSize')) || 200);
 	let filtersOpen = $state(true);
+	let optionsOpen = $state(false);
 	let loading = $state(false);
 	let error: string | null = $state(null);
 	let initialLoad = $state(true);
 	let currentScrollTop = $state(0);
 	let restoredScrollTop = $state(0);
+	let sheetEl: HTMLElement | null = $state(null);
 
 	$effect(() => { localStorage.setItem('thumbSize', String(thumbSize)); });
 
@@ -62,6 +65,8 @@
 		fetchImages(true);
 	}
 
+	let sourceId: number | undefined = $state(undefined);
+
 	function readSourceId(): number | undefined {
 		const v = $page.url.searchParams.get('source_id');
 		return v ? Number(v) : undefined;
@@ -72,9 +77,19 @@
 		restoredScrollTop = getScrollPosition();
 		sourceId = readSourceId();
 		fetchImages(true);
+
+		// Set responsive thumb size on mobile
+		function updateThumbSize() {
+			if (window.innerWidth <= 768) {
+				thumbSize = responsiveThumbSize();
+			}
+		}
+		updateThumbSize();
+		window.addEventListener('resize', updateThumbSize);
+		return () => window.removeEventListener('resize', updateThumbSize);
 	});
 
-	// Re-fetch when source_id query param changes (clicking different sources)
+	// Re-fetch when source_id query param changes
 	$effect(() => {
 		const newId = readSourceId();
 		untrack(() => {
@@ -96,7 +111,17 @@
 		<p>Add a source folder in <a href="/settings?returnTo=/">Settings</a> and trigger a scan.</p>
 	</div>
 {:else}
-	<div class="toolbar">
+	<!-- Mobile single-row header -->
+	<div class="mobile-only">
+		<MobilePageHeader
+			leftType="hamburger"
+			title="All Images"
+			onMenuOpen={() => (optionsOpen = true)}
+		/>
+	</div>
+
+	<!-- Desktop toolbar -->
+	<div class="toolbar desktop-only">
 		<button class="collapse-btn" onclick={() => (filtersOpen = !filtersOpen)} title="Toggle sort controls">⊟</button>
 		{#if filtersOpen}
 			<div class="filter-row">
@@ -118,6 +143,21 @@
 		onLoadMore={() => nextCursor && fetchImages()}
 		onScroll={(s) => { currentScrollTop = s; }}
 	/>
+
+	<!-- Mobile options sheet -->
+	{#if optionsOpen}
+		<button class="sheet-backdrop" onclick={() => (optionsOpen = false)} aria-label="Close menu"></button>
+		<div class="options-sheet" bind:this={sheetEl}>
+			<div class="sheet-handle"></div>
+			<div class="sheet-content">
+				<div class="sheet-count">{totalCount} images{#if loading} (loading…){/if}</div>
+				<h3 class="sheet-section">Sort by</h3>
+				<SortControls {sort} {dir} onchange={(s, d) => { onSortChange(s, d); optionsOpen = false; }} />
+				<h3 class="sheet-section">Thumbnail size</h3>
+				<ThumbSizeSlider bind:size={thumbSize} />
+			</div>
+		</div>
+	{/if}
 {/if}
 
 <style>
@@ -153,28 +193,6 @@
 		margin-left: auto;
 	}
 
-	@media (max-width: 768px) {
-		.toolbar {
-			flex-wrap: wrap;
-			padding: 4px 8px;
-			gap: 4px;
-		}
-
-		.collapse-btn {
-			order: 1;
-		}
-
-		.count {
-			order: 2;
-			margin-left: auto;
-		}
-
-		.filter-row {
-			width: 100%;
-			order: 3;
-		}
-	}
-
 	.status {
 		padding: 48px 24px;
 		text-align: center;
@@ -191,5 +209,85 @@
 
 	.loading-hint {
 		color: #666;
+	}
+
+	/* Mobile/desktop visibility */
+	.mobile-only { display: none; }
+	.desktop-only { display: flex; }
+
+	/* Options sheet */
+	.sheet-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.4);
+		z-index: 50;
+		border: none;
+		cursor: default;
+	}
+
+	.options-sheet {
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: #1a1a1a;
+		border-top: 1px solid #444;
+		border-radius: 16px 16px 0 0;
+		z-index: 60;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+		animation: sheet-up 0.25s ease;
+	}
+
+	@keyframes sheet-up {
+		from { transform: translateY(100%); }
+		to   { transform: translateY(0); }
+	}
+
+	.sheet-handle {
+		width: 40px;
+		height: 4px;
+		background: #555;
+		border-radius: 2px;
+		margin: 10px auto 4px;
+		flex-shrink: 0;
+	}
+
+	.sheet-content {
+		padding: 8px 16px 24px;
+		overflow-y: auto;
+	}
+
+	.sheet-count {
+		color: #888;
+		font-size: 0.85rem;
+		margin-bottom: 16px;
+	}
+
+	.sheet-section {
+		margin: 16px 0 8px;
+		font-size: 0.8rem;
+		color: #6ea8fe;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.sheet-section:first-of-type {
+		margin-top: 0;
+	}
+
+	@media (max-width: 768px) {
+		.mobile-only { display: block; }
+		.desktop-only { display: none; }
+
+		/* Make slider fill sheet width */
+		.options-sheet :global(.thumb-slider) {
+			width: 100%;
+		}
+
+		.options-sheet :global(input[type='range']) {
+			width: 100%;
+		}
 	}
 </style>

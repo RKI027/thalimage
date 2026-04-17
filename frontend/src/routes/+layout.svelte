@@ -2,10 +2,9 @@
 	import { page } from '$app/stores';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
+	import { mobileStore } from '$lib/mobileStore.svelte';
 
 	let { children } = $props();
-
-	let mobileDrawerOpen = $state(false);
 
 	const isSlideshow = $derived(slideshowStore.status !== 'idle');
 	const routeGroup = $derived($page.url.pathname.split('/')[1] || 'home');
@@ -24,9 +23,6 @@
 <div class="app">
 	{#if !isSlideshow}
 		<header>
-			<button class="hamburger" onclick={() => (mobileDrawerOpen = true)} aria-label="Open menu">
-				☰
-			</button>
 			<a href="/" class="logo">Thalimage</a>
 			<nav>
 				<a href="/">Gallery</a>
@@ -36,10 +32,14 @@
 	{/if}
 	<div class="body">
 		{#if !isSlideshow}
-			{#if mobileDrawerOpen}
-				<button class="drawer-backdrop" onclick={() => (mobileDrawerOpen = false)} aria-label="Close menu"></button>
+			{#if mobileStore.drawerOpen}
+				<button
+					class="drawer-backdrop"
+					onclick={mobileStore.close}
+					aria-label="Close menu"
+				></button>
 			{/if}
-			<Sidebar mobileOpen={mobileDrawerOpen} onMobileClose={() => (mobileDrawerOpen = false)} />
+			<Sidebar mobileOpen={mobileStore.drawerOpen} onMobileClose={mobileStore.close} />
 		{/if}
 		<main>
 			{#key routeGroup}
@@ -97,10 +97,6 @@
 		gap: 16px;
 	}
 
-	.hamburger {
-		display: none;
-	}
-
 	.body {
 		flex: 1;
 		display: flex;
@@ -115,21 +111,9 @@
 	}
 
 	@media (max-width: 768px) {
-		.hamburger {
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			min-height: 44px;
-			min-width: 44px;
-			background: none;
-			border: none;
-			color: #eee;
-			font-size: 1.3rem;
-			cursor: pointer;
-			padding: 0;
-		}
-
-		nav {
+		/* Pages render their own single-row mobile header, so the app header
+		   is suppressed on mobile. */
+		header {
 			display: none;
 		}
 
@@ -138,6 +122,8 @@
 			inset: 0;
 			background: rgba(0, 0, 0, 0.55);
 			z-index: 200;
+			border: none;
+			cursor: default;
 		}
 
 		/* Global touch targets */

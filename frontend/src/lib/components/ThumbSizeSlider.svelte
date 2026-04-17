@@ -15,6 +15,7 @@
 
 	input[type='range'] {
 		width: 100px;
+		max-width: 100%;
 		accent-color: #6ea8fe;
 		cursor: pointer;
 	}
