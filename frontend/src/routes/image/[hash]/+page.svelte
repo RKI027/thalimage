@@ -10,7 +10,7 @@
 	import MetadataPanel from '$lib/components/MetadataPanel.svelte';
 	import SlideshowOverlay from '$lib/components/SlideshowOverlay.svelte';
 
-	let image: ImageDetail | null = $state(null);
+	let image = $state<ImageDetail | null>(null);
 	let neighbors: ImageSummary[] = $state([]);
 	let currentIndex = $state(-1);
 	let error: string | null = $state(null);
@@ -21,6 +21,15 @@
 	let bottomSheetOpen = $state(false);
 	let topBarVisible = $state(false);
 	let topBarTimer: ReturnType<typeof setTimeout> | null = null;
+	let videoLoop = $state(localStorage.getItem('video:loop') === 'true');
+
+	const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.avi']);
+	const isVideo = $derived(
+		image !== null &&
+		VIDEO_EXTENSIONS.has(image.filename.slice(image.filename.lastIndexOf('.')).toLowerCase())
+	);
+
+	$effect(() => { localStorage.setItem('video:loop', String(videoLoop)); });
 
 	const metadataModes: MetadataMode[] = ['hidden', 'compact', 'full'];
 	const overlayModes: OverlayMode[] = ['none', 'minimal', 'full'];
@@ -192,6 +201,7 @@
 				filename={image.filename}
 				width={image.width}
 				height={image.height}
+				loop={videoLoop}
 			/>
 			<SlideshowOverlay
 				{image}
@@ -231,13 +241,30 @@
 					<button onclick={enterSlideshow} title="Start slideshow (Space)" disabled={neighbors.length === 0}>
 						▶ Slideshow
 					</button>
+					{#if isVideo}
+						<button
+							class="loop-btn"
+							class:active={videoLoop}
+							onclick={() => (videoLoop = !videoLoop)}
+							title="Toggle loop"
+						>⟲ Loop</button>
+					{/if}
 				</div>
 				<!-- Mobile-only: counter + action buttons -->
 				<span class="mobile-counter">
 					{#if currentIndex >= 0}{currentIndex + 1} / {neighbors.length}{/if}
 				</span>
 				<div class="mobile-actions">
-					<button class="mobile-btn" onclick={enterSlideshow} disabled={neighbors.length === 0} title="Start slideshow">▶</button>
+					{#if isVideo}
+						<button
+							class="mobile-btn"
+							class:active={videoLoop}
+							onclick={() => (videoLoop = !videoLoop)}
+							title="Toggle loop"
+						>⟲</button>
+					{:else}
+						<button class="mobile-btn" onclick={enterSlideshow} disabled={neighbors.length === 0} title="Start slideshow">▶</button>
+					{/if}
 					<button class="mobile-btn" onclick={() => { bottomSheetOpen = true; showTopBar(); }} title="Image info">ℹ</button>
 				</div>
 			</div>
@@ -250,6 +277,7 @@
 					filename={image.filename}
 					width={image.width}
 					height={image.height}
+					loop={videoLoop}
 				/>
 				<!-- Desktop: metadata side panel. Hidden on mobile via CSS. -->
 				<div class="metadata-side">
@@ -316,6 +344,24 @@
 	.nav-buttons button:disabled {
 		opacity: 0.4;
 		cursor: default;
+	}
+
+	.loop-btn {
+		padding: 4px 12px;
+		border: 1px solid #444;
+		border-radius: 4px;
+		background: #2a2a2a;
+		color: #888;
+		cursor: pointer;
+	}
+
+	.loop-btn.active {
+		border-color: #6ea8fe;
+		color: #6ea8fe;
+	}
+
+	.loop-btn:hover {
+		background: #3a3a3a;
 	}
 
 	.position {
@@ -415,6 +461,11 @@
 
 		.mobile-btn:disabled {
 			opacity: 0.4;
+		}
+
+		.mobile-btn.active {
+			border-color: #6ea8fe;
+			color: #6ea8fe;
 		}
 
 		/* body fills the full image-page area */
