@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto, beforeNavigate } from '$app/navigation';
-	import { getImage, listImages } from '$lib/api';
+	import { getImage, listImages, archiveImage } from '$lib/api';
 	import { browsingContext, backDestination, backLabel } from '$lib/browsingContext';
 	import type { ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
@@ -187,6 +187,21 @@
 	$effect(() => () => {
 		if (topBarTimer) clearTimeout(topBarTimer);
 	});
+
+	async function toggleArchive() {
+		if (!image) return;
+		const newState = !image.archived;
+		image = await archiveImage(image.content_hash, newState);
+		if (newState) {
+			// Navigate away from an archived image
+			const next = neighbors[currentIndex + 1] ?? neighbors[currentIndex - 1];
+			if (next) {
+				goto(`/image/${next.content_hash}`);
+			} else {
+				goto(back);
+			}
+		}
+	}
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -249,6 +264,12 @@
 							title="Toggle loop"
 						>⟲ Loop</button>
 					{/if}
+					<button
+						class="archive-btn"
+						class:archived={image.archived}
+						onclick={toggleArchive}
+						title={image.archived ? 'Unarchive' : 'Archive'}
+					>{image.archived ? '↩ Unarchive' : '⬜ Archive'}</button>
 				</div>
 				<!-- Mobile-only: counter + action buttons -->
 				<span class="mobile-counter">
@@ -265,6 +286,12 @@
 					{:else}
 						<button class="mobile-btn" onclick={enterSlideshow} disabled={neighbors.length === 0} title="Start slideshow">▶</button>
 					{/if}
+					<button
+						class="mobile-btn"
+						class:active={image.archived}
+						onclick={toggleArchive}
+						title={image.archived ? 'Unarchive' : 'Archive'}
+					>{image.archived ? '↩' : '⬜'}</button>
 					<button class="mobile-btn" onclick={() => { bottomSheetOpen = true; showTopBar(); }} title="Image info">ℹ</button>
 				</div>
 			</div>
@@ -361,6 +388,24 @@
 	}
 
 	.loop-btn:hover {
+		background: #3a3a3a;
+	}
+
+	.archive-btn {
+		padding: 4px 12px;
+		border: 1px solid #444;
+		border-radius: 4px;
+		background: #2a2a2a;
+		color: #888;
+		cursor: pointer;
+	}
+
+	.archive-btn.archived {
+		border-color: #f6a84b;
+		color: #f6a84b;
+	}
+
+	.archive-btn:hover {
 		background: #3a3a3a;
 	}
 

@@ -44,6 +44,14 @@ export function getImage(hash: string): Promise<ImageDetail> {
 	return fetchJSON(`${BASE}/images/${hash}`);
 }
 
+export function archiveImage(hash: string, archived: boolean): Promise<ImageDetail> {
+	return fetchJSON(`${BASE}/images/${hash}/archive`, {
+		method: 'PATCH',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ archived })
+	});
+}
+
 export function imageFileUrl(hash: string): string {
 	return `${BASE}/images/${hash}/file`;
 }

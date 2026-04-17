@@ -6,6 +6,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from thalimage.core.thumbnails import thumbnail_path
 from thalimage.deps import get_db, get_thumb_dir
@@ -16,6 +17,7 @@ from thalimage.services.image_service import (
     get_image,
     list_images,
     resolve_file_path,
+    set_archived,
 )
 
 router = APIRouter(prefix="/images", tags=["images"])
@@ -29,6 +31,10 @@ def get_images(
     dir: str = Query("asc"),
     source_id: Optional[int] = Query(None),
     collection_id: Optional[int] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    aspect_ratio_filter: Optional[str] = Query(None),
+    media_type: Optional[str] = Query(None),
     db: sqlite3.Connection = Depends(get_db),
 ) -> ImagePage:
     # Source preset collections are served dynamically: rewrite to a source filter.
@@ -46,6 +52,10 @@ def get_images(
         direction=dir,
         source_id=source_id,
         collection_id=collection_id,
+        date_from=date_from,
+        date_to=date_to,
+        aspect_ratio_filter=aspect_ratio_filter,
+        media_type=media_type,
     )
 
 
@@ -83,3 +93,21 @@ def get_image_thumb(
     if not p.exists():
         raise HTTPException(404, "Thumbnail not found")
     return FileResponse(p, media_type="image/webp")
+
+
+class ArchiveRequest(BaseModel):
+    archived: bool
+
+
+@router.patch("/{content_hash}/archive", response_model=ImageDetail)
+def archive_image(
+    content_hash: str,
+    body: ArchiveRequest,
+    db: sqlite3.Connection = Depends(get_db),
+) -> ImageDetail:
+    if not set_archived(db, content_hash, body.archived):
+        raise HTTPException(404, "Image not found")
+    image = get_image(db, content_hash)
+    if image is None:
+        raise HTTPException(404, "Image not found")
+    return image

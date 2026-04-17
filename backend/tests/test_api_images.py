@@ -99,3 +99,46 @@ def test_get_image_thumb(client: TestClient, image_dir: Path) -> None:
 def test_get_thumb_not_found(client: TestClient) -> None:
     resp = client.get("/api/v1/images/nonexistent/thumb")
     assert resp.status_code == 404
+
+
+def test_archive_hides_from_gallery(client: TestClient, image_dir: Path) -> None:
+    hashes = _seed_images(client, image_dir)
+    target = hashes[0]
+
+    resp = client.patch(f"/api/v1/images/{target}/archive", json={"archived": True})
+    assert resp.status_code == 200
+    assert resp.json()["archived"] is True
+
+    resp = client.get("/api/v1/images")
+    listed = [i["content_hash"] for i in resp.json()["items"]]
+    assert target not in listed
+    assert resp.json()["total_count"] == len(hashes) - 1
+
+
+def test_archive_still_accessible_by_hash(client: TestClient, image_dir: Path) -> None:
+    hashes = _seed_images(client, image_dir)
+    target = hashes[0]
+
+    client.patch(f"/api/v1/images/{target}/archive", json={"archived": True})
+
+    resp = client.get(f"/api/v1/images/{target}")
+    assert resp.status_code == 200
+    assert resp.json()["archived"] is True
+
+
+def test_unarchive_restores_to_gallery(client: TestClient, image_dir: Path) -> None:
+    hashes = _seed_images(client, image_dir)
+    target = hashes[0]
+
+    client.patch(f"/api/v1/images/{target}/archive", json={"archived": True})
+    client.patch(f"/api/v1/images/{target}/archive", json={"archived": False})
+
+    resp = client.get("/api/v1/images")
+    listed = [i["content_hash"] for i in resp.json()["items"]]
+    assert target in listed
+    assert resp.json()["total_count"] == len(hashes)
+
+
+def test_archive_not_found(client: TestClient) -> None:
+    resp = client.patch("/api/v1/images/nonexistent/archive", json={"archived": True})
+    assert resp.status_code == 404

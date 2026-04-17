@@ -8,6 +8,7 @@ export interface ImageSummary {
 	aspect_ratio: number;
 	format: string;
 	thumb_generated: boolean;
+	archived: boolean;
 }
 
 export interface ImageDetail extends ImageSummary {

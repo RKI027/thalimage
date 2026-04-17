@@ -19,12 +19,13 @@ def get_pair(
     rows = conn.execute(
         """SELECT i.content_hash, i.filename, i.source_id, i.relative_path,
                   i.width, i.height, i.aspect_ratio, i.format, i.thumb_generated,
+                  i.archived,
                   COALESCE(e.matches, 0) AS matches
            FROM collection_images ci
            JOIN images i ON ci.content_hash = i.content_hash
            LEFT JOIN elo_scores e ON i.content_hash = e.content_hash
                 AND e.collection_id = ci.collection_id
-           WHERE ci.collection_id = ? AND i.deleted = 0
+           WHERE ci.collection_id = ? AND i.deleted = 0 AND i.archived = 0
            ORDER BY matches ASC, RANDOM()
         """,
         (collection_id,),
