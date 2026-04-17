@@ -15,7 +15,10 @@
 	let images: ImageSummary[] = $state([]);
 	let totalCount = $state(0);
 	let nextCursor: string | null = $state(null);
-	let collection: Collection | null = $state(null);
+	let collection = $state<Collection | null>(null);
+
+	const backHref = $derived(collection !== null && collection.type === 'source_preset' ? '/' : '/collections');
+	const backLabel = $derived(collection !== null && collection.type === 'source_preset' ? '← Gallery' : '← Collections');
 	let sort: SortField = $state('name');
 	let dir: SortDirection = $state('asc');
 	let thumbSize = $state(Number(localStorage.getItem('thumbSize')) || 200);
@@ -93,7 +96,7 @@
 <div class="mobile-only">
 	<MobilePageHeader
 		leftType="back"
-		backHref="/collections"
+		backHref={backHref}
 		title={collection?.name ?? ''}
 		onMenuOpen={() => (optionsOpen = true)}
 	/>
@@ -102,7 +105,7 @@
 <!-- Desktop toolbar -->
 <div class="toolbar desktop-only">
 	<div class="left">
-		<a href="/collections">← Collections</a>
+		<a href={backHref}>{backLabel}</a>
 		<h2>{collection?.name ?? ''}</h2>
 		{#if collection}
 			<a class="elo-link" href="/elo/{collection.id}">ELO Vote</a>

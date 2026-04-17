@@ -1,13 +1,16 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { listCollections, createCollection, deleteCollection } from '$lib/api';
 	import { collectionsStore } from '$lib/stores';
 	import type { Collection } from '$lib/types';
 
+	let presets: Collection[] = $state([]);
 	let collections: Collection[] = $state([]);
 	let newName = $state('');
 
 	async function refresh() {
 		const all = await listCollections();
+		presets = all.filter((c) => c.type === 'source_preset');
 		collections = all.filter((c) => c.type === 'manual');
 	}
 
@@ -25,33 +28,55 @@
 		collectionsStore.refresh();
 	}
 
-	import { onMount } from 'svelte';
 	onMount(() => { refresh(); });
 </script>
 
 <div class="collections-page">
-	<h2>Collections</h2>
-
-	<div class="add-form">
-		<input bind:value={newName} placeholder="New collection name" onkeydown={(e) => e.key === 'Enter' && addCollection()} />
-		<button onclick={addCollection}>Create</button>
-	</div>
-
-	{#if collections.length === 0}
-		<p class="empty">No collections yet. Create one above.</p>
-	{:else}
-		<ul>
-			{#each collections as coll}
+	{#if presets.length > 0}
+		<section>
+			<h3 class="section-label">Presets</h3>
+			<ul>
 				<li>
-					<a href="/collections/{coll.id}">
-						<span class="name">{coll.name}</span>
-						<span class="count">{coll.image_count} images</span>
+					<a href="/">
+						<span class="name">All Images</span>
 					</a>
-					<button class="delete" onclick={() => remove(coll.id)}>×</button>
 				</li>
-			{/each}
-		</ul>
+				{#each presets as preset}
+					<li>
+						<a href="/collections/{preset.id}">
+							<span class="name">{preset.name}</span>
+							<span class="count">{preset.image_count} images</span>
+						</a>
+					</li>
+				{/each}
+			</ul>
+		</section>
 	{/if}
+
+	<section>
+		<h3 class="section-label">Collections</h3>
+
+		<div class="add-form">
+			<input bind:value={newName} placeholder="New collection name" onkeydown={(e) => e.key === 'Enter' && addCollection()} />
+			<button onclick={addCollection}>Create</button>
+		</div>
+
+		{#if collections.length === 0}
+			<p class="empty">No collections yet. Create one above.</p>
+		{:else}
+			<ul>
+				{#each collections as coll}
+					<li>
+						<a href="/collections/{coll.id}">
+							<span class="name">{coll.name}</span>
+							<span class="count">{coll.image_count} images</span>
+						</a>
+						<button class="delete" onclick={() => remove(coll.id)}>×</button>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</section>
 </div>
 
 <style>
@@ -60,14 +85,22 @@
 		max-width: 600px;
 	}
 
-	h2 {
-		margin: 0 0 16px;
+	section {
+		margin-bottom: 32px;
+	}
+
+	.section-label {
+		margin: 0 0 12px;
+		font-size: 0.8rem;
+		color: #888;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
 	}
 
 	.add-form {
 		display: flex;
 		gap: 8px;
-		margin-bottom: 24px;
+		margin-bottom: 16px;
 	}
 
 	input {
@@ -138,5 +171,6 @@
 
 	.delete:hover {
 		color: #f66;
+		background: transparent;
 	}
 </style>
