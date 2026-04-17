@@ -100,26 +100,36 @@ When removing a source, the user will choose:
 - ELO vote stacks vertically on mobile with tap hints
 - 44px minimum touch targets throughout
 
-## Phase 3 — Organization & Search
-- Tagging system with author tracking + tag ontology (tags are global
-  on images, not per-collection)
-- Auto-tagging (CLIP, face detection)
-- Smart filters / DSL on metadata, prompts, models, LoRAs
-- Saved searches become dynamic collections (`type = 'dynamic_query'`,
-  `query` JSON column in collections table)
+## Phase 3 — Quick Wins
+- Per-collection sort persistence (sort resets on every open today)
+- Basic filtering UI: source, date range, aspect ratio, media type (dropdowns, no DSL)
 - Source presets transition from static (sync on scan) to dynamic
   (`WHERE source_id = X`, always live)
-- Per-collection sort persistence
-- Archival flag (remove from active sets, space-efficient storage)
+- Archival flag (soft-delete from active sets, space-efficient storage)
 
-## Phase 4 — Comparison & Dedup
-- Perceptual hashing
-- Near-duplicate detection (configurable distance)
-- Cluster visualization (grid or side-by-side or blended)
-- Image comparison view (side-by-side or slider) with prompt diff
-- Prompt similarity (graph-based diff)
+## Phase 4 — Tags & NSFW
+- Tagging system: global on images, not per-collection; author tracking
+- Tag ontology / hierarchy (optional)
+- NSFW flag: separate boolean, auto-set if a tag implies NSFW
+- Collection-level NSFW flag
+- User setting: show/hide NSFW content
 
-## Phase 6 — Advanced
+## Phase 5 — Smart Filters & Saved Searches
+- Filter DSL on metadata, prompts, models, LoRAs, tags
+- Saved searches become dynamic collections (`type = 'dynamic_query'`,
+  `query` JSON column in collections table)
+
+## Phase 6 — Perceptual Dedup
+- Perceptual hashing at scan time (pHash/dHash)
+- Near-duplicate detection (configurable distance threshold)
+- Cluster visualization
+
+## Phase 7 — Comparison & Prompt Analysis
+- Image comparison view (side-by-side or slider) — SideBySideView exists
+- Prompt diff / similarity (graph-based diff)
+
+## Phase 8 — Advanced
+- Auto-tagging (CLIP, face detection)
 - Model interrogation for prompt inspiration
 - Multi-user support (auth, per-user votes/tags/ELO)
 - Batch operations
@@ -127,22 +137,15 @@ When removing a source, the user will choose:
 
 ## Unsorted
 
-- don't forget `Source Removal UX`
-- image flag nsfw (not tag, separate but auto-set if a tag implies nsfw)
-- collection flag nsfw
-- user settings show/hide nsfw
-- flexible grid layout so different A/R images generate consistent
-  white space. I'm not sure how other apps do but this approach could
-  be interesting. If there's no reference / usable library, it could
-  be interesting to design it as a separate tool to release
-  independently. Combine two things: given a thumbnail size, determine
-  appropriate landscape and portrait sizes that we can easily combine:
-  eg, if the majority of the collection's pics are L(andscape), we
-  make P(ortrait)'s height L's height and P's width half of L's
-  width - margin/padding so 2 P side by side is same as one L. With
-  that we can layout out a grid in which to display the thumbnails.
-  Thumbnails need to be resized since their A/R doesn't necessarily
-  match and for that we use seam cropping. if we predetermine the A/R
-  we use to display the thumbnails (app-wide probably), the
-  seam-cropping calculation should be a one-off at scan time and we
-  just need the basic resize dynamically.
+- Justified grid layout (Google Photos / Flickr style): row-based layout
+  where all images in a row share a height and fill the full width.
+  Existing options: `flickr/justified-layout` (layout engine only, no
+  renderer — good fit for a custom Svelte component), `miromannino/
+  Justified-Gallery` (jQuery, mature), React variants exist but
+  irrelevant here. Seam-carving for content-aware thumbnail cropping
+  exists separately (`trekhleb/js-image-carver`, `mfbx9da4/
+  seam-carving-js`) — would run at scan time as a preprocessing step,
+  storing the carved thumbnail alongside the standard one. No library
+  currently combines both; they'd be wired together. A clean Svelte
+  wrapper around `flickr/justified-layout` + optional seam-carved thumbs
+  could be worth releasing independently.
