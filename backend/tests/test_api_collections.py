@@ -105,6 +105,24 @@ def test_remove_images_from_collection(client: TestClient, image_dir: Path) -> N
     assert resp.json()["image_count"] == 2
 
 
+def test_update_collection_sort_persists(client: TestClient) -> None:
+    resp = client.post("/api/v1/collections", json={"name": "Sorted"})
+    cid = resp.json()["id"]
+
+    resp = client.patch(
+        f"/api/v1/collections/{cid}",
+        json={"sort_by": "date_modified", "sort_dir": "desc"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["sort_by"] == "date_modified"
+    assert data["sort_dir"] == "desc"
+
+    resp = client.get(f"/api/v1/collections/{cid}")
+    assert resp.json()["sort_by"] == "date_modified"
+    assert resp.json()["sort_dir"] == "desc"
+
+
 def test_filter_images_by_collection(client: TestClient, image_dir: Path) -> None:
     hashes = _seed_images(client, image_dir)
     resp = client.post("/api/v1/collections", json={"name": "Subset"})

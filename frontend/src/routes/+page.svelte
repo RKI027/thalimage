@@ -16,8 +16,8 @@
 	let images: ImageSummary[] = $state([]);
 	let totalCount = $state(0);
 	let nextCursor: string | null = $state(null);
-	let sort: SortField = $state('name');
-	let dir: SortDirection = $state('asc');
+	let sort: SortField = $state((localStorage.getItem('gallery:sort') as SortField) || 'name');
+	let dir: SortDirection = $state((localStorage.getItem('gallery:dir') as SortDirection) || 'asc');
 	let thumbSize = $state(Number(localStorage.getItem('thumbSize')) || 200);
 	let filtersOpen = $state(true);
 	let optionsOpen = $state(false);
@@ -70,6 +70,8 @@
 	function onSortChange(newSort: SortField, newDir: SortDirection) {
 		sort = newSort;
 		dir = newDir;
+		localStorage.setItem('gallery:sort', newSort);
+		localStorage.setItem('gallery:dir', newDir);
 		fetchImages(true);
 	}
 

@@ -2,7 +2,7 @@
 	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto, beforeNavigate } from '$app/navigation';
-	import { listImages, getCollection as fetchCollection } from '$lib/api';
+	import { listImages, getCollection as fetchCollection, updateCollection } from '$lib/api';
 	import { setBrowsingContext, saveScrollPosition, getScrollPosition } from '$lib/browsingContext';
 	import type { ImageSummary, Collection } from '$lib/types';
 	import { responsiveThumbSize } from '$lib/mobileStore.svelte';
@@ -58,11 +58,15 @@
 		}
 	}
 
-	async function loadCollection() {
+	async function loadCollectionAndImages() {
+		restoredScrollTop = getScrollPosition();
 		collection = await fetchCollection(collectionId());
 		if (collection) {
 			setBrowsingContext({ type: 'collection', collectionId: collection.id, name: collection.name });
+			sort = collection.sort_by as SortField;
+			dir = collection.sort_dir as SortDirection;
 		}
+		await fetchImages(true);
 	}
 
 	function startSlideshow() {
@@ -75,14 +79,15 @@
 		sort = newSort;
 		dir = newDir;
 		fetchImages(true);
+		if (collection) {
+			updateCollection(collection.id, { sort_by: newSort, sort_dir: newDir });
+		}
 	}
 
 	$effect(() => {
 		const _id = $page.params.id;
 		untrack(() => {
-			restoredScrollTop = getScrollPosition();
-			loadCollection();
-			fetchImages(true);
+			loadCollectionAndImages();
 		});
 	});
 
