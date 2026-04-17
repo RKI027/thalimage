@@ -229,11 +229,14 @@
 						▶ Slideshow
 					</button>
 				</div>
-				<!-- Mobile-only: counter + metadata button -->
+				<!-- Mobile-only: counter + action buttons -->
 				<span class="mobile-counter">
 					{#if currentIndex >= 0}{currentIndex + 1} / {neighbors.length}{/if}
 				</span>
-				<button class="info-btn" onclick={() => { bottomSheetOpen = true; showTopBar(); }}>ℹ</button>
+				<div class="mobile-actions">
+					<button class="mobile-btn" onclick={enterSlideshow} disabled={neighbors.length === 0} title="Start slideshow">▶</button>
+					<button class="mobile-btn" onclick={() => { bottomSheetOpen = true; showTopBar(); }} title="Image info">ℹ</button>
+				</div>
 			</div>
 
 			<!-- body: desktop flex row; mobile full-screen -->
@@ -335,7 +338,7 @@
 		display: none;
 	}
 
-	.info-btn {
+	.mobile-actions {
 		display: none;
 	}
 
@@ -387,7 +390,12 @@
 			font-size: 0.85rem;
 		}
 
-		.info-btn {
+		.mobile-actions {
+			display: flex;
+			gap: 8px;
+		}
+
+		.mobile-btn {
 			display: flex;
 			align-items: center;
 			justify-content: center;
@@ -398,6 +406,12 @@
 			cursor: pointer;
 			font-size: 1rem;
 			padding: 4px 10px;
+			min-height: 44px;
+			min-width: 44px;
+		}
+
+		.mobile-btn:disabled {
+			opacity: 0.4;
 		}
 
 		/* body fills the full image-page area */
