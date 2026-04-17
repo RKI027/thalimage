@@ -83,12 +83,22 @@ When removing a source, the user will choose:
 - The `sources` table remains as backend plumbing (scan targets), but
   users interact only through collections.
 
-## Phase 5a — Presenter: Slideshow & Metadata
-- Slideshow mode (manual/timed, shuffle, sort, temporary filters)
-- Configurable metadata display levels
+## Phase 5a — Presenter: Slideshow & Metadata ✓
+- Slideshow mode (timed, shuffle, fullscreen, fading overlay controls)
+- Configurable metadata display levels (hidden/compact/full), persisted
+- Overlay mode (none/minimal/full) independent of metadata mode
 
-## Phase 5b — Presenter: Mobile
-- Mobile-friendly presentation (UX design-heavy)
+## Phase 5b — Presenter: Mobile ✓
+- Hamburger drawer sidebar with backdrop
+- Compact single-row page headers (hamburger/back + title + ⋮ options sheet)
+- Collapsible filter toolbar on gallery and collection views
+- Responsive auto thumb size (2 cols portrait / 3 cols landscape)
+- Swipe left/right navigation in image viewer
+- Fading top bar overlay with ▶ and ℹ buttons
+- Metadata bottom sheet (swipe-down to dismiss)
+- Slideshow entry point from gallery/collection toolbar and options sheet
+- ELO vote stacks vertically on mobile with tap hints
+- 44px minimum touch targets throughout
 
 ## Phase 3 — Organization & Search
 - Tagging system with author tracking + tag ontology (tags are global
