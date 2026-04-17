@@ -19,6 +19,17 @@ class Collection(BaseModel):
     image_count: int = 0
 
 
+_COUNT_SQL = """
+    SELECT c.*,
+        CASE WHEN c.type = 'source_preset'
+            THEN (SELECT COUNT(*) FROM images WHERE source_id = c.source_id AND deleted = 0)
+            ELSE COUNT(ci.content_hash)
+        END AS image_count
+    FROM collections c
+    LEFT JOIN collection_images ci ON c.id = ci.collection_id
+"""
+
+
 def list_collections(
     conn: sqlite3.Connection,
     *,
@@ -27,32 +38,19 @@ def list_collections(
     """List all collections with image counts, optionally filtered by type."""
     if type is not None:
         rows = conn.execute(
-            """SELECT c.*, COUNT(ci.content_hash) as image_count
-               FROM collections c
-               LEFT JOIN collection_images ci ON c.id = ci.collection_id
-               WHERE c.type = ?
-               GROUP BY c.id
-               ORDER BY c.name""",
+            _COUNT_SQL + " WHERE c.type = ? GROUP BY c.id ORDER BY c.name",
             (type,),
         ).fetchall()
     else:
         rows = conn.execute(
-            """SELECT c.*, COUNT(ci.content_hash) as image_count
-               FROM collections c
-               LEFT JOIN collection_images ci ON c.id = ci.collection_id
-               GROUP BY c.id
-               ORDER BY c.name"""
+            _COUNT_SQL + " GROUP BY c.id ORDER BY c.name"
         ).fetchall()
     return [Collection(**dict(r)) for r in rows]
 
 
 def get_collection(conn: sqlite3.Connection, collection_id: int) -> Optional[Collection]:
     row = conn.execute(
-        """SELECT c.*, COUNT(ci.content_hash) as image_count
-           FROM collections c
-           LEFT JOIN collection_images ci ON c.id = ci.collection_id
-           WHERE c.id = ?
-           GROUP BY c.id""",
+        _COUNT_SQL + " WHERE c.id = ? GROUP BY c.id",
         (collection_id,),
     ).fetchone()
     if row is None:
@@ -185,20 +183,3 @@ def get_or_create_source_preset(
     return get_collection(conn, cursor.lastrowid)  # type: ignore[return-value]
 
 
-def sync_source_preset_images(
-    conn: sqlite3.Connection,
-    collection_id: int,
-    source_id: int,
-) -> None:
-    """Replace a source preset's images with all non-deleted images from its source."""
-    conn.execute(
-        "DELETE FROM collection_images WHERE collection_id = ?",
-        (collection_id,),
-    )
-    conn.execute(
-        """INSERT INTO collection_images (collection_id, content_hash)
-           SELECT ?, content_hash FROM images
-           WHERE source_id = ? AND deleted = 0""",
-        (collection_id, source_id),
-    )
-    conn.commit()

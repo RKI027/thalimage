@@ -7,8 +7,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
-from thalimage.deps import get_db, get_thumb_dir
 from thalimage.core.thumbnails import thumbnail_path
+from thalimage.deps import get_db, get_thumb_dir
+from thalimage.services.collection_service import get_collection
 from thalimage.services.image_service import (
     ImageDetail,
     ImagePage,
@@ -30,6 +31,13 @@ def get_images(
     collection_id: Optional[int] = Query(None),
     db: sqlite3.Connection = Depends(get_db),
 ) -> ImagePage:
+    # Source preset collections are served dynamically: rewrite to a source filter.
+    if collection_id is not None:
+        coll = get_collection(db, collection_id)
+        if coll is not None and coll.type == "source_preset":
+            source_id = coll.source_id
+            collection_id = None
+
     return list_images(
         db,
         cursor=cursor,

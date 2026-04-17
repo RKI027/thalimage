@@ -137,6 +137,26 @@ def test_source_deletion_removes_preset(
     assert not any(p["source_id"] == source_id for p in resp.json())
 
 
+def test_source_preset_images_served_dynamically(
+    client: TestClient, db: sqlite3.Connection, image_dir: Path
+) -> None:
+    """Source preset images come from a live query, not collection_images rows."""
+    source_id, hashes = _seed_images(client, image_dir)
+
+    # No collection_images rows should exist for the source preset
+    preset_resp = client.get("/api/v1/collections?type=source_preset")
+    preset_id = next(p["id"] for p in preset_resp.json() if p["source_id"] == source_id)
+    rows = db.execute(
+        "SELECT COUNT(*) FROM collection_images WHERE collection_id = ?", (preset_id,)
+    ).fetchone()[0]
+    assert rows == 0
+
+    # Yet the image listing by collection_id still returns all images
+    resp = client.get(f"/api/v1/images?collection_id={preset_id}")
+    assert resp.status_code == 200
+    assert resp.json()["total_count"] == len(hashes)
+
+
 def test_get_or_create_preset_idempotent(
     client: TestClient, image_dir: Path
 ) -> None:
