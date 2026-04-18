@@ -17,6 +17,7 @@
 	let pageEl: HTMLElement | null = $state(null);
 	let bodyEl: HTMLElement | null = $state(null);
 	let sheetEl: HTMLElement | null = $state(null);
+	let sheetHandleEl: HTMLElement | null = $state(null);
 
 	let bottomSheetOpen = $state(false);
 	let topBarVisible = $state(false);
@@ -179,8 +180,8 @@
 
 	// Swipe-down to close bottom sheet
 	$effect(() => {
-		if (!sheetEl || !bottomSheetOpen) return;
-		return attachSwipe(sheetEl, { onSwipeDown: () => (bottomSheetOpen = false) }, { threshold: 60 });
+		if (!sheetHandleEl || !bottomSheetOpen) return;
+		return attachSwipe(sheetHandleEl, { onSwipeDown: () => (bottomSheetOpen = false) }, { threshold: 40 });
 	});
 
 	// Cleanup top-bar timer on unmount
@@ -316,7 +317,9 @@
 			{#if bottomSheetOpen}
 				<button class="sheet-backdrop" onclick={() => (bottomSheetOpen = false)} aria-label="Close metadata"></button>
 				<div class="bottom-sheet" bind:this={sheetEl}>
-					<div class="sheet-handle"></div>
+					<div class="sheet-handle-area" bind:this={sheetHandleEl}>
+						<div class="sheet-handle"></div>
+					</div>
 					<MetadataPanel {image} mode="full" />
 				</div>
 			{/if}
@@ -558,13 +561,19 @@
 			}
 		}
 
+		.sheet-handle-area {
+			padding: 12px 0 8px;
+			flex-shrink: 0;
+			touch-action: none;
+			cursor: grab;
+		}
+
 		.sheet-handle {
 			width: 40px;
 			height: 4px;
 			background: #555;
 			border-radius: 2px;
-			margin: 10px auto 4px;
-			flex-shrink: 0;
+			margin: 0 auto;
 		}
 	}
 </style>

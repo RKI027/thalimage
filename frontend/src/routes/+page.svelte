@@ -13,7 +13,7 @@
 	import FilterBar from '$lib/components/FilterBar.svelte';
 	import ThumbSizeSlider from '$lib/components/ThumbSizeSlider.svelte';
 	import MobilePageHeader from '$lib/components/MobilePageHeader.svelte';
-	import { attachSwipe } from '$lib/swipe';
+	import OptionsSheet from '$lib/components/OptionsSheet.svelte';
 	import type { FilterState } from '$lib/types';
 
 	let images: ImageSummary[] = $state([]);
@@ -30,9 +30,6 @@
 	let initialLoad = $state(true);
 	let currentScrollTop = $state(0);
 	let restoredScrollTop = $state(0);
-	let sheetEl: HTMLElement | null = $state(null);
-	let sheetHandleEl: HTMLElement | null = $state(null);
-
 	$effect(() => { localStorage.setItem('thumbSize', String(thumbSize)); });
 
 	beforeNavigate(() => {
@@ -122,11 +119,6 @@
 		});
 	});
 
-	// Swipe-down on the handle bar to close options sheet
-	$effect(() => {
-		if (!sheetHandleEl || !optionsOpen) return;
-		return attachSwipe(sheetHandleEl, { onSwipeDown: () => (optionsOpen = false) }, { threshold: 40 });
-	});
 </script>
 
 {#if error}
@@ -175,25 +167,17 @@
 	/>
 
 	<!-- Mobile options sheet -->
-	{#if optionsOpen}
-		<button class="sheet-backdrop" onclick={() => (optionsOpen = false)} aria-label="Close menu"></button>
-		<div class="options-sheet" bind:this={sheetEl}>
-			<div class="sheet-handle-area" bind:this={sheetHandleEl}>
-				<div class="sheet-handle"></div>
-			</div>
-			<div class="sheet-content">
-				<div class="sheet-count">{totalCount} images{#if loading} (loading…){/if}</div>
-				<h3 class="sheet-section">Sort by</h3>
-				<SortControls {sort} {dir} onchange={(s, d) => { onSortChange(s, d); optionsOpen = false; }} />
-				<h3 class="sheet-section">Filter</h3>
-				<FilterBar {filters} onchange={(f) => { onFilterChange(f); }} />
-				<h3 class="sheet-section">Thumbnail size</h3>
-				<ThumbSizeSlider bind:size={thumbSize} />
-				<h3 class="sheet-section">Actions</h3>
-				<button class="sheet-action-btn" onclick={() => { startSlideshow(); optionsOpen = false; }} disabled={images.length === 0}>▶ Slideshow</button>
-			</div>
-		</div>
-	{/if}
+	<OptionsSheet open={optionsOpen} onclose={() => (optionsOpen = false)}>
+		<div class="sheet-count">{totalCount} images{#if loading} (loading…){/if}</div>
+		<h3 class="sheet-section">Sort by</h3>
+		<SortControls {sort} {dir} onchange={(s, d) => { onSortChange(s, d); optionsOpen = false; }} />
+		<h3 class="sheet-section">Filter</h3>
+		<FilterBar {filters} onchange={(f) => { onFilterChange(f); }} />
+		<h3 class="sheet-section">Thumbnail size</h3>
+		<ThumbSizeSlider bind:size={thumbSize} />
+		<h3 class="sheet-section">Actions</h3>
+		<button class="sheet-action-btn" onclick={() => { startSlideshow(); optionsOpen = false; }} disabled={images.length === 0}>▶ Slideshow</button>
+	</OptionsSheet>
 {/if}
 
 <style>
@@ -291,60 +275,6 @@
 	.mobile-only { display: none; }
 	.desktop-only { display: flex; }
 
-	/* Options sheet */
-	.sheet-backdrop {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.4);
-		z-index: 50;
-		border: none;
-		cursor: default;
-	}
-
-	.options-sheet {
-		position: fixed;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		max-height: 85dvh;
-		background: #1a1a1a;
-		border-top: 1px solid #444;
-		border-radius: 16px 16px 0 0;
-		z-index: 60;
-		display: flex;
-		flex-direction: column;
-		overflow: hidden;
-		animation: sheet-up 0.25s ease;
-	}
-
-	@keyframes sheet-up {
-		from { transform: translateY(100%); }
-		to   { transform: translateY(0); }
-	}
-
-	.sheet-handle-area {
-		padding: 12px 0 8px;
-		flex-shrink: 0;
-		touch-action: none;
-		cursor: grab;
-	}
-
-	.sheet-handle {
-		width: 40px;
-		height: 4px;
-		background: #555;
-		border-radius: 2px;
-		margin: 0 auto;
-	}
-
-	.sheet-content {
-		padding: 8px 16px max(24px, env(safe-area-inset-bottom, 24px));
-		overflow-y: auto;
-		overscroll-behavior: contain;
-		flex: 1;
-		min-height: 0;
-	}
-
 	.sheet-count {
 		color: #888;
 		font-size: 0.85rem;
@@ -366,14 +296,5 @@
 	@media (max-width: 768px) {
 		.mobile-only { display: block; }
 		.desktop-only { display: none; }
-
-		/* Make slider fill sheet width */
-		.options-sheet :global(.thumb-slider) {
-			width: 100%;
-		}
-
-		.options-sheet :global(input[type='range']) {
-			width: 100%;
-		}
 	}
 </style>
