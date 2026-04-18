@@ -26,7 +26,10 @@
 			id="filter-date-from"
 			type="date"
 			value={filters.date_from?.slice(0, 10) ?? ''}
-			onchange={(e) => update({ date_from: (e.target as HTMLInputElement).value || undefined })}
+			onchange={(e) => {
+				const v = (e.target as HTMLInputElement).value;
+				update({ date_from: /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined });
+			}}
 		/>
 	</div>
 
@@ -36,7 +39,10 @@
 			id="filter-date-to"
 			type="date"
 			value={filters.date_to?.slice(0, 10) ?? ''}
-			onchange={(e) => update({ date_to: (e.target as HTMLInputElement).value || undefined })}
+			onchange={(e) => {
+				const v = (e.target as HTMLInputElement).value;
+				update({ date_to: /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined });
+			}}
 		/>
 	</div>
 

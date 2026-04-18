@@ -19,9 +19,10 @@
 	let images: ImageSummary[] = $state([]);
 	let totalCount = $state(0);
 	let nextCursor: string | null = $state(null);
-	let sort: SortField = $state((localStorage.getItem('gallery:sort') as SortField) || 'name');
-	let dir: SortDirection = $state((localStorage.getItem('gallery:dir') as SortDirection) || 'asc');
-	let filters: FilterState = $state(JSON.parse(localStorage.getItem('gallery:filters') ?? '{}'));
+	let sort: SortField = $state('name');
+	let dir: SortDirection = $state('asc');
+	let filters: FilterState = $state({});
+	let sourceId: number | undefined = $state(undefined);
 	let thumbSize = $state(Number(localStorage.getItem('thumbSize')) || 200);
 	let filtersOpen = $state(true);
 	let optionsOpen = $state(false);
@@ -70,21 +71,29 @@
 		goto(`/image/${images[0].content_hash}`);
 	}
 
+	function galleryKey(key: string): string {
+		return `gallery:${sourceId ?? 'all'}:${key}`;
+	}
+
+	function loadPrefs() {
+		sort = (localStorage.getItem(galleryKey('sort')) as SortField) || 'name';
+		dir = (localStorage.getItem(galleryKey('dir')) as SortDirection) || 'asc';
+		filters = JSON.parse(localStorage.getItem(galleryKey('filters')) ?? '{}');
+	}
+
 	function onSortChange(newSort: SortField, newDir: SortDirection) {
 		sort = newSort;
 		dir = newDir;
-		localStorage.setItem('gallery:sort', newSort);
-		localStorage.setItem('gallery:dir', newDir);
+		localStorage.setItem(galleryKey('sort'), newSort);
+		localStorage.setItem(galleryKey('dir'), newDir);
 		fetchImages(true);
 	}
 
 	function onFilterChange(newFilters: FilterState) {
 		filters = newFilters;
-		localStorage.setItem('gallery:filters', JSON.stringify(newFilters));
+		localStorage.setItem(galleryKey('filters'), JSON.stringify(newFilters));
 		fetchImages(true);
 	}
-
-	let sourceId: number | undefined = $state(undefined);
 
 	function readSourceId(): number | undefined {
 		const v = $page.url.searchParams.get('source_id');
@@ -95,6 +104,7 @@
 		setBrowsingContext({ type: 'all' });
 		restoredScrollTop = getScrollPosition();
 		sourceId = readSourceId();
+		loadPrefs();
 		fetchImages(true);
 
 		// Set responsive thumb size on mobile
@@ -114,6 +124,7 @@
 		untrack(() => {
 			if (newId !== sourceId) {
 				sourceId = newId;
+				loadPrefs();
 				fetchImages(true);
 			}
 		});
