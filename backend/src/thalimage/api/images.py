@@ -108,6 +108,5 @@ def archive_image(
     if not set_archived(db, content_hash, body.archived):
         raise HTTPException(404, "Image not found")
     image = get_image(db, content_hash)
-    if image is None:
-        raise HTTPException(404, "Image not found")
+    assert image is not None
     return image

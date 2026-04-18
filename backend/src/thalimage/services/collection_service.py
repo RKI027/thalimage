@@ -69,7 +69,9 @@ def create_collection(
     )
     conn.commit()
     assert cursor.lastrowid is not None
-    return get_collection(conn, cursor.lastrowid)  # type: ignore[return-value]
+    result = get_collection(conn, cursor.lastrowid)
+    assert result is not None
+    return result
 
 
 def update_collection(
@@ -172,7 +174,9 @@ def get_or_create_source_preset(
         (source_id,),
     ).fetchone()
     if row is not None:
-        return get_collection(conn, row["id"])  # type: ignore[return-value]
+        result = get_collection(conn, row["id"])
+        assert result is not None
+        return result
 
     cursor = conn.execute(
         "INSERT INTO collections (name, type, source_id) VALUES (?, 'source_preset', ?)",
@@ -180,6 +184,8 @@ def get_or_create_source_preset(
     )
     conn.commit()
     assert cursor.lastrowid is not None
-    return get_collection(conn, cursor.lastrowid)  # type: ignore[return-value]
+    result = get_collection(conn, cursor.lastrowid)
+    assert result is not None
+    return result
 
 
