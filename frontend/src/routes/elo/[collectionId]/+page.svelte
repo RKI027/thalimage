@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getEloPair, recordEloVote, getEloRankings, getCollection } from '$lib/api';
-	import type { ImageSummary, EloRanking, Collection } from '$lib/types';
+	import type { ImageSummary, EloRanking, Collection, FilterState } from '$lib/types';
 	import SideBySideView from '$lib/components/views/SideBySideView.svelte';
 
 	let collection: Collection | null = $state(null);
@@ -15,6 +15,7 @@
 	let showRankings = $state(false);
 	let rankings: EloRanking[] = $state([]);
 	let loading = $state(false);
+	let filters: FilterState = $state({});
 
 	function collectionId(): number {
 		return Number($page.params.collectionId);
@@ -25,7 +26,7 @@
 		selectedSide = null;
 		loading = true;
 		try {
-			const pair = await getEloPair(collectionId());
+			const pair = await getEloPair(collectionId(), filters);
 			left = pair.left;
 			right = pair.right;
 		} catch (e) {
@@ -82,6 +83,7 @@
 	$effect(() => {
 		const _id = $page.params.collectionId;
 		untrack(() => {
+			filters = JSON.parse(localStorage.getItem(`collection:${collectionId()}:filters`) ?? '{}');
 			getCollection(collectionId()).then((c) => { collection = c; });
 			loadPair();
 		});

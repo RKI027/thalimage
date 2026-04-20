@@ -8,7 +8,7 @@ from thalimage.services.elo_service import get_pair, get_rankings, record_vote
 
 
 def _seed_collection_with_images(conn: sqlite3.Connection, n: int = 5) -> tuple[int, list[str]]:
-    """Create a source, images, a collection, and add images to it."""
+    """Create a source, images, a manual collection, and add images to it."""
     conn.execute(
         "INSERT INTO sources (path, label, recursive) VALUES (?, ?, ?)",
         ("/test", "test", True),
@@ -41,6 +41,43 @@ def _seed_collection_with_images(conn: sqlite3.Connection, n: int = 5) -> tuple[
     conn.commit()
 
     return cid, hashes
+
+
+def _seed_source_preset(
+    conn: sqlite3.Connection, n: int = 5, *, dates: list[str] | None = None
+) -> tuple[int, int, list[str]]:
+    """Create a source, images, and a source_preset collection (no collection_images rows)."""
+    conn.execute(
+        "INSERT INTO sources (path, label, recursive) VALUES (?, ?, ?)",
+        ("/src", "src", True),
+    )
+    conn.commit()
+    sid = conn.execute("SELECT id FROM sources ORDER BY id DESC LIMIT 1").fetchone()[0]
+
+    hashes = []
+    for i in range(n):
+        h = f"src_hash_{i:04d}"
+        date = dates[i] if dates else "2024-06-01T00:00:00"
+        conn.execute(
+            """INSERT INTO images
+               (content_hash, filename, source_id, relative_path,
+                file_size, width, height, aspect_ratio, format,
+                file_modified, thumb_generated)
+               VALUES (?, ?, ?, ?, 1000, 100, 100, 1.0, 'PNG', ?, 1)
+            """,
+            (h, f"src_{i}.png", sid, f"src_{i}.png", date),
+        )
+        hashes.append(h)
+    conn.commit()
+
+    conn.execute(
+        "INSERT INTO collections (name, type, source_id) VALUES (?, 'source_preset', ?)",
+        ("Source Preset", sid),
+    )
+    conn.commit()
+    cid = conn.execute("SELECT id FROM collections ORDER BY id DESC LIMIT 1").fetchone()[0]
+
+    return cid, sid, hashes
 
 
 def test_get_pair_returns_two_different_images(db: sqlite3.Connection) -> None:
@@ -139,3 +176,51 @@ def test_get_pair_favors_fewer_matches(db: sqlite3.Connection) -> None:
 
     # The under-voted images should appear more than the over-voted ones
     assert seen[hashes[2]] + seen[hashes[3]] > seen[hashes[0]] + seen[hashes[1]]
+
+
+# --- Source preset and filter tests ---
+
+
+def test_get_pair_source_preset(db: sqlite3.Connection) -> None:
+    """Source preset collections (no collection_images rows) work via source_id."""
+    cid, sid, hashes = _seed_source_preset(db, n=5)
+    left, right = get_pair(db, cid, source_id=sid)
+    assert left.content_hash != right.content_hash
+    assert left.content_hash in hashes
+    assert right.content_hash in hashes
+
+
+def test_get_pair_source_preset_requires_minimum_two(db: sqlite3.Connection) -> None:
+    cid, sid, _ = _seed_source_preset(db, n=1)
+    with pytest.raises(ValueError, match="at least 2"):
+        get_pair(db, cid, source_id=sid)
+
+
+def test_get_pair_date_filter_restricts_candidates(db: sqlite3.Connection) -> None:
+    """date_from / date_to filter the image pool before picking a pair."""
+    dates = [
+        "2024-01-01T00:00:00",
+        "2024-01-02T00:00:00",
+        "2024-06-01T00:00:00",
+        "2024-06-02T00:00:00",
+        "2024-12-01T00:00:00",
+    ]
+    cid, sid, hashes = _seed_source_preset(db, n=5, dates=dates)
+
+    # Only the first two images fall in January
+    for _ in range(20):
+        left, right = get_pair(
+            db, cid, source_id=sid,
+            date_from="2024-01-01", date_to="2024-01-31",
+        )
+        assert left.content_hash in hashes[:2]
+        assert right.content_hash in hashes[:2]
+
+
+def test_get_pair_date_filter_insufficient_raises(db: sqlite3.Connection) -> None:
+    """Filters that leave fewer than 2 images raise ValueError."""
+    dates = ["2024-01-01T00:00:00", "2024-06-01T00:00:00", "2024-12-01T00:00:00"]
+    cid, sid, _ = _seed_source_preset(db, n=3, dates=dates)
+
+    with pytest.raises(ValueError, match="at least 2"):
+        get_pair(db, cid, source_id=sid, date_from="2024-01-01", date_to="2024-01-31")

@@ -2,34 +2,54 @@
 
 import random
 import sqlite3
-from typing import Any
+from typing import Any, Optional
 
-from thalimage.services.image_service import ImageSummary
+from thalimage.services.image_service import ASPECT_RATIO_FILTERS, VIDEO_FORMATS, ImageSummary
 
 K_FACTOR = 32
 
 
 def get_pair(
-    conn: sqlite3.Connection, collection_id: int
+    conn: sqlite3.Connection,
+    collection_id: int,
+    *,
+    source_id: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    aspect_ratio_filter: Optional[str] = None,
+    media_type: Optional[str] = None,
 ) -> tuple[ImageSummary, ImageSummary]:
     """Select two images from a collection for comparison.
 
+    For source_preset collections pass source_id; for manual collections leave it None.
     Favors images with fewer matches to ensure even coverage.
     """
-    rows = conn.execute(
-        """SELECT i.content_hash, i.filename, i.source_id, i.relative_path,
-                  i.width, i.height, i.aspect_ratio, i.format, i.thumb_generated,
-                  i.archived,
-                  COALESCE(e.matches, 0) AS matches
-           FROM collection_images ci
-           JOIN images i ON ci.content_hash = i.content_hash
-           LEFT JOIN elo_scores e ON i.content_hash = e.content_hash
-                AND e.collection_id = ci.collection_id
-           WHERE ci.collection_id = ? AND i.deleted = 0 AND i.archived = 0
-           ORDER BY matches ASC, RANDOM()
-        """,
-        (collection_id,),
-    ).fetchall()
+    if source_id is not None:
+        q = """SELECT i.content_hash, i.filename, i.source_id, i.relative_path,
+                      i.width, i.height, i.aspect_ratio, i.format, i.thumb_generated,
+                      i.archived,
+                      COALESCE(e.matches, 0) AS matches
+               FROM images i
+               LEFT JOIN elo_scores e ON i.content_hash = e.content_hash
+                    AND e.collection_id = ?
+               WHERE i.source_id = ? AND i.deleted = 0 AND i.archived = 0"""
+        params: list[object] = [collection_id, source_id]
+    else:
+        q = """SELECT i.content_hash, i.filename, i.source_id, i.relative_path,
+                      i.width, i.height, i.aspect_ratio, i.format, i.thumb_generated,
+                      i.archived,
+                      COALESCE(e.matches, 0) AS matches
+               FROM collection_images ci
+               JOIN images i ON ci.content_hash = i.content_hash
+               LEFT JOIN elo_scores e ON i.content_hash = e.content_hash
+                    AND e.collection_id = ci.collection_id
+               WHERE ci.collection_id = ? AND i.deleted = 0 AND i.archived = 0"""
+        params = [collection_id]
+
+    q, params = _append_filters(q, params, date_from, date_to, aspect_ratio_filter, media_type)
+    q += " ORDER BY matches ASC, RANDOM()"
+
+    rows = conn.execute(q, params).fetchall()
 
     if len(rows) < 2:
         raise ValueError(
@@ -45,6 +65,34 @@ def get_pair(
         ImageSummary(**{k: picked[0][k] for k in ImageSummary.model_fields}),
         ImageSummary(**{k: picked[1][k] for k in ImageSummary.model_fields}),
     )
+
+
+def _append_filters(
+    q: str,
+    params: list[object],
+    date_from: Optional[str],
+    date_to: Optional[str],
+    aspect_ratio_filter: Optional[str],
+    media_type: Optional[str],
+) -> tuple[str, list[object]]:
+    if date_from is not None:
+        q += " AND i.file_modified >= ?"
+        params.append(date_from)
+    if date_to is not None:
+        q += " AND i.file_modified <= ?"
+        params.append(date_to)
+    if aspect_ratio_filter is not None and aspect_ratio_filter in ASPECT_RATIO_FILTERS:
+        clause, _ = ASPECT_RATIO_FILTERS[aspect_ratio_filter]
+        q += f" AND i.{clause}"
+    if media_type == "video":
+        placeholders = ",".join("?" * len(VIDEO_FORMATS))
+        q += f" AND i.format IN ({placeholders})"
+        params.extend(VIDEO_FORMATS)
+    elif media_type == "image":
+        placeholders = ",".join("?" * len(VIDEO_FORMATS))
+        q += f" AND i.format NOT IN ({placeholders})"
+        params.extend(VIDEO_FORMATS)
+    return q, params
 
 
 def record_vote(

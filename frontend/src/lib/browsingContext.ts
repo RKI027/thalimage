@@ -1,8 +1,9 @@
 import { writable, get } from 'svelte/store';
+import type { FilterState } from './types';
 
 export type BrowsingContext =
 	| { type: 'all' }
-	| { type: 'collection'; collectionId: number; name: string };
+	| { type: 'collection'; collectionId: number; name: string; filters?: FilterState };
 
 const STORAGE_KEY = 'browsingContext';
 const SCROLL_KEY = 'scrollPositions';

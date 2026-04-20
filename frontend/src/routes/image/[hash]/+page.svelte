@@ -77,6 +77,7 @@
 		const params: Parameters<typeof listImages>[0] = { limit: 1000 };
 		if (ctx.type === 'collection') {
 			params.collection_id = ctx.collectionId;
+			if (ctx.filters) params.filters = ctx.filters;
 		}
 		const pg = await listImages(params);
 		neighbors = pg.items;

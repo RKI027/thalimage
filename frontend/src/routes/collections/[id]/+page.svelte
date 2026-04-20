@@ -64,12 +64,12 @@
 	async function loadCollectionAndImages() {
 		restoredScrollTop = getScrollPosition();
 		collection = await fetchCollection(collectionId());
+		filters = JSON.parse(localStorage.getItem(`collection:${collectionId()}:filters`) ?? '{}');
 		if (collection) {
-			setBrowsingContext({ type: 'collection', collectionId: collection.id, name: collection.name });
+			setBrowsingContext({ type: 'collection', collectionId: collection.id, name: collection.name, filters });
 			sort = collection.sort_by as SortField;
 			dir = collection.sort_dir as SortDirection;
 		}
-		filters = JSON.parse(localStorage.getItem(`collection:${collectionId()}:filters`) ?? '{}');
 		await fetchImages(true);
 	}
 
@@ -91,6 +91,9 @@
 	function onFilterChange(newFilters: FilterState) {
 		filters = newFilters;
 		localStorage.setItem(`collection:${collectionId()}:filters`, JSON.stringify(newFilters));
+		if (collection) {
+			setBrowsingContext({ type: 'collection', collectionId: collection.id, name: collection.name, filters: newFilters });
+		}
 		fetchImages(true);
 	}
 

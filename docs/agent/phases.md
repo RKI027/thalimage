@@ -149,3 +149,7 @@ When removing a source, the user will choose:
   currently combines both; they'd be wired together. A clean Svelte
   wrapper around `flickr/justified-layout` + optional seam-carved thumbs
   could be worth releasing independently.
+- add a filter on ELO, not sure which metric, i'm thinking about
+  top/bottom percentile (with showing the resulting number of
+  pictures). Another way would top/bottom absolute number but less
+  sure.
