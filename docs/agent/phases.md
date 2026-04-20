@@ -162,4 +162,3 @@ When removing a source, the user will choose:
   (currently unused since NSFW is driven by the tag named "nsfw").
 - bulk edit (multi select picture: range and one by one) then
   trash/archive/tags edit
-- in large views, change the 5 buttons sort panel by a menu

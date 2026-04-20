@@ -19,39 +19,36 @@
 		{ value: 'aspect_ratio', label: 'Aspect' }
 	];
 
-	function setSort(field: SortField) {
-		if (field === sort) {
-			const newDir = dir === 'asc' ? 'desc' : 'asc';
-			onchange?.(field, newDir);
-		} else {
-			onchange?.(field, 'asc');
-		}
+	function onFieldChange(e: Event) {
+		onchange?.((e.target as HTMLSelectElement).value as SortField, dir);
+	}
+
+	function toggleDir() {
+		onchange?.(sort, dir === 'asc' ? 'desc' : 'asc');
 	}
 </script>
 
 <div class="sort-controls">
-	{#each fields as field}
-		<button
-			class:active={sort === field.value}
-			onclick={() => setSort(field.value)}
-		>
-			{field.label}
-			{#if sort === field.value}
-				<span class="arrow">{dir === 'asc' ? '↑' : '↓'}</span>
-			{/if}
-		</button>
-	{/each}
+	<select value={sort} onchange={onFieldChange}>
+		{#each fields as field}
+			<option value={field.value}>{field.label}</option>
+		{/each}
+	</select>
+	<button class="dir-btn" onclick={toggleDir} title={dir === 'asc' ? 'Ascending' : 'Descending'}>
+		{dir === 'asc' ? '↑' : '↓'}
+	</button>
 </div>
 
 <style>
 	.sort-controls {
 		display: flex;
+		align-items: center;
 		gap: 4px;
 		padding: 8px;
 	}
 
-	button {
-		padding: 4px 10px;
+	select {
+		padding: 4px 8px;
 		border: 1px solid #444;
 		border-radius: 4px;
 		background: #2a2a2a;
@@ -60,27 +57,33 @@
 		font-size: 0.85rem;
 	}
 
-	button:hover {
-		background: #3a3a3a;
-	}
-
-	button.active {
-		background: #3a5a8a;
+	select:focus {
+		outline: none;
 		border-color: #6ea8fe;
-		color: #fff;
 	}
 
-	.arrow {
-		margin-left: 2px;
+	.dir-btn {
+		padding: 4px 8px;
+		border: 1px solid #444;
+		border-radius: 4px;
+		background: #2a2a2a;
+		color: #ccc;
+		cursor: pointer;
+		font-size: 0.85rem;
+		line-height: 1;
+	}
+
+	.dir-btn:hover {
+		background: #3a3a3a;
 	}
 
 	@media (max-width: 768px) {
 		.sort-controls {
-			flex-wrap: wrap;
 			padding: 4px;
 		}
 
-		button {
+		select,
+		.dir-btn {
 			padding: 10px 12px;
 		}
 	}
