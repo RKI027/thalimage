@@ -142,7 +142,7 @@
 				<h3>Tags</h3>
 				<div class="tag-list">
 					{#each tags as tag (tag.id)}
-						<span class="tag-pill" class:nsfw={tag.nsfw}>
+						<span class="tag-pill" class:nsfw={tag.name.toLowerCase() === 'nsfw'}>
 							{tag.name}
 							<button class="tag-remove" onclick={() => removeTag(tag)} aria-label="Remove tag {tag.name}">×</button>
 						</span>
@@ -163,7 +163,7 @@
 								<li>
 									<button onclick={() => selectTag(suggestion)}>
 										{suggestion.name}
-										{#if suggestion.nsfw}<span class="nsfw-badge">NSFW</span>{/if}
+										{#if suggestion.name.toLowerCase() === 'nsfw'}<span class="nsfw-badge">NSFW</span>{/if}
 									</button>
 								</li>
 							{/each}

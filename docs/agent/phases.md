@@ -153,3 +153,11 @@ When removing a source, the user will choose:
   top/bottom percentile (with showing the resulting number of
   pictures). Another way would top/bottom absolute number but less
   sure.
+- Tag coloring: associate tag names with display colors via a server-side
+  config file (e.g. `~/.thalimage/tag_colors.toml`). Loaded at startup,
+  surfaced as a `GET /api/v1/tag-colors` endpoint. Frontend uses the map
+  to style tag pills. Removes the per-tag `nsfw` boolean from the UI
+  (currently unused since NSFW is driven by the tag named "nsfw").
+- bulk edit (multi select picture: range and one by one) then
+  trash/archive/tags edit
+- in large views, change the 5 buttons sort panel by a menu

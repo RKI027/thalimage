@@ -3,13 +3,13 @@ ALTER TABLE images      ADD COLUMN nsfw INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE collections ADD COLUMN nsfw INTEGER NOT NULL DEFAULT 0;
 
 -- User-level settings stored as key-value pairs
-CREATE TABLE settings (
+CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
 
 -- Trigger: auto-set images.nsfw = 1 when a NSFW tag is added
-CREATE TRIGGER set_image_nsfw_on_tag_add
+CREATE TRIGGER IF NOT EXISTS set_image_nsfw_on_tag_add
 AFTER INSERT ON image_tags
 WHEN (SELECT nsfw FROM tags WHERE id = NEW.tag_id) = 1
 BEGIN
@@ -18,7 +18,7 @@ END;
 
 -- Trigger: recompute images.nsfw when a tag is removed
 -- Clears the flag only if no remaining NSFW tags exist
-CREATE TRIGGER clear_image_nsfw_on_tag_remove
+CREATE TRIGGER IF NOT EXISTS clear_image_nsfw_on_tag_remove
 AFTER DELETE ON image_tags
 WHEN (SELECT nsfw FROM tags WHERE id = OLD.tag_id) = 1
 BEGIN

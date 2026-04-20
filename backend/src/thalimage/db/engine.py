@@ -25,11 +25,47 @@ def current_version(conn: sqlite3.Connection) -> int:
         return 0
 
 
+def _split_statements(sql: str) -> list[str]:
+    """Split a SQL script into individual statements.
+
+    Uses sqlite3.complete_statement() to detect statement boundaries, so
+    triggers (whose BEGIN...END bodies contain semicolons) are handled correctly.
+    Comments and blank lines are ignored.
+    """
+    statements: list[str] = []
+    current: list[str] = []
+
+    for line in sql.splitlines():
+        stripped = line.strip()
+        # Skip pure-comment and blank lines when accumulating, but keep them
+        # inside a partially-built statement for correct parsing.
+        if not current and (not stripped or stripped.startswith("--")):
+            continue
+        current.append(line)
+        candidate = "\n".join(current)
+        if sqlite3.complete_statement(candidate):
+            stmt = candidate.strip()
+            if stmt:
+                statements.append(stmt)
+            current = []
+
+    if current:
+        stmt = "\n".join(current).strip()
+        if stmt:
+            statements.append(stmt)
+
+    return statements
+
+
 def migrate(conn: sqlite3.Connection) -> int:
     """Run all pending migrations and return the new schema version.
 
     Migrations are SQL files in the migrations/ directory named NNN_description.sql.
-    Each migration runs inside a transaction.
+    Each migration runs inside a transaction: either all statements succeed and the
+    schema version advances, or the transaction rolls back and the version is unchanged.
+
+    ALTER TABLE ADD COLUMN failures caused by an already-present column (from a
+    previous partial run) are silently skipped so the migration can complete cleanly.
     """
     migrations_dir = resources.files("thalimage.db") / "migrations"
     migration_files = sorted(
@@ -48,12 +84,58 @@ def migrate(conn: sqlite3.Connection) -> int:
             continue
 
         sql = migration_path.read_text()  # type: ignore[union-attr]
-        conn.executescript(sql)
-        conn.execute(
-            "INSERT INTO schema_version (version) VALUES (?)",
-            (migration_version,),
+        statements = _split_statements(sql)
+
+        # Run the entire migration + version update atomically.
+        # executescript() issues an implicit COMMIT first, so we wrap the whole
+        # thing in BEGIN/COMMIT to get a real transaction.
+        conn.executescript(
+            "BEGIN;\n"
+            + _statements_to_script(statements, conn)
+            + f"INSERT INTO schema_version (version) VALUES ({migration_version});\n"
+            "COMMIT;"
         )
-        conn.commit()
         version = migration_version
 
     return version
+
+
+def _statements_to_script(statements: list[str], conn: sqlite3.Connection) -> str:
+    """Return statements as a SQL script, omitting ALTER TABLE ADD COLUMN
+    statements for columns that already exist in the database."""
+    lines: list[str] = []
+    for stmt in statements:
+        upper = stmt.upper().split()
+        if (
+            len(upper) >= 5
+            and upper[0] == "ALTER"
+            and upper[1] == "TABLE"
+            and upper[3] in ("ADD", "ADD")
+            and "COLUMN" in upper[3:6]
+        ):
+            # Extract table name and column name to check existence
+            table, col = _parse_add_column(stmt)
+            if table and col:
+                exists = conn.execute(
+                    "SELECT 1 FROM pragma_table_info(?) WHERE name = ?",
+                    (table, col),
+                ).fetchone()
+                if exists:
+                    continue  # Column already present; skip to avoid error
+        lines.append(stmt + ("" if stmt.rstrip().endswith(";") else ";"))
+        lines.append("\n")
+    return "".join(lines)
+
+
+def _parse_add_column(stmt: str) -> tuple[str, str] | tuple[None, None]:
+    """Extract (table_name, column_name) from ALTER TABLE t ADD [COLUMN] c ...
+    Returns (None, None) if the statement cannot be parsed."""
+    import re
+    m = re.match(
+        r"ALTER\s+TABLE\s+(\w+)\s+ADD\s+(?:COLUMN\s+)?(\w+)",
+        stmt.strip(),
+        re.IGNORECASE,
+    )
+    if m:
+        return m.group(1), m.group(2)
+    return None, None
