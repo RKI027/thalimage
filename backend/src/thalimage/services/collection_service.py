@@ -14,6 +14,7 @@ class Collection(BaseModel):
     source_id: Optional[int] = None
     sort_by: str = "name"
     sort_dir: str = "asc"
+    nsfw: bool = False
     created_at: str
     updated_at: str
     image_count: int = 0
@@ -81,6 +82,7 @@ def update_collection(
     name: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = None,
+    nsfw: Optional[bool] = None,
 ) -> Optional[Collection] | str:
     """Update a collection. Returns error string if preset rename attempted."""
     coll = get_collection(conn, collection_id)
@@ -100,6 +102,9 @@ def update_collection(
     if sort_dir is not None:
         updates.append("sort_dir = ?")
         params.append(sort_dir)
+    if nsfw is not None:
+        updates.append("nsfw = ?")
+        params.append(1 if nsfw else 0)
 
     if not updates:
         return get_collection(conn, collection_id)

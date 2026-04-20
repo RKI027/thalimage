@@ -30,6 +30,7 @@ class CollectionUpdate(BaseModel):
     name: Optional[str] = None
     sort_by: Optional[str] = None
     sort_dir: Optional[str] = None
+    nsfw: Optional[bool] = None
 
 
 class CollectionImagesBody(BaseModel):
@@ -74,6 +75,7 @@ def patch_collection(
         name=body.name,
         sort_by=body.sort_by,
         sort_dir=body.sort_dir,
+        nsfw=body.nsfw,
     )
     if result is None:
         raise HTTPException(404, "Collection not found")

@@ -70,6 +70,7 @@ def list_images(
     aspect_ratio_filter: Optional[str] = None,
     media_type: Optional[str] = None,
     tags: Optional[list[str]] = None,
+    show_nsfw: bool = False,
 ) -> ImagePage:
     """Cursor-paginated image listing."""
     col = SORT_COLUMNS.get(sort, "filename")
@@ -110,6 +111,8 @@ def list_images(
                     ")"
                 )
                 p.append(tag_name)
+        if not show_nsfw:
+            q += " AND nsfw = 0"
         return q, p
 
     # Total count
