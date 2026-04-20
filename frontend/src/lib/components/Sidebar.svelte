@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
-	import { collectionsStore } from '$lib/stores';
+	import { collectionsStore, settingsStore } from '$lib/stores';
 
 	let {
 		mobileOpen = false,
@@ -15,8 +15,16 @@
 	let presetsOpen = $state(true);
 	let collectionsOpen = $state(true);
 
-	const presets = $derived($collectionsStore.filter((c) => c.type === 'source_preset'));
-	const userCollections = $derived($collectionsStore.filter((c) => c.type === 'manual'));
+	const presets = $derived(
+		$collectionsStore.filter(
+			(c) => c.type === 'source_preset' && ($settingsStore.show_nsfw || !c.nsfw)
+		)
+	);
+	const userCollections = $derived(
+		$collectionsStore.filter(
+			(c) => c.type === 'manual' && ($settingsStore.show_nsfw || !c.nsfw)
+		)
+	);
 
 	const settingsHref = $derived(
 		$page.url.pathname === '/settings'

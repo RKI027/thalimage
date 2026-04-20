@@ -107,11 +107,10 @@ When removing a source, the user will choose:
   (`WHERE source_id = X`, always live)
 - Archival flag (soft-delete from active sets, space-efficient storage)
 
-## Phase 4 — Tags & NSFW
-- Tagging system: global on images, not per-collection; author tracking
-- Tag ontology / hierarchy (optional)
-- NSFW flag: separate boolean, auto-set if a tag implies NSFW
-- Collection-level NSFW flag
+## Phase 4 — Tags & NSFW ✓
+- Tagging system: global on images; author tracking (created_by column reserved for Phase 8)
+- NSFW flag on images: auto-set when the tag named "nsfw" is applied
+- Collection-level NSFW flag with toggle in collection view; hidden from sidebar when show_nsfw=false
 - User setting: show/hide NSFW content
 
 ## Phase 5 — Smart Filters & Saved Searches
@@ -153,6 +152,9 @@ When removing a source, the user will choose:
   top/bottom percentile (with showing the resulting number of
   pictures). Another way would top/bottom absolute number but less
   sure.
+- Tag ontology / hierarchy: parent-child relationships between tags,
+  browseable tag tree, implicit inheritance (tagging with "character/alice"
+  also applies "character"). Deferred from Phase 4.
 - Tag coloring: associate tag names with display colors via a server-side
   config file (e.g. `~/.thalimage/tag_colors.toml`). Loaded at startup,
   surfaced as a `GET /api/v1/tag-colors` endpoint. Frontend uses the map

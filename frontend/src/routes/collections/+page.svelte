@@ -68,7 +68,10 @@
 				{#each collections as coll}
 					<li>
 						<a href="/collections/{coll.id}">
-							<span class="name">{coll.name}</span>
+							<span class="name">
+								{coll.name}
+								{#if coll.nsfw}<span class="nsfw-badge">NSFW</span>{/if}
+							</span>
 							<span class="count">{coll.image_count} images</span>
 						</a>
 						<button class="delete" onclick={() => remove(coll.id)}>×</button>
@@ -158,6 +161,18 @@
 	.count {
 		color: #888;
 		font-size: 0.85rem;
+	}
+
+	.nsfw-badge {
+		font-size: 0.65rem;
+		font-weight: 600;
+		padding: 1px 5px;
+		border-radius: 3px;
+		background: rgba(122, 42, 42, 0.85);
+		color: #e08080;
+		letter-spacing: 0.05em;
+		margin-left: 6px;
+		vertical-align: middle;
 	}
 
 	.delete {

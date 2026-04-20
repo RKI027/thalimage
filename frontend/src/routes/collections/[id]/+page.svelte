@@ -90,6 +90,12 @@
 		}
 	}
 
+	async function toggleNsfw() {
+		if (!collection) return;
+		const updated = await updateCollection(collection.id, { nsfw: !collection.nsfw });
+		collection = updated;
+	}
+
 	function onFilterChange(newFilters: FilterState) {
 		filters = newFilters;
 		localStorage.setItem(`collection:${collectionId()}:filters`, JSON.stringify(newFilters));
@@ -142,8 +148,12 @@
 		<a href={backHref}>{backLabel}</a>
 		<h2>
 			{collection?.name ?? ''}
-			{#if collection?.nsfw}<span class="nsfw-label">NSFW</span>{/if}
 		</h2>
+		{#if collection}
+			<button class="nsfw-toggle" class:active={collection.nsfw} onclick={toggleNsfw} title={collection.nsfw ? 'Mark as safe' : 'Mark as NSFW'}>
+				NSFW
+			</button>
+		{/if}
 		{#if collection}
 			<a class="elo-link" href="/elo/{collection.id}">ELO Vote</a>
 		{/if}
@@ -178,6 +188,13 @@
 	<FilterBar {filters} onchange={(f) => { onFilterChange(f); }} />
 	<h3 class="sheet-section">Thumbnail size</h3>
 	<ThumbSizeSlider bind:size={thumbSize} />
+	{#if collection}
+		<h3 class="sheet-section">Collection</h3>
+		<label class="sheet-toggle-row">
+			<span>NSFW collection</span>
+			<input type="checkbox" checked={collection.nsfw} onchange={toggleNsfw} />
+		</label>
+	{/if}
 	<h3 class="sheet-section">Actions</h3>
 	<button class="sheet-action-btn" onclick={() => { startSlideshow(); optionsOpen = false; }} disabled={images.length === 0}>▶ Slideshow</button>
 	{#if collection}
@@ -208,14 +225,33 @@
 		gap: 8px;
 	}
 
-	.nsfw-label {
+	.nsfw-toggle {
 		font-size: 0.65rem;
 		font-weight: 600;
-		padding: 2px 5px;
+		padding: 2px 7px;
 		border-radius: 3px;
-		background: rgba(122, 42, 42, 0.85);
-		color: #e08080;
+		border: 1px solid #555;
+		background: #2a2a2a;
+		color: #888;
+		cursor: pointer;
 		letter-spacing: 0.05em;
+		flex-shrink: 0;
+	}
+
+	.nsfw-toggle.active {
+		background: rgba(122, 42, 42, 0.85);
+		border-color: #7a2a2a;
+		color: #e08080;
+	}
+
+	.sheet-toggle-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 8px 0;
+		font-size: 0.9rem;
+		color: #ccc;
+		cursor: pointer;
 	}
 
 	.collapse-btn {
