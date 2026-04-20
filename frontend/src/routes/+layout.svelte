@@ -1,10 +1,14 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import { mobileStore } from '$lib/mobileStore.svelte';
+	import { settingsStore } from '$lib/stores';
 
 	let { children } = $props();
+
+	onMount(() => { settingsStore.refresh(); });
 
 	const isSlideshow = $derived(slideshowStore.status !== 'idle');
 	const routeGroup = $derived($page.url.pathname.split('/')[1] || 'home');

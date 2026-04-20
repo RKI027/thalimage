@@ -4,6 +4,7 @@
 	import { goto, beforeNavigate } from '$app/navigation';
 	import { listImages, getCollection as fetchCollection, updateCollection } from '$lib/api';
 	import { setBrowsingContext, saveScrollPosition, getScrollPosition } from '$lib/browsingContext';
+	import { settingsStore } from '$lib/stores';
 	import type { ImageSummary, Collection } from '$lib/types';
 	import { responsiveThumbSize } from '$lib/mobileStore.svelte';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
@@ -51,7 +52,8 @@
 				sort,
 				dir,
 				collection_id: collectionId(),
-				filters
+				filters,
+				show_nsfw: $settingsStore.show_nsfw
 			});
 			images = reset ? pg.items : [...images, ...pg.items];
 			totalCount = pg.total_count;
@@ -102,6 +104,12 @@
 		untrack(() => {
 			loadCollectionAndImages();
 		});
+	});
+
+	// Re-fetch when show_nsfw setting changes (skip before collection is loaded)
+	$effect(() => {
+		const _ = $settingsStore.show_nsfw;
+		untrack(() => { if (collection !== null) fetchImages(true); });
 	});
 
 	// Responsive thumb size on mobile

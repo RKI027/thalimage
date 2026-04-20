@@ -1,14 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress, getSettings, patchSettings } from '$lib/api';
-	import { collectionsStore, sourcesStore } from '$lib/stores';
-	import type { Source, UserSettings } from '$lib/types';
+	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress } from '$lib/api';
+	import { collectionsStore, sourcesStore, settingsStore } from '$lib/stores';
+	import type { Source } from '$lib/types';
 
 	let sources: Source[] = $state([]);
 	let newPath = $state('');
 	let newLabel = $state('');
 	let scanStatus: Record<number, string> = $state({});
-	let userSettings = $state<UserSettings>({ show_nsfw: false });
 
 	const backHref = $derived($page.url.searchParams.get('returnTo') || '/');
 
@@ -60,15 +59,8 @@
 		}
 	}
 
-	async function toggleNsfw() {
-		userSettings = await patchSettings({ show_nsfw: !userSettings.show_nsfw });
-	}
-
 	import { onMount } from 'svelte';
-	onMount(() => {
-		refresh();
-		getSettings().then((s) => (userSettings = s));
-	});
+	onMount(() => { refresh(); });
 </script>
 
 <div class="settings-page">
@@ -83,8 +75,8 @@
 			<input
 				id="nsfw-toggle"
 				type="checkbox"
-				checked={userSettings.show_nsfw}
-				onchange={toggleNsfw}
+				checked={$settingsStore.show_nsfw}
+				onchange={() => settingsStore.patch({ show_nsfw: !$settingsStore.show_nsfw })}
 			/>
 		</div>
 	</section>

@@ -5,6 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { listImages } from '$lib/api';
 	import { setBrowsingContext, saveScrollPosition, getScrollPosition } from '$lib/browsingContext';
+	import { settingsStore } from '$lib/stores';
 	import type { ImageSummary, SortField, SortDirection } from '$lib/types';
 	import { responsiveThumbSize } from '$lib/mobileStore.svelte';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
@@ -48,7 +49,8 @@
 				sort,
 				dir,
 				source_id: sourceId,
-				filters
+				filters,
+				show_nsfw: $settingsStore.show_nsfw
 			});
 			if (reset) {
 				images = pg.items;
@@ -128,6 +130,12 @@
 				fetchImages(true);
 			}
 		});
+	});
+
+	// Re-fetch when show_nsfw setting changes (skip during initial load)
+	$effect(() => {
+		const _ = $settingsStore.show_nsfw;
+		untrack(() => { if (!initialLoad) fetchImages(true); });
 	});
 
 </script>

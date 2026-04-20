@@ -3,6 +3,7 @@
 	import { goto, beforeNavigate } from '$app/navigation';
 	import { getImage, listImages, archiveImage } from '$lib/api';
 	import { browsingContext, backDestination, backLabel } from '$lib/browsingContext';
+	import { settingsStore } from '$lib/stores';
 	import type { ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import { attachSwipe } from '$lib/swipe';
@@ -74,7 +75,10 @@
 			neighbors = [];
 			return;
 		}
-		const params: Parameters<typeof listImages>[0] = { limit: 1000 };
+		const params: Parameters<typeof listImages>[0] = {
+			limit: 1000,
+			show_nsfw: $settingsStore.show_nsfw
+		};
 		if (ctx.type === 'collection') {
 			params.collection_id = ctx.collectionId;
 			if (ctx.filters) params.filters = ctx.filters;
