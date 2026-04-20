@@ -9,6 +9,18 @@ export interface ImageSummary {
 	format: string;
 	thumb_generated: boolean;
 	archived: boolean;
+	nsfw: boolean;
+}
+
+export interface Tag {
+	id: number;
+	name: string;
+	nsfw: boolean;
+	created_at: string;
+}
+
+export interface UserSettings {
+	show_nsfw: boolean;
 }
 
 export interface ImageDetail extends ImageSummary {
@@ -47,6 +59,7 @@ export interface Collection {
 	source_id: number | null;
 	sort_by: string;
 	sort_dir: string;
+	nsfw: boolean;
 	created_at: string;
 	updated_at: string;
 	image_count: number;
@@ -68,6 +81,7 @@ export interface FilterState {
 	date_to?: string;
 	aspect_ratio?: string;
 	media_type?: string;
+	tags?: string[];
 }
 
 export type SortField = 'name' | 'date_modified' | 'date_created' | 'size' | 'aspect_ratio';

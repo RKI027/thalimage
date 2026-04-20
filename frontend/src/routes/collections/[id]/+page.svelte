@@ -132,7 +132,10 @@
 <div class="toolbar desktop-only">
 	<div class="left">
 		<a href={backHref}>{backLabel}</a>
-		<h2>{collection?.name ?? ''}</h2>
+		<h2>
+			{collection?.name ?? ''}
+			{#if collection?.nsfw}<span class="nsfw-label">NSFW</span>{/if}
+		</h2>
 		{#if collection}
 			<a class="elo-link" href="/elo/{collection.id}">ELO Vote</a>
 		{/if}
@@ -192,6 +195,19 @@
 	h2 {
 		margin: 0;
 		font-size: 1.1rem;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.nsfw-label {
+		font-size: 0.65rem;
+		font-weight: 600;
+		padding: 2px 5px;
+		border-radius: 3px;
+		background: rgba(122, 42, 42, 0.85);
+		color: #e08080;
+		letter-spacing: 0.05em;
 	}
 
 	.collapse-btn {

@@ -17,6 +17,7 @@ class ImageSummary(BaseModel):
     format: str
     thumb_generated: bool
     archived: bool = False
+    nsfw: bool = False
 
 
 class ImageDetail(ImageSummary):
@@ -124,7 +125,7 @@ def list_images(
     # Query
     sql, params = _apply_filters(
         "SELECT content_hash, filename, source_id, relative_path, width, height, "
-        "aspect_ratio, format, thumb_generated, archived "
+        "aspect_ratio, format, thumb_generated, archived, nsfw "
         "FROM images WHERE deleted = 0 AND archived = 0",
         [],
     )

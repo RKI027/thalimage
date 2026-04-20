@@ -74,6 +74,24 @@
 		</select>
 	</div>
 
+	<div class="filter-group">
+		<label for="filter-tags">Tags</label>
+		<input
+			id="filter-tags"
+			type="text"
+			placeholder="tag1, tag2"
+			value={filters.tags?.join(', ') ?? ''}
+			onchange={(e) => {
+				const raw = (e.target as HTMLInputElement).value;
+				const parsed = raw
+					.split(',')
+					.map((t) => t.trim())
+					.filter(Boolean);
+				update({ tags: parsed.length > 0 ? parsed : undefined });
+			}}
+		/>
+	</div>
+
 	{#if Object.keys(filters).length > 0}
 		<button class="clear-btn" onclick={() => onchange?.({})}>✕ Clear</button>
 	{/if}
@@ -100,6 +118,7 @@
 		white-space: nowrap;
 	}
 
+	input[type='text'],
 	input[type='date'],
 	select {
 		padding: 3px 6px;
@@ -111,6 +130,7 @@
 		cursor: pointer;
 	}
 
+	input[type='text']:focus,
 	input[type='date']:focus,
 	select:focus {
 		outline: none;
@@ -139,6 +159,7 @@
 			padding: 4px;
 		}
 
+		input[type='text'],
 		input[type='date'],
 		select {
 			padding: 8px 6px;

@@ -3,6 +3,8 @@ import type {
 	ImageDetail,
 	Source,
 	Collection,
+	Tag,
+	UserSettings,
 	ScanProgress,
 	EloPair,
 	EloRanking,
@@ -31,6 +33,7 @@ export function listImages(params: {
 	source_id?: number;
 	collection_id?: number;
 	filters?: FilterState;
+	show_nsfw?: boolean;
 } = {}): Promise<ImagePage> {
 	const q = new URLSearchParams();
 	if (params.cursor) q.set('cursor', params.cursor);
@@ -39,12 +42,14 @@ export function listImages(params: {
 	if (params.dir) q.set('dir', params.dir);
 	if (params.source_id) q.set('source_id', String(params.source_id));
 	if (params.collection_id) q.set('collection_id', String(params.collection_id));
+	if (params.show_nsfw) q.set('show_nsfw', 'true');
 	if (params.filters) {
 		const f = params.filters;
 		if (f.date_from) q.set('date_from', f.date_from);
 		if (f.date_to) q.set('date_to', f.date_to);
 		if (f.aspect_ratio) q.set('aspect_ratio_filter', f.aspect_ratio);
 		if (f.media_type) q.set('media_type', f.media_type);
+		if (f.tags) f.tags.forEach((t) => q.append('tags', t));
 	}
 	return fetchJSON(`${BASE}/images?${q}`);
 }
@@ -124,7 +129,7 @@ export function createCollection(name: string, parentId?: number): Promise<Colle
 
 export function updateCollection(
 	id: number,
-	updates: { name?: string; sort_by?: string; sort_dir?: string }
+	updates: { name?: string; sort_by?: string; sort_dir?: string; nsfw?: boolean }
 ): Promise<Collection> {
 	return fetchJSON(`${BASE}/collections/${id}`, {
 		method: 'PATCH',
@@ -186,4 +191,64 @@ export function recordEloVote(
 
 export function getEloRankings(collectionId: number, limit = 100): Promise<EloRanking[]> {
 	return fetchJSON(`${BASE}/collections/${collectionId}/elo/rankings?limit=${limit}`);
+}
+
+// Tags
+
+export function listTags(search?: string): Promise<Tag[]> {
+	const q = search ? `?search=${encodeURIComponent(search)}` : '';
+	return fetchJSON(`${BASE}/tags${q}`);
+}
+
+export function createTag(name: string, nsfw = false): Promise<Tag> {
+	return fetchJSON(`${BASE}/tags`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ name, nsfw })
+	});
+}
+
+export function updateTag(id: number, patch: { name?: string; nsfw?: boolean }): Promise<Tag> {
+	return fetchJSON(`${BASE}/tags/${id}`, {
+		method: 'PATCH',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(patch)
+	});
+}
+
+export async function deleteTag(id: number): Promise<void> {
+	const resp = await fetch(`${BASE}/tags/${id}`, { method: 'DELETE' });
+	if (!resp.ok) throw new Error(`Delete failed: ${resp.status}`);
+}
+
+export function getImageTags(hash: string): Promise<Tag[]> {
+	return fetchJSON(`${BASE}/images/${hash}/tags`);
+}
+
+export async function addImageTag(hash: string, tagId: number): Promise<void> {
+	const resp = await fetch(`${BASE}/images/${hash}/tags`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ tag_id: tagId })
+	});
+	if (!resp.ok) throw new Error(`Add tag failed: ${resp.status}`);
+}
+
+export async function removeImageTag(hash: string, tagId: number): Promise<void> {
+	const resp = await fetch(`${BASE}/images/${hash}/tags/${tagId}`, { method: 'DELETE' });
+	if (!resp.ok) throw new Error(`Remove tag failed: ${resp.status}`);
+}
+
+// Settings
+
+export function getSettings(): Promise<UserSettings> {
+	return fetchJSON(`${BASE}/settings`);
+}
+
+export function patchSettings(patch: Partial<UserSettings>): Promise<UserSettings> {
+	return fetchJSON(`${BASE}/settings`, {
+		method: 'PATCH',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(patch)
+	});
 }

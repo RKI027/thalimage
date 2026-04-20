@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress } from '$lib/api';
+	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress, getSettings, patchSettings } from '$lib/api';
 	import { collectionsStore, sourcesStore } from '$lib/stores';
-	import type { Source } from '$lib/types';
+	import type { Source, UserSettings } from '$lib/types';
 
 	let sources: Source[] = $state([]);
 	let newPath = $state('');
 	let newLabel = $state('');
 	let scanStatus: Record<number, string> = $state({});
+	let userSettings = $state<UserSettings>({ show_nsfw: false });
 
 	const backHref = $derived($page.url.searchParams.get('returnTo') || '/');
 
@@ -59,8 +60,15 @@
 		}
 	}
 
+	async function toggleNsfw() {
+		userSettings = await patchSettings({ show_nsfw: !userSettings.show_nsfw });
+	}
+
 	import { onMount } from 'svelte';
-	onMount(() => { refresh(); });
+	onMount(() => {
+		refresh();
+		getSettings().then((s) => (userSettings = s));
+	});
 </script>
 
 <div class="settings-page">
@@ -68,6 +76,20 @@
 		<h2>Source Folders</h2>
 		<a href={backHref} class="close-btn">Close</a>
 	</div>
+	<section class="prefs-section">
+		<h3>Preferences</h3>
+		<div class="pref-row">
+			<label for="nsfw-toggle">Show NSFW content</label>
+			<input
+				id="nsfw-toggle"
+				type="checkbox"
+				checked={userSettings.show_nsfw}
+				onchange={toggleNsfw}
+			/>
+		</div>
+	</section>
+
+	<h3>Source Folders</h3>
 	<p class="description">Add folders containing your AI-generated images. Thalimage will scan them for images and extract metadata.</p>
 
 	<div class="add-form">
@@ -141,6 +163,41 @@
 		color: #888;
 		margin: 0 0 24px;
 		font-size: 0.9rem;
+	}
+
+	.prefs-section {
+		margin-bottom: 32px;
+	}
+
+	.prefs-section h3 {
+		margin: 0 0 12px;
+		font-size: 1rem;
+		color: #ccc;
+	}
+
+	.pref-row {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 8px 0;
+		border-bottom: 1px solid #2a2a2a;
+		font-size: 0.9rem;
+		color: #ccc;
+	}
+
+	.pref-row label {
+		flex: 1;
+		cursor: pointer;
+	}
+
+	.pref-row input[type='checkbox'] {
+		width: 16px;
+		height: 16px;
+		cursor: pointer;
+		padding: 0;
+		border: none;
+		background: none;
+		flex: none;
 	}
 
 	.add-form {

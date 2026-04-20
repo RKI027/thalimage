@@ -27,7 +27,7 @@ def get_pair(
     if source_id is not None:
         q = """SELECT i.content_hash, i.filename, i.source_id, i.relative_path,
                       i.width, i.height, i.aspect_ratio, i.format, i.thumb_generated,
-                      i.archived,
+                      i.archived, i.nsfw,
                       COALESCE(e.matches, 0) AS matches
                FROM images i
                LEFT JOIN elo_scores e ON i.content_hash = e.content_hash
@@ -37,7 +37,7 @@ def get_pair(
     else:
         q = """SELECT i.content_hash, i.filename, i.source_id, i.relative_path,
                       i.width, i.height, i.aspect_ratio, i.format, i.thumb_generated,
-                      i.archived,
+                      i.archived, i.nsfw,
                       COALESCE(e.matches, 0) AS matches
                FROM collection_images ci
                JOIN images i ON ci.content_hash = i.content_hash
