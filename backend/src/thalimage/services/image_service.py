@@ -69,6 +69,7 @@ def list_images(
     date_to: Optional[str] = None,
     aspect_ratio_filter: Optional[str] = None,
     media_type: Optional[str] = None,
+    tags: Optional[list[str]] = None,
 ) -> ImagePage:
     """Cursor-paginated image listing."""
     col = SORT_COLUMNS.get(sort, "filename")
@@ -100,6 +101,15 @@ def list_images(
             placeholders = ",".join("?" * len(VIDEO_FORMATS))
             q += f" AND format NOT IN ({placeholders})"
             p.extend(VIDEO_FORMATS)
+        if tags:
+            for tag_name in tags:
+                q += (
+                    " AND EXISTS ("
+                    "SELECT 1 FROM image_tags it JOIN tags t ON t.id = it.tag_id"
+                    " WHERE it.image_hash = content_hash AND t.name = ?"
+                    ")"
+                )
+                p.append(tag_name)
         return q, p
 
     # Total count

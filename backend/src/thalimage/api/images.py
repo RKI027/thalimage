@@ -35,6 +35,7 @@ def get_images(
     date_to: Optional[str] = Query(None),
     aspect_ratio_filter: Optional[str] = Query(None),
     media_type: Optional[str] = Query(None),
+    tags: Optional[list[str]] = Query(None),
     db: sqlite3.Connection = Depends(get_db),
 ) -> ImagePage:
     # Source preset collections are served dynamically: rewrite to a source filter.
@@ -56,6 +57,7 @@ def get_images(
         date_to=date_to,
         aspect_ratio_filter=aspect_ratio_filter,
         media_type=media_type,
+        tags=tags,
     )
 
 
