@@ -37,14 +37,16 @@ class Settings(BaseSettings):
                 sources = (
                     init_settings,
                     env_settings,
-                    TomlConfigSettingsSource(settings_cls),
+                    TomlConfigSettingsSource(settings_cls, toml_file=toml_path),
                     dotenv_settings,
                     file_secret_settings,
                 )
         return sources
 
     # Server
-    host: str = "0.0.0.0"
+    # Bind to loopback by default; expose on the network (e.g. behind a
+    # reverse proxy or tailnet) by setting host explicitly via config/env.
+    host: str = "127.0.0.1"
     port: int = 8000
     debug: bool = False
     concurrent_scans: bool = True

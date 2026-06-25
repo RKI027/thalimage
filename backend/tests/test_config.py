@@ -34,3 +34,25 @@ def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = Settings()
     assert settings.port == 9999
     assert settings.debug is True
+
+
+def test_default_host_is_loopback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("thalimage.config.default_data_dir", lambda: tmp_path)
+    settings = Settings()
+    assert settings.host == "127.0.0.1"
+
+
+def test_toml_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("thalimage.config.default_data_dir", lambda: tmp_path)
+    (tmp_path / "config.toml").write_text('host = "127.0.0.1"\nport = 8123\n')
+    settings = Settings()
+    assert settings.host == "127.0.0.1"
+    assert settings.port == 8123
+
+
+def test_env_overrides_toml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("thalimage.config.default_data_dir", lambda: tmp_path)
+    (tmp_path / "config.toml").write_text("port = 8123\n")
+    monkeypatch.setenv("THALIMAGE_PORT", "9999")
+    settings = Settings()
+    assert settings.port == 9999
