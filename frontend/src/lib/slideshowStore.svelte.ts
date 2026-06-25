@@ -58,7 +58,7 @@ function createSlideshowStore() {
 	let timerId: ReturnType<typeof setInterval> | null = null;
 	let onAdvanceCb: ((hash: string) => void) | null = null;
 
-	function tick() {
+	function advance() {
 		if (!neighbors.length) return;
 
 		let nextIndex: number;
@@ -87,7 +87,13 @@ function createSlideshowStore() {
 
 	function startTimer() {
 		stop();
-		timerId = setInterval(tick, config.interval);
+		timerId = setInterval(advance, config.interval);
+	}
+
+	// Halt the interval without changing play/pause status. Used while a video
+	// slide plays so it isn't cut off; advance() is driven by the video ending.
+	function suspendTimer() {
+		stop();
 	}
 
 	function scheduleStart(): void {
@@ -226,6 +232,8 @@ function createSlideshowStore() {
 		pause,
 		togglePlay,
 		resetTimer,
+		suspendTimer,
+		advance,
 		updateCurrentIndex,
 		setInterval: setInterval_,
 		toggleShuffle,

@@ -8,20 +8,20 @@
 		filename,
 		width,
 		height,
-		loop = false
+		loop = false,
+		videoEl = $bindable(null)
 	}: {
 		hash: string;
 		filename: string;
 		width: number;
 		height: number;
 		loop?: boolean;
+		videoEl?: HTMLVideoElement | null;
 	} = $props();
 
 	const isVideo = $derived(
 		VIDEO_EXTENSIONS.has(filename.slice(filename.lastIndexOf('.')).toLowerCase())
 	);
-
-	let videoEl = $state<HTMLVideoElement | null>(null);
 
 	$effect(() => {
 		if (!videoEl) return;

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto, beforeNavigate } from '$app/navigation';
 	import { getImage, listImages, archiveImage } from '$lib/api';
@@ -20,6 +21,7 @@
 	let sheetEl: HTMLElement | null = $state(null);
 	let sheetHandleEl: HTMLElement | null = $state(null);
 
+	let videoEl = $state<HTMLVideoElement | null>(null);
 	let bottomSheetOpen = $state(false);
 	let topBarVisible = $state(false);
 	let topBarTimer: ReturnType<typeof setTimeout> | null = null;
@@ -114,6 +116,13 @@
 		slideshowStore.enter(neighbors, currentIndex, (hash) => goto(`/image/${hash}`));
 	}
 
+	function toggleVideoPlayback() {
+		const v = videoEl;
+		if (!v) return;
+		if (v.paused) v.play().catch(() => {});
+		else v.pause();
+	}
+
 	function onKeydown(e: KeyboardEvent) {
 		const tag = (e.target as HTMLElement).tagName;
 		if (tag === 'INPUT' || tag === 'TEXTAREA') return;
@@ -153,6 +162,9 @@
 		} else if (e.key === 's' && inSlideshow) {
 			e.preventDefault();
 			slideshowStore.toggleShuffle();
+		} else if (e.key === 'k' && isVideo) {
+			e.preventDefault();
+			toggleVideoPlayback();
 		}
 	}
 
@@ -183,6 +195,44 @@
 			onSwipeRight: () => navigate(-1),
 			onTap: handleTap
 		});
+	});
+
+	// Slideshow video playback: autoplay once, advance when it ends.
+	$effect(() => {
+		const v = videoEl;
+		// Re-run on each slide so a new video autoplays.
+		const _hash = image?.content_hash;
+		if (!inSlideshow || !isVideo || !v) return;
+
+		const onEnded = () => {
+			if (slideshowStore.status === 'playing') slideshowStore.advance();
+		};
+		v.addEventListener('ended', onEnded);
+
+		if (untrack(() => slideshowStore.status) === 'playing') {
+			v.play().catch(() => {});
+		}
+
+		return () => v.removeEventListener('ended', onEnded);
+	});
+
+	// Slideshow timer vs. video: hold the timer while a video plays; on image
+	// slides keep the interval running.
+	$effect(() => {
+		if (!inSlideshow) return;
+		const playing = slideshowStore.status === 'playing';
+		const _hash = image?.content_hash;
+		if (!playing) return;
+		if (isVideo) {
+			if (videoEl?.ended) {
+				// Resumed after the video finished while paused — move on.
+				slideshowStore.advance();
+			} else {
+				slideshowStore.suspendTimer();
+			}
+		} else {
+			slideshowStore.resetTimer();
+		}
 	});
 
 	// Swipe-down to close bottom sheet
@@ -224,7 +274,8 @@
 				filename={image.filename}
 				width={image.width}
 				height={image.height}
-				loop={videoLoop}
+				loop={false}
+				bind:videoEl
 			/>
 			<SlideshowOverlay
 				{image}
@@ -313,6 +364,7 @@
 					width={image.width}
 					height={image.height}
 					loop={videoLoop}
+					bind:videoEl
 				/>
 				<!-- Desktop: metadata side panel. Hidden on mobile via CSS. -->
 				<div class="metadata-side">
