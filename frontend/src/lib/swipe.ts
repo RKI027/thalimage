@@ -30,14 +30,31 @@ export function attachSwipe(
 	let startX = 0;
 	let startY = 0;
 	let startTime = 0;
+	let activePointer: number | null = null;
 
 	function onDown(e: PointerEvent) {
+		// Ignore secondary touches (e.g. pinch) once a gesture is in progress.
+		if (activePointer !== null) return;
+		activePointer = e.pointerId;
 		startX = e.clientX;
 		startY = e.clientY;
 		startTime = Date.now();
+		// Keep receiving events even if the pointer leaves the element.
+		try {
+			el.setPointerCapture(e.pointerId);
+		} catch {
+			// Capture is best-effort; ignore if unsupported.
+		}
+	}
+
+	function onCancel(e: PointerEvent) {
+		if (e.pointerId === activePointer) activePointer = null;
 	}
 
 	function onUp(e: PointerEvent) {
+		if (e.pointerId !== activePointer) return;
+		activePointer = null;
+
 		const dx = e.clientX - startX;
 		const dy = e.clientY - startY;
 		const elapsed = Date.now() - startTime;
@@ -66,9 +83,11 @@ export function attachSwipe(
 
 	el.addEventListener('pointerdown', onDown, { passive: true });
 	el.addEventListener('pointerup', onUp, { passive: true });
+	el.addEventListener('pointercancel', onCancel, { passive: true });
 
 	return () => {
 		el.removeEventListener('pointerdown', onDown);
 		el.removeEventListener('pointerup', onUp);
+		el.removeEventListener('pointercancel', onCancel);
 	};
 }
