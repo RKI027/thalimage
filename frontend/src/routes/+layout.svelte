@@ -54,11 +54,30 @@
 </div>
 
 <style>
+	:global(html) {
+		-webkit-text-size-adjust: 100%;
+	}
+
 	:global(body) {
 		margin: 0;
 		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 		background: #111;
 		color: #eee;
+	}
+
+	/* Treat interactive chrome like app controls: no tap-highlight flash, no
+	   double-tap zoom delay, and no accidental long-press text selection. */
+	:global(button),
+	:global(a),
+	:global(.tap-target) {
+		-webkit-tap-highlight-color: transparent;
+		touch-action: manipulation;
+	}
+
+	:global(button),
+	:global(.tap-target) {
+		user-select: none;
+		-webkit-user-select: none;
 	}
 
 	:global(a) {
