@@ -88,6 +88,7 @@
 		dir = newDir;
 		localStorage.setItem(galleryKey('sort'), newSort);
 		localStorage.setItem(galleryKey('dir'), newDir);
+		setBrowsingContext({ type: 'all', sort, dir });
 		fetchImages(true);
 	}
 
@@ -103,10 +104,10 @@
 	}
 
 	onMount(() => {
-		setBrowsingContext({ type: 'all' });
 		restoredScrollTop = getScrollPosition();
 		sourceId = readSourceId();
 		loadPrefs();
+		setBrowsingContext({ type: 'all', sort, dir });
 		fetchImages(true);
 
 		// Set responsive thumb size on mobile

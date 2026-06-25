@@ -79,6 +79,8 @@
 			limit: 1000,
 			show_nsfw: $settingsStore.show_nsfw
 		};
+		if (ctx.sort) params.sort = ctx.sort;
+		if (ctx.dir) params.dir = ctx.dir;
 		if (ctx.type === 'collection') {
 			params.collection_id = ctx.collectionId;
 			if (ctx.filters) params.filters = ctx.filters;

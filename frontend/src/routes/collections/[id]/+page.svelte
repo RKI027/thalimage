@@ -68,9 +68,16 @@
 		collection = await fetchCollection(collectionId());
 		filters = JSON.parse(localStorage.getItem(`collection:${collectionId()}:filters`) ?? '{}');
 		if (collection) {
-			setBrowsingContext({ type: 'collection', collectionId: collection.id, name: collection.name, filters });
 			sort = collection.sort_by as SortField;
 			dir = collection.sort_dir as SortDirection;
+			setBrowsingContext({
+				type: 'collection',
+				collectionId: collection.id,
+				name: collection.name,
+				filters,
+				sort,
+				dir
+			});
 		}
 		await fetchImages(true);
 	}
@@ -86,6 +93,14 @@
 		dir = newDir;
 		fetchImages(true);
 		if (collection) {
+			setBrowsingContext({
+				type: 'collection',
+				collectionId: collection.id,
+				name: collection.name,
+				filters,
+				sort,
+				dir
+			});
 			updateCollection(collection.id, { sort_by: newSort, sort_dir: newDir });
 		}
 	}
@@ -100,7 +115,14 @@
 		filters = newFilters;
 		localStorage.setItem(`collection:${collectionId()}:filters`, JSON.stringify(newFilters));
 		if (collection) {
-			setBrowsingContext({ type: 'collection', collectionId: collection.id, name: collection.name, filters: newFilters });
+			setBrowsingContext({
+				type: 'collection',
+				collectionId: collection.id,
+				name: collection.name,
+				filters: newFilters,
+				sort,
+				dir
+			});
 		}
 		fetchImages(true);
 	}
