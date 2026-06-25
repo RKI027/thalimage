@@ -132,7 +132,8 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 12px 16px;
+		padding: calc(12px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 12px
+			max(16px, env(safe-area-inset-left));
 		background: linear-gradient(rgba(0, 0, 0, 0.7), transparent);
 		pointer-events: auto;
 		opacity: 0;

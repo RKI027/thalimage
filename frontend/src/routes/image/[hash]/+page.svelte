@@ -520,6 +520,8 @@
 			z-index: 10;
 			opacity: 0;
 			pointer-events: none;
+			padding: calc(8px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+				8px max(16px, env(safe-area-inset-left));
 			background: linear-gradient(rgba(0, 0, 0, 0.7), transparent);
 			border-bottom: none;
 			transition: opacity 0.4s;
@@ -601,6 +603,7 @@
 			right: 0;
 			bottom: 0;
 			height: 60%;
+			padding-bottom: env(safe-area-inset-bottom);
 			background: #1a1a1a;
 			border-top: 1px solid #444;
 			border-radius: 16px 16px 0 0;

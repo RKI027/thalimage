@@ -35,7 +35,8 @@
 		display: flex;
 		align-items: center;
 		height: 48px;
-		padding: 0 4px;
+		padding: env(safe-area-inset-top) max(4px, env(safe-area-inset-right)) 0
+			max(4px, env(safe-area-inset-left));
 		background: #1a1a1a;
 		border-bottom: 1px solid #333;
 		flex-shrink: 0;

@@ -257,6 +257,9 @@
 			bottom: 0;
 			width: 280px;
 			z-index: 210;
+			padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom)
+				env(safe-area-inset-left);
+			box-sizing: border-box;
 			transform: translateX(-100%);
 			transition: transform 0.25s ease;
 		}
