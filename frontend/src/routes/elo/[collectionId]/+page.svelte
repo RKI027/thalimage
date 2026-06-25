@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getEloPair, recordEloVote, getEloRankings, getCollection } from '$lib/api';
+	import { settingsStore } from '$lib/stores';
 	import type { ImageSummary, EloRanking, Collection, FilterState } from '$lib/types';
 	import SideBySideView from '$lib/components/views/SideBySideView.svelte';
 
@@ -26,7 +27,7 @@
 		selectedSide = null;
 		loading = true;
 		try {
-			const pair = await getEloPair(collectionId(), filters);
+			const pair = await getEloPair(collectionId(), filters, $settingsStore.show_nsfw);
 			left = pair.left;
 			right = pair.right;
 		} catch (e) {

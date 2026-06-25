@@ -224,3 +224,31 @@ def test_get_pair_date_filter_insufficient_raises(db: sqlite3.Connection) -> Non
 
     with pytest.raises(ValueError, match="at least 2"):
         get_pair(db, cid, source_id=sid, date_from="2024-01-01", date_to="2024-01-31")
+
+
+def test_get_pair_excludes_nsfw_by_default(db: sqlite3.Connection) -> None:
+    """NSFW images are excluded from pair selection when show_nsfw=False."""
+    cid, hashes = _seed_collection_with_images(db, n=3)
+    # Mark the third image as NSFW
+    db.execute("UPDATE images SET nsfw = 1 WHERE content_hash = ?", (hashes[2],))
+    db.commit()
+
+    for _ in range(20):
+        left, right = get_pair(db, cid)
+        assert left.content_hash != hashes[2]
+        assert right.content_hash != hashes[2]
+
+
+def test_get_pair_includes_nsfw_when_requested(db: sqlite3.Connection) -> None:
+    """NSFW images appear in the pool when show_nsfw=True."""
+    cid, hashes = _seed_collection_with_images(db, n=3)
+    db.execute("UPDATE images SET nsfw = 1 WHERE content_hash = ?", (hashes[2],))
+    db.commit()
+
+    seen = set()
+    for _ in range(50):
+        left, right = get_pair(db, cid, show_nsfw=True)
+        seen.add(left.content_hash)
+        seen.add(right.content_hash)
+
+    assert hashes[2] in seen

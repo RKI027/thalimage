@@ -18,6 +18,7 @@ def get_pair(
     date_to: Optional[str] = None,
     aspect_ratio_filter: Optional[str] = None,
     media_type: Optional[str] = None,
+    show_nsfw: bool = False,
 ) -> tuple[ImageSummary, ImageSummary]:
     """Select two images from a collection for comparison.
 
@@ -47,6 +48,8 @@ def get_pair(
         params = [collection_id]
 
     q, params = _append_filters(q, params, date_from, date_to, aspect_ratio_filter, media_type)
+    if not show_nsfw:
+        q += " AND i.nsfw = 0"
     q += " ORDER BY matches ASC, RANDOM()"
 
     rows = conn.execute(q, params).fetchall()

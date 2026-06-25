@@ -31,6 +31,7 @@ def get_elo_pair(
     date_to: Optional[str] = Query(None),
     aspect_ratio_filter: Optional[str] = Query(None),
     media_type: Optional[str] = Query(None),
+    show_nsfw: bool = Query(False),
     db: sqlite3.Connection = Depends(get_db),
 ) -> EloPairResponse:
     # Source preset collections are served dynamically via source_id (no collection_images rows).
@@ -48,6 +49,7 @@ def get_elo_pair(
             date_to=date_to,
             aspect_ratio_filter=aspect_ratio_filter,
             media_type=media_type,
+            show_nsfw=show_nsfw,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc

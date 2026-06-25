@@ -167,12 +167,13 @@ export function removeImagesFromCollection(
 
 // ELO Voting
 
-export function getEloPair(collectionId: number, filters: FilterState = {}): Promise<EloPair> {
+export function getEloPair(collectionId: number, filters: FilterState = {}, showNsfw = false): Promise<EloPair> {
 	const q = new URLSearchParams();
 	if (filters.date_from) q.set('date_from', filters.date_from);
 	if (filters.date_to) q.set('date_to', filters.date_to);
 	if (filters.aspect_ratio) q.set('aspect_ratio_filter', filters.aspect_ratio);
 	if (filters.media_type) q.set('media_type', filters.media_type);
+	if (showNsfw) q.set('show_nsfw', 'true');
 	const qs = q.toString();
 	return fetchJSON(`${BASE}/collections/${collectionId}/elo/pair${qs ? '?' + qs : ''}`);
 }
