@@ -97,6 +97,7 @@
 <style>
 	.grid-container {
 		overflow-y: auto;
+		overscroll-behavior-y: contain;
 		height: 100%;
 		position: relative;
 	}

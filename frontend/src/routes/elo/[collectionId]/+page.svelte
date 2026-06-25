@@ -225,6 +225,7 @@
 		flex: 1;
 		padding: 16px;
 		overflow-y: auto;
+		overscroll-behavior-y: contain;
 	}
 
 	.rankings-header {
