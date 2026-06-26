@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     debug: bool = False
     concurrent_scans: bool = True
 
+    # Cross-origin access. Empty by default: the frontend reaches the API
+    # same-origin (vite proxies /api in dev/preview; production serves the SPA
+    # itself), so no cross-origin access is needed. Set explicitly only if a
+    # separate origin must call the API directly.
+    cors_origins: list[str] = []
+
     # Paths
     data_dir: Path = default_data_dir()
     db_path: Optional[Path] = None
