@@ -4,7 +4,7 @@ import random
 import sqlite3
 from typing import Any, Optional
 
-from thalimage.services.image_service import ASPECT_RATIO_FILTERS, VIDEO_FORMATS, ImageSummary
+from thalimage.services.image_service import ImageSummary, append_media_filters
 
 K_FACTOR = 32
 
@@ -47,7 +47,14 @@ def get_pair(
                WHERE ci.collection_id = ? AND i.deleted = 0 AND i.archived = 0"""
         params = [collection_id]
 
-    q, params = _append_filters(q, params, date_from, date_to, aspect_ratio_filter, media_type)
+    q, params = append_media_filters(
+        q, params,
+        prefix="i.",
+        date_from=date_from,
+        date_to=date_to,
+        aspect_ratio_filter=aspect_ratio_filter,
+        media_type=media_type,
+    )
     if not show_nsfw:
         q += " AND i.nsfw = 0"
     q += " ORDER BY matches ASC, RANDOM()"
@@ -68,34 +75,6 @@ def get_pair(
         ImageSummary(**{k: picked[0][k] for k in ImageSummary.model_fields}),
         ImageSummary(**{k: picked[1][k] for k in ImageSummary.model_fields}),
     )
-
-
-def _append_filters(
-    q: str,
-    params: list[object],
-    date_from: Optional[str],
-    date_to: Optional[str],
-    aspect_ratio_filter: Optional[str],
-    media_type: Optional[str],
-) -> tuple[str, list[object]]:
-    if date_from is not None:
-        q += " AND i.file_modified >= ?"
-        params.append(date_from)
-    if date_to is not None:
-        q += " AND i.file_modified <= ?"
-        params.append(date_to)
-    if aspect_ratio_filter is not None and aspect_ratio_filter in ASPECT_RATIO_FILTERS:
-        clause, _ = ASPECT_RATIO_FILTERS[aspect_ratio_filter]
-        q += f" AND i.{clause}"
-    if media_type == "video":
-        placeholders = ",".join("?" * len(VIDEO_FORMATS))
-        q += f" AND i.format IN ({placeholders})"
-        params.extend(VIDEO_FORMATS)
-    elif media_type == "image":
-        placeholders = ",".join("?" * len(VIDEO_FORMATS))
-        q += f" AND i.format NOT IN ({placeholders})"
-        params.extend(VIDEO_FORMATS)
-    return q, params
 
 
 def record_vote(
