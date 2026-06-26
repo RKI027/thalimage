@@ -42,6 +42,12 @@ def test_default_host_is_loopback(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     assert settings.host == "127.0.0.1"
 
 
+def test_cors_origins_default_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("thalimage.config.default_data_dir", lambda: tmp_path)
+    settings = Settings()
+    assert settings.cors_origins == []
+
+
 def test_toml_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("thalimage.config.default_data_dir", lambda: tmp_path)
     (tmp_path / "config.toml").write_text('host = "127.0.0.1"\nport = 8123\n')
