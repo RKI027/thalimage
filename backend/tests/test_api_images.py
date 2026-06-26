@@ -95,9 +95,17 @@ def test_get_image_detail(client: TestClient, image_dir: Path) -> None:
     assert "height" in data
 
 
+ABSENT_HASH = "0" * 64  # well-formed SHA-256 hex that isn't in the DB
+
+
 def test_get_image_not_found(client: TestClient) -> None:
-    resp = client.get("/api/v1/images/nonexistent")
+    resp = client.get(f"/api/v1/images/{ABSENT_HASH}")
     assert resp.status_code == 404
+
+
+def test_get_image_malformed_hash_rejected(client: TestClient) -> None:
+    resp = client.get("/api/v1/images/not-a-hash")
+    assert resp.status_code == 422
 
 
 def test_get_image_file(client: TestClient, image_dir: Path) -> None:
@@ -115,7 +123,7 @@ def test_get_image_thumb(client: TestClient, image_dir: Path) -> None:
 
 
 def test_get_thumb_not_found(client: TestClient) -> None:
-    resp = client.get("/api/v1/images/nonexistent/thumb")
+    resp = client.get(f"/api/v1/images/{ABSENT_HASH}/thumb")
     assert resp.status_code == 404
 
 
@@ -158,7 +166,7 @@ def test_unarchive_restores_to_gallery(client: TestClient, image_dir: Path) -> N
 
 
 def test_archive_not_found(client: TestClient) -> None:
-    resp = client.patch("/api/v1/images/nonexistent/archive", json={"archived": True})
+    resp = client.patch(f"/api/v1/images/{ABSENT_HASH}/archive", json={"archived": True})
     assert resp.status_code == 404
 
 
