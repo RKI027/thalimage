@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     # separate origin must call the API directly.
     cors_origins: list[str] = []
 
+    # Host-header allowlist (DNS-rebinding protection). Loopback is always
+    # accepted; list the hostnames clients actually use to reach the app — e.g.
+    # a tailnet name ("box.tail1234.ts.net" or the wildcard "*.ts.net"), or the
+    # public hostname forwarded by a reverse proxy. Requests with any other Host
+    # header get 400. Set to ["*"] to disable the check entirely.
+    allowed_hosts: list[str] = []
+
     # Paths
     data_dir: Path = default_data_dir()
     db_path: Optional[Path] = None

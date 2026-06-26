@@ -34,7 +34,9 @@ def client(db: sqlite3.Connection, tmp_path: Path):
     app.dependency_overrides[get_thumb_dir] = lambda: thumb_dir
     app.dependency_overrides[get_scan_manager] = lambda: scan_manager
 
-    with TestClient(app) as c:
+    # base_url drives the Host header; use loopback so TrustedHostMiddleware
+    # (which always allows loopback) accepts it.
+    with TestClient(app, base_url="http://127.0.0.1") as c:
         yield c
 
 

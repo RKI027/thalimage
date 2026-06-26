@@ -88,6 +88,22 @@ date/aspect/media-type WHERE clauses.
 **Fix:** replaced the target with `make fe-check`, which runs the real `pnpm check`
 (svelte-check) script.
 
+## Follow-ups added after the initial pass
+
+### 13. Host-header allowlist (DNS-rebinding defense)
+With loopback binding and no CORS, a malicious page could still aim requests at
+`127.0.0.1` (and DNS-rebinding could defeat the read protection). Added a
+`TrustedHostMiddleware` with an `allowed_hosts` config setting. Loopback is
+always accepted; operators list the hostnames clients use (e.g. a tailnet name
+or `*.ts.net`, or the public hostname forwarded by the reverse proxy). Other
+Host headers get 400. `["*"]` disables it.
+
+This is the chosen boundary instead of in-app or proxy login auth: production
+runs behind Traefik and clients reach the app over a tailnet, so binding the
+allowlist to the tailnet hostnames is sufficient until multi-user auth (Phase 8)
+is wanted. Note this is *not* authentication — anything that can reach the port
+with an allowed Host still has full API access.
+
 ## Deliberately not changed
 
 - **`record_vote` input validation.** It is only invoked from a controlled internal path
