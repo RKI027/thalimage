@@ -205,6 +205,7 @@ def run_scan(
             result.added += 1
 
         except Exception:
+            logger.exception("Failed to process %s during scan", file_path)
             result.errors += 1
 
         processed += 1
