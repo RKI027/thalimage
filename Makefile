@@ -32,6 +32,9 @@ fe-dev:
 fe-build:
 	cd frontend && pnpm build
 
+fe-preview:
+	cd frontend && pnpm preview
+
 fe-check:
 	cd frontend && pnpm check
 
