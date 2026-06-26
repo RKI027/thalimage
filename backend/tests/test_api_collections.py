@@ -1,6 +1,5 @@
 """Tests for /api/v1/collections endpoints."""
 
-import time
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -10,15 +9,11 @@ def _seed_images(client: TestClient, image_dir: Path) -> list[str]:
     resp = client.post("/api/v1/sources", json={"path": str(image_dir)})
     source_id = resp.json()["id"]
     client.post(f"/api/v1/sources/{source_id}/scan")
+    # The status stream closes once the scan reaches its terminal phase.
+    client.get(f"/api/v1/sources/{source_id}/scan/status")
 
-    for _ in range(50):
-        resp = client.get("/api/v1/images")
-        items = resp.json()["items"]
-        if items:
-            return [img["content_hash"] for img in items]
-        time.sleep(0.1)
-
-    return []
+    resp = client.get("/api/v1/images")
+    return [img["content_hash"] for img in resp.json()["items"]]
 
 
 def test_list_collections_empty(client: TestClient) -> None:

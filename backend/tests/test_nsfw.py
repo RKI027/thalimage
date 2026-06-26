@@ -128,6 +128,59 @@ def test_list_images_shows_nsfw_when_requested(db: sqlite3.Connection) -> None:
 # --- Collection NSFW flag ---
 
 
+def _add_to_collection(conn: sqlite3.Connection, collection_id: int, hash_: str) -> None:
+    conn.execute(
+        "INSERT INTO collection_images (collection_id, content_hash) VALUES (?, ?)",
+        (collection_id, hash_),
+    )
+    conn.commit()
+
+
+def test_list_images_hides_images_in_nsfw_collection(db: sqlite3.Connection) -> None:
+    from thalimage.services.collection_service import create_collection, update_collection
+
+    sid = _seed_source(db)
+    safe_hash = _seed_image(db, "csafe1", source_id=sid)
+    in_nsfw_coll = _seed_image(db, "cnsfw1", source_id=sid)
+    coll = create_collection(db, "Adult")
+    update_collection(db, coll.id, nsfw=True)
+    _add_to_collection(db, coll.id, in_nsfw_coll)
+
+    page = list_images(db)
+    hashes = {i.content_hash for i in page.items}
+    assert safe_hash in hashes
+    assert in_nsfw_coll not in hashes
+
+
+def test_list_images_shows_nsfw_collection_images_when_requested(
+    db: sqlite3.Connection,
+) -> None:
+    from thalimage.services.collection_service import create_collection, update_collection
+
+    sid = _seed_source(db)
+    in_nsfw_coll = _seed_image(db, "cnsfw2", source_id=sid)
+    coll = create_collection(db, "Adult")
+    update_collection(db, coll.id, nsfw=True)
+    _add_to_collection(db, coll.id, in_nsfw_coll)
+
+    page = list_images(db, show_nsfw=True)
+    hashes = {i.content_hash for i in page.items}
+    assert in_nsfw_coll in hashes
+
+
+def test_image_in_safe_collection_not_hidden(db: sqlite3.Connection) -> None:
+    from thalimage.services.collection_service import create_collection
+
+    sid = _seed_source(db)
+    h = _seed_image(db, "csafe3", source_id=sid)
+    coll = create_collection(db, "Safe")
+    _add_to_collection(db, coll.id, h)
+
+    page = list_images(db)
+    hashes = {i.content_hash for i in page.items}
+    assert h in hashes
+
+
 def test_collection_nsfw_default_false(db: sqlite3.Connection) -> None:
     db.execute("INSERT INTO collections (name) VALUES (?)", ("Test",))
     db.commit()

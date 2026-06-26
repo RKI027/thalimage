@@ -113,7 +113,12 @@ def list_images(
                 )
                 p.append(tag_name)
         if not show_nsfw:
-            q += " AND nsfw = 0"
+            q += (
+                " AND nsfw = 0"
+                " AND content_hash NOT IN ("
+                "SELECT ci.content_hash FROM collection_images ci"
+                " JOIN collections c ON c.id = ci.collection_id WHERE c.nsfw = 1)"
+            )
         return q, p
 
     # Total count

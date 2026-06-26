@@ -1,7 +1,6 @@
 """Tests for collection type system (presets, source presets)."""
 
 import sqlite3
-import time
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -15,13 +14,10 @@ def _create_source(client: TestClient, image_dir: Path) -> int:
 def _seed_images(client: TestClient, image_dir: Path) -> tuple[int, list[str]]:
     source_id = _create_source(client, image_dir)
     client.post(f"/api/v1/sources/{source_id}/scan")
-    for _ in range(50):
-        resp = client.get("/api/v1/images")
-        items = resp.json()["items"]
-        if items:
-            return source_id, [img["content_hash"] for img in items]
-        time.sleep(0.1)
-    return source_id, []
+    # The status stream closes once the scan reaches its terminal phase.
+    client.get(f"/api/v1/sources/{source_id}/scan/status")
+    resp = client.get("/api/v1/images")
+    return source_id, [img["content_hash"] for img in resp.json()["items"]]
 
 
 # --- Service-level tests via API ---
@@ -165,14 +161,10 @@ def test_get_or_create_preset_idempotent(
 
     # Scan twice
     client.post(f"/api/v1/sources/{source_id}/scan")
-    for _ in range(50):
-        resp = client.get("/api/v1/images")
-        if resp.json()["items"]:
-            break
-        time.sleep(0.1)
+    client.get(f"/api/v1/sources/{source_id}/scan/status")
 
     client.post(f"/api/v1/sources/{source_id}/scan")
-    time.sleep(1)
+    client.get(f"/api/v1/sources/{source_id}/scan/status")
 
     resp = client.get("/api/v1/collections?type=source_preset")
     presets = [p for p in resp.json() if p["source_id"] == source_id]
