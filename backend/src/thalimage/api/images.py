@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from thalimage.core.thumbnails import thumbnail_path
-from thalimage.deps import get_db, get_thumb_dir
+from thalimage.deps import ContentHash, get_db, get_thumb_dir
 from thalimage.services.collection_service import get_collection
 from thalimage.services.image_service import (
     ImageDetail,
@@ -65,7 +65,7 @@ def get_images(
 
 @router.get("/{content_hash}", response_model=ImageDetail)
 def get_image_detail(
-    content_hash: str,
+    content_hash: ContentHash,
     db: sqlite3.Connection = Depends(get_db),
 ) -> ImageDetail:
     image = get_image(db, content_hash)
@@ -76,7 +76,7 @@ def get_image_detail(
 
 @router.get("/{content_hash}/file")
 def get_image_file(
-    content_hash: str,
+    content_hash: ContentHash,
     db: sqlite3.Connection = Depends(get_db),
 ) -> FileResponse:
     file_path = resolve_file_path(db, content_hash)
@@ -90,7 +90,7 @@ def get_image_file(
 
 @router.get("/{content_hash}/thumb")
 def get_image_thumb(
-    content_hash: str,
+    content_hash: ContentHash,
     thumb_dir: Path = Depends(get_thumb_dir),
 ) -> FileResponse:
     p = thumbnail_path(thumb_dir, content_hash)
@@ -105,7 +105,7 @@ class ArchiveRequest(BaseModel):
 
 @router.patch("/{content_hash}/archive", response_model=ImageDetail)
 def archive_image(
-    content_hash: str,
+    content_hash: ContentHash,
     body: ArchiveRequest,
     db: sqlite3.Connection = Depends(get_db),
 ) -> ImageDetail:
