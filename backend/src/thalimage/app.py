@@ -52,11 +52,13 @@ def create_app() -> FastAPI:
     if frontend_dir.is_dir():
         app.mount("/_app", StaticFiles(directory=frontend_dir / "_app"), name="static")
 
+        frontend_root = frontend_dir.resolve()
+
         @app.get("/{path:path}")
         async def spa_fallback(path: str) -> FileResponse:
-            file = frontend_dir / path
-            if file.is_file():
+            file = (frontend_root / path).resolve()
+            if file.is_file() and file.is_relative_to(frontend_root):
                 return FileResponse(file)
-            return FileResponse(frontend_dir / "index.html")
+            return FileResponse(frontend_root / "index.html")
 
     return app
