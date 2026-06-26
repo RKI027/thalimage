@@ -32,8 +32,8 @@ fe-dev:
 fe-build:
 	cd frontend && pnpm build
 
-fe-lint:
-	cd frontend && pnpm lint
+fe-check:
+	cd frontend && pnpm check
 
 # Clean
 clean:
