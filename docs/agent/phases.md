@@ -162,3 +162,8 @@ When removing a source, the user will choose:
   (currently unused since NSFW is driven by the tag named "nsfw").
 - bulk edit (multi select picture: range and one by one) then
   trash/archive/tags edit
+- wire the frontend check into `check.sh`: currently `check.sh` runs
+  backend-only (ruff/mypy/pytest); add a guarded `make fe-check`
+  (svelte-check) step that runs only when `frontend/node_modules` is
+  present, so the validation doesn't fail on a backend-only setup. See
+  `docs/code-review-2026-06.md`.
