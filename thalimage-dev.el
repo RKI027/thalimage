@@ -45,12 +45,16 @@ Return the compilation buffer."
   (thalimage-dev--run "backend" "make dev"))
 
 (defun thalimage-dev-frontend ()
-  "Start (or restart) the frontend dev server (\"make fe-dev\")."
+  "Start (or restart) the frontend preview server on port 4173.
+Builds the bundle first so the preview serves a current build
+(\"make fe-build && make fe-preview\")."
   (interactive)
-  (thalimage-dev--run "frontend" "make fe-dev"))
+  (thalimage-dev--run "frontend" "make fe-build && make fe-preview"))
 
 (defun thalimage-dev-build ()
-  "Build the frontend bundle (\"make fe-build\")."
+  "Rebuild the frontend bundle (\"make fe-build\").
+Useful for a quick rebuild while the preview server keeps running; the
+preview serves the new files on the next browser refresh."
   (interactive)
   (thalimage-dev--run "build" "make fe-build"))
 
