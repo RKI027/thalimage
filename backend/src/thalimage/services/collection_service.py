@@ -136,19 +136,15 @@ def add_images(
     collection_id: int,
     hashes: list[str],
 ) -> int:
-    """Add images to a collection. Returns number added."""
-    added = 0
-    for h in hashes:
-        try:
-            conn.execute(
-                "INSERT OR IGNORE INTO collection_images (collection_id, content_hash) VALUES (?, ?)",
-                (collection_id, h),
-            )
-            added += 1
-        except Exception:
-            pass
+    """Add images to a collection. Returns the number of rows actually inserted
+    (duplicates and unknown hashes don't count)."""
+    before = conn.total_changes
+    conn.executemany(
+        "INSERT OR IGNORE INTO collection_images (collection_id, content_hash) VALUES (?, ?)",
+        [(collection_id, h) for h in hashes],
+    )
     conn.commit()
-    return added
+    return conn.total_changes - before
 
 
 def remove_images(
