@@ -1,0 +1,190 @@
+This repo was an attempt to work on my notes below. You can also consult the various docs of that repo.
+
+The progress was fine but the interface remained flaky in a way that's hard to describe but i wasn't satisfied.
+
+you have made a lot of progress in your capabilities since so i would like to give this another try, possibly from scratch.
+
+My goals:
+- i want something where i can reliably sure of the privacy
+- this means developping over Immich could be an option but I'm reluctant because
+  - immich is big and I'm not sure i can wrap my head around all the ways the app might call an external service even if they mean well
+  - immich is big and I'm not sure they would accept my PR for my niche features and I don't want to maintain a fork of such a big project
+  - however, immich has a lot of features that I wouldn't need to rebuilt (main part of the UI, performance...)
+- i want to be able basically an image browser / presenter (the two parts could be decoupled)
+
+General:
+- if stand-alone app, ideally works over an Immich library. if not, a folder of folders/pics. metadata in sidecar files (or maybe a database with the option to emit a sidecar file if needed, or maybe the sidecar is the golden source and we rebuild a db for querying)
+- it needs to be fast (think 1000s of pictures) to scroll through, no pagination
+- work locally or remotely. the metadata editing, picture triage is probably mostly local on desktop. The presenter part is both desktop and mobile.
+- elo ranking: i think i want to keep each individual vote so that i can recompute elos for different set of pictures
+
+Browser part:
+- pics can be organized by hierarchy of folders but browser has the option to flatten the hierarchy while browsing. the hierarchy is not necessarily (actually, i'm pretty sure i actively don't want) to be reflected on disk
+- i probably want to systematically rename files after a hash of their content or maybe even $hash-${perceptual-hash}
+- smart filters with a dsl on metadata and prompts (incl. models, lora and full text prompt). filters can be saved as smart folders/collections
+- any saved view persist its sorting choice
+- single view part, see all metadata: tags, prompts, path, exif, ...
+- tagging, auto-tagging (face, clip, etc..) + maintain tag ontology
+  - note i want to keep track of the author of the tag (and probably the date too)
+  - archival flag to remove the picture from most processes
+- quasi duplicate comparison (perceptual hash, user configured distance) -> visualize cluster as grid or reference + selection side by side or reference + selection blended (opacity or left/right) to help remove unwanted pictures, where relevant, comparison should show prompts if different
+
+Presenter part:
+- view mode, configure how much metadata one want to view with three settings none/custom/all with keybind to switch
+- slideshow mode, from selected view, can add temporary filter, choose manual or timed, timer, shuffle or not, if not can select sorting method
+- voting mode, show two pics side by side, swipe to vote -> update elo scores
+
+Undecided:
+- not sure whether browser or presenter but function to interrogate a model on picture to provide prompt inspiration
+
+The note below was made for a narrower but more detailed usecase. At this stage you can ignore dataset preparation, watermark, etc...
+
+In terms of technology choice, i'm open but after the first experience with a web front-end and another good experience with a native osx front-end, i'm not super optimistic on the web front-end (problem is we end fighting the framework and lose velocity so my not-very-informed-on-js opinion is we chose a very basic framework or none at all or we go native ui but gradio and the like, barf, i can't seem to escape the toyish nature of those)
+
+** [#B] Image Generation Browser / Helper :project:
+:PROPERTIES:
+:ID:       9998AD1E-7549-4D9F-AFD2-10FB07B8CD79
+:END:
+#+category: Image Generation Browser / Helper
+
+I'm not very satisfied with the image browsers / helpers available:
+- image browser [IB]
+- infinite image browser [IIB]
+- [need to test] prompt hub [PH]
+  
+*** Goals / Features
+
+- fast / no pagination (similar to IIB)
+- see parameters for images and modify parameters for images. Setting to prevent modifying prompt/generation parameters related metadata
+- rename, move, batch rename, batch move. Move target can be preset (including some recent folders) or selected on request
+- collections: a folder or a  merge of a number of folders or a search
+- any view of a group of images should use a persistent default sort setting (including persisting last one used). Collections should remember their sort setting.
+- image similarity functions: search duplicates, use similarity to compare / rank, use similarity or dissimilarity or smart randomization for the slideshow function
+- slideshow function, sorted or random, scoring mode (kb shortcuts) -> see ranking functions
+- remote function: sharing one or more collections/folders or all or full control
+- idea would also be to be able to add non ImGen images and massively interrogate them to then be able to more easily use them for inspiration, comparison, training
+- longer term: dataset preparation: resizing, tagging, etc...
+- similar search function to IIB x IB: filename, prompt, tags, exif, restrict to search inside a folder or a collection 
+- compare two images as well as generation parameters diff. Image comparison should be side by side or vertical/horizontal slider
+- capacity to export all data easily: what's intrinsic to the image as metadata or associated json file, what's extrinsic to the image, as json file for one or more images. Generally I'd say the data would be stored in a sqlite db so as long as we keep the schema stable this is pretty easy. <- this (stability of the schema) is a major milestone for a 1.0 release.
+- most operation should support batch processing, possibly a script like operation
+**** Collections
+- simple folder + flag whether to parse sub-directories -> there's a simple search equivalent which leads to the question whether to implement all collections as saved searches (except for manual sets)
+- set of folder + flag (initially valid for all folders of the set) whether to parse sub-directories -> we can also probably define the search function to cover that use case
+- search:
+  - simple mode similar to the search view of IIB: a field for AND matches (can be void/ALL/* for no AND criteria), a field for ANY/OR, a field for exclude. Presentation of criteria can be improved and need to include folders.
+  - advanced mode: similar to the above but the user write the logic expression. The syntax to include tags, especially folders doesn't seem trivial but that can be a 2nd step.
+- all of these can be static (snapshot at the time of the creation of the collection) or dynamic (the set is updated based on the collection type as the filesystem, tags, changes)
+
+All the descriptions above can actually be a specification of the search interface with the option to name, at the first search or from the result panel the search in order to reuse it (it is then a collection). The search parameters can be split from the search results in order to easily adjust the search and check the output. Important to have a good shortcut to trigger the search and possibly a setting to run the search on each modification (since everything should be cached in memory, this shouldn't be a problem)
+**** Ranking
+- personal ranking 1-5 (keep track of which user ranked it? -> later when we make the app multi-user)
+- elo ranking:
+  - we randomly choose two images from a collection: possibility to restrict/weigh the drawing chance/sort the collection by metadata (eg: by model to preferably score images from the same model, prompt or prompt similarity to preferably rank image from similar prompts based on seed or model, etc...)
+  - we ask the user to rank the winner. We probably want to keep the granular data who voted which image against which image so we can recompute ELO scores on restricted sets but we would also have a general ranking. We will also probably want to let the user use a personal ELO ranking or from all users (or a restricted set of users)
+  - when doing this, the user has a simple way to choose the winner, a draw, archive an image(idea would be to take a collection and query randomly which image wins, including choice of deleting one of them or archiving one of them, possibly prioritizing the choices by seed or tag or ...
+- image reward ranking
+- be able to annotate an image (in exif?), a collection (where?), engrave a watermark, engrave a legend directly in the image (copy)
+- archival flag. An archive image would be stored in a zip file representing the collection (not clear how that works for virtual collections as an image could well belong to 2 collections, would the flag be associated with the collection?)
+
+**** Tagging
+- like flag
+- personal and multi ranking
+- personal or multi elo scores on global or restricted set
+- archive flag: archive the image and remove it from all collections (and scoring?). Removing the archive flag restores its collection status (and scoring if we removed it from the calculation). The idea here is that the image is worth preserving but not enough to keep it as part as an active set (my use case would be the image generally sucks and not worth working further on but it shows some artefact or characteristic that's worth keeping in mind, in that case the comment tool is extra worth it to remember why we archived it). Archived images should be stored in a space efficient way at the user choice: either specific directory replicating the original source directory or a zip file of the same. Open question about how that would work for images belong to several collections. For storage, reflecting the physical path of the image is the natural solution but for collection appartenance it's less clear
+**** Prompt similarity
+required for ranking
+also useful to create collections of similar images even though they don't share the exact same prompt
+**** Prompt diff
+a file diff is not super useful for prompt since line breaks are rarely relevant
+a possible way to organize it is to break it down in nodes (words, word associations, model tokens although this would make the representation model dependent so not desirable) and express the node as a graph, then we can diff the graph: presence/absence of nodes, node order
+when we have that, then computing  'prompt similarity' becomes trivial and representing visually a prompt diff easier (but not easy)
+**** Dataset collection / preparation
+- function to grab image from search engines: keep track of original url, help getting best resolution, filter/sort by resolution
+- deblur, upscale, denoise, degrain tools
+- convert to same format
+- convert to same res or set of res (portrait/landscape)
+- renaming, keep track of each step with proper names and/or metadata
+- captioning ala kohya_ss
+- caption check by showing both picture and editable caption and offering all images from the directory
+
+Workflow I've seen in [[https://youtu.be/N4_-fB62Hwk?si=I2FwwuXt8GI8gbHZ][this video]]:
+- collect
+- denoise/crop/improve
+- what's still bad, run through img2img with clip-interrogate+low denoise+high step count
+- captioning using kohya_ss with blip captioning then checking by hand
+  
+*** Tasks
+**** TODO Technology choices
+- language: probably typescript, which chain
+- toolchain????
+- will need several tooling lib: image manipulation, disk operation, most difficult to choose: UI
+
+***** GUI
+streamlit seems a decent choice with a few things to consider
+- components -> might need to develop own, not clear how much more complicated compared to scratch in ts+framework or python+flask
+- local only works but need to make sure we can disable by default telemetry
+- fast enough (test to display a bunch of images, thumbnails)
+
+another possible choice would be tauri
+- advantages of being more flexible (while not as complex as flask as used as local ui) and in rust which would push me to finally up my skills there.
+- Disadvantage is that I'd also need to choose a front-end framework or roll my own UI elements (not that bad but?)
+- there's actually a choice to use a rust frontend framework (probably using webasm), trying leptos currently
+- image library: image for basic stuf, [[https://docs.rs/img-parts/0.1.1/img_parts/index.html][img-parts]] for writing metadata
+- after more thinking, i'm afraid i'm going to get bogged down in rust, the new frontend framework on top of the app spec
+
+nicegui
+- local first
+- seems low investment cost to get started
+
+***** Libraries (not too dependent on other choices):
+- image comparison: https://octoframes.github.io/compare_view/ seems perfect assuming I can integrate the design well enough and I can add also originals and prompt diff
+- image metadata manipulation:
+  - python?
+  - [[https://github.com/kamadak/exif-rs/issues/1][thread]] to do metadata manipulation in rust. This seems non trivial. Not sure about the status in Python.
+- light db to store embeddings of image and do neighbour search:
+  - ?
+- send to ImGen APIs (A1111, ComfyUI)
+
+***** ML Models
+- convert to embeddings
+- interrogate
+- upscaling / deblur
+- 
+
+***** ml backend
+complicated as I'm not super familiar:
+- torch is obvious but heavy and not necessarily the fastest
+- not aware of obvious alternatives
+- on top of that, hugging-face has apparently nice wrappers that allow to tap models they host by d/ling them (and possibly running them in the cloud)
+I guess here, it's better to go with what works and see if optimizations are needed so torch+hugging-face seems correct.
+
+*** Notes
+**** [2023-08-11 Fri]Heard about [[https://immich.app/][immich]]...
+:PROPERTIES:
+:ID:       F4E5A7C1-5B26-414B-AAF4-49CD17B38D08
+:END:
+Looks very nice and definitely an interesting app to potentially replace Apple if/when needed.
+
+More frustrating is that it's basically a heavy-weight version of what I imagine Thalimage would evolve toward (minus some functions that are more oriented toward leisure photo library). It seems well architectured but much too heavy (client-server-db1/db2/queue/microservices+ml backend) to use the way I was planning thalimage.
+
+So my idea now would be to architect thalimage in a similar way except everything is self-contained, eg:
+- pgsql becomes sqlite
+- redis becomes an internal queue
+- microservices becomes separate python processes using the above (with much less complexity obviously)
+
+**** [2023-08-11 Fri] Some thoughts about data structure
+- images should be named from their hash
+- tags should have an origin flag (manual, pre-existing, from interrogation) and a status (validated)
+
+At this stage, I should start thinking about the general UI and the workflow to import an image
+
+UI, should maximize the available space, an icon for settings, a slider to adapt thumbnail size, an icon to show or hide a panel with metadata
+
+Import: if the app is running off the output of the ImGen and I want the images to be named after their hash, it's going to be troublesome. An idea could be the output folder is only watched and auto-imported via a hard-link, while keeping the link with the output files but that creates some x-platform problems + issues if people want to run it on a different computer than the output folder.
+
+**** TODO [2023-08-11 Fri] [[http://simonwillison.net/2023/Aug/10/getting-creative-with-embeddings/#atom-everything][Getting creative with embeddings]]
+This is interesting and could be an angle of attack to segment documents, paragraphs, sentences into facts, opinion, speculation, etc... and assigning an epistemic value to it
+
+*** References
+**** [[https://huggingface.co/blog/image-similarity][Image Similarity with Hugging Face Datasets and Transformers]] :bookmark:
