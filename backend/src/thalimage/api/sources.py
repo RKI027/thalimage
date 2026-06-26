@@ -156,7 +156,7 @@ async def trigger_scan(
         finally:
             worker_conn.close()
 
-    asyncio.get_event_loop().run_in_executor(None, do_scan)
+    asyncio.get_running_loop().run_in_executor(None, do_scan)
     return {"status": "started"}
 
 

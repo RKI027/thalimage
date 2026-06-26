@@ -25,6 +25,7 @@ class ScanManager:
         self._concurrent = concurrent
         self._progress: dict[int, ScanProgress] = {}
         self._events: dict[int, asyncio.Event] = {}
+        self._loops: dict[int, asyncio.AbstractEventLoop] = {}
         self._global_lock = threading.Lock()
 
     def is_running(self, source_id: int) -> bool:
@@ -45,6 +46,10 @@ class ScanManager:
         progress = ScanProgress(source_id=source_id, phase="discovering")
         self._progress[source_id] = progress
         self._events[source_id] = asyncio.Event()
+        try:
+            self._loops[source_id] = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loops.pop(source_id, None)
         return progress
 
     def update(self, source_id: int, **kwargs: object) -> None:
@@ -54,8 +59,18 @@ class ScanManager:
         for key, value in kwargs.items():
             if hasattr(p, key):
                 setattr(p, key, value)
+        self._notify(source_id)
+
+    def _notify(self, source_id: int) -> None:
+        """Wake SSE waiters. Safe to call from a worker thread: the event is
+        owned by the loop captured at start(), so we set it via that loop."""
         event = self._events.get(source_id)
-        if event:
+        if event is None:
+            return
+        loop = self._loops.get(source_id)
+        if loop is not None and loop.is_running():
+            loop.call_soon_threadsafe(event.set)
+        else:
             event.set()
 
     def complete(self, source_id: int, **kwargs: object) -> None:
