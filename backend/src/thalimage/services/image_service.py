@@ -1,6 +1,7 @@
 """Image retrieval and query service."""
 
 import sqlite3
+from pathlib import Path
 from typing import Optional
 
 from pydantic import BaseModel
@@ -233,5 +234,4 @@ def resolve_file_path(
     if row is None:
         return None
 
-    from pathlib import Path
     return str(Path(row["path"]) / row["relative_path"])
