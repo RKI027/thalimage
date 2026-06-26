@@ -105,23 +105,14 @@ def _statements_to_script(statements: list[str], conn: sqlite3.Connection) -> st
     statements for columns that already exist in the database."""
     lines: list[str] = []
     for stmt in statements:
-        upper = stmt.upper().split()
-        if (
-            len(upper) >= 5
-            and upper[0] == "ALTER"
-            and upper[1] == "TABLE"
-            and upper[3] in ("ADD", "ADD")
-            and "COLUMN" in upper[3:6]
-        ):
-            # Extract table name and column name to check existence
-            table, col = _parse_add_column(stmt)
-            if table and col:
-                exists = conn.execute(
-                    "SELECT 1 FROM pragma_table_info(?) WHERE name = ?",
-                    (table, col),
-                ).fetchone()
-                if exists:
-                    continue  # Column already present; skip to avoid error
+        table, col = _parse_add_column(stmt)
+        if table and col:
+            exists = conn.execute(
+                "SELECT 1 FROM pragma_table_info(?) WHERE name = ?",
+                (table, col),
+            ).fetchone()
+            if exists:
+                continue  # Column already present; skip to avoid error
         lines.append(stmt + ("" if stmt.rstrip().endswith(";") else ";"))
         lines.append("\n")
     return "".join(lines)
