@@ -84,7 +84,7 @@ export interface FilterState {
 	tags?: string[];
 }
 
-export type SortField = 'name' | 'date_modified' | 'date_created' | 'size' | 'aspect_ratio';
+export type SortField = 'name' | 'date_modified' | 'date_created' | 'size' | 'aspect_ratio' | 'elo';
 export type SortDirection = 'asc' | 'desc';
 export type MetadataMode = 'hidden' | 'compact' | 'full';
 export type SlideshowStatus = 'idle' | 'playing' | 'paused';

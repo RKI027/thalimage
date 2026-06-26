@@ -103,11 +103,30 @@ def list_images(
     media_type: Optional[str] = None,
     tags: Optional[list[str]] = None,
     show_nsfw: bool = False,
+    elo_collection_id: Optional[int] = None,
 ) -> ImagePage:
-    """Cursor-paginated image listing."""
-    col = SORT_COLUMNS.get(sort, "filename")
+    """Cursor-paginated image listing.
+
+    Pass `elo_collection_id` with `sort="elo"` to order by per-collection ELO
+    score (only meaningful within a collection). Images with no recorded score
+    sort at the default 1500.
+    """
     if direction not in ("asc", "desc"):
         direction = "asc"
+
+    # `sort_expr` is the SQL the cursor compares against; `order_col` is what
+    # ORDER BY uses; `cursor_col` is the row key the next cursor reads.
+    elo_sort = sort == "elo" and elo_collection_id is not None
+    if elo_sort:
+        sort_expr = (
+            "COALESCE((SELECT e.score FROM elo_scores e"
+            " WHERE e.content_hash = images.content_hash"
+            " AND e.collection_id = ?), 1500.0)"
+        )
+        order_col = cursor_col = "elo_score"
+    else:
+        col = SORT_COLUMNS.get(sort, "filename")
+        sort_expr = order_col = cursor_col = col
 
     def _apply_filters(q: str, p: list[object]) -> tuple[str, list[object]]:
         """Append WHERE clauses for optional filters."""
@@ -161,21 +180,33 @@ def list_images(
         "content_hash", "filename", "source_id", "relative_path", "width", "height",
         "aspect_ratio", "format", "thumb_generated", "archived", "nsfw",
     ]
-    if col not in select_cols:
+    if elo_sort:
+        select_cols.append(f"{sort_expr} AS elo_score")
+    elif col not in select_cols:
         select_cols.append(col)
+    # The elo sort expression carries a placeholder in the SELECT clause, so its
+    # parameter must lead the list.
+    initial_params: list[object] = [elo_collection_id] if elo_sort else []
     sql, params = _apply_filters(
         f"SELECT {', '.join(select_cols)} FROM images WHERE deleted = 0 AND archived = 0",
-        [],
+        initial_params,
     )
 
     if cursor is not None:
         op = ">" if direction == "asc" else "<"
-        sql += f" AND ({col}, content_hash) {op} (?, ?)"
         # cursor encodes "sort_value|hash"
         parts = cursor.split("|", 1)
-        params.extend(parts)
+        raw_sort_val = parts[0]
+        hash_val = parts[1] if len(parts) > 1 else ""
+        sql += f" AND ({sort_expr}, content_hash) {op} (?, ?)"
+        if elo_sort:
+            params.append(elo_collection_id)  # for sort_expr's placeholder
+            # numeric comparison against the REAL score, not text
+            params.extend([float(raw_sort_val), hash_val])
+        else:
+            params.extend([raw_sort_val, hash_val])
 
-    sql += f" ORDER BY {col} {direction}, content_hash {direction}"
+    sql += f" ORDER BY {order_col} {direction}, content_hash {direction}"
     sql += " LIMIT ?"
     params.append(limit + 1)  # fetch one extra to detect next page
 
@@ -190,7 +221,7 @@ def list_images(
     next_cursor = None
     if has_next and rows:
         last_row = rows[-1]
-        next_cursor = f"{last_row[col]}|{last_row['content_hash']}"
+        next_cursor = f"{last_row[cursor_col]}|{last_row['content_hash']}"
 
     return ImagePage(items=items, next_cursor=next_cursor, total_count=total)
 
