@@ -51,6 +51,29 @@ def test_list_images_pagination(client: TestClient, image_dir: Path) -> None:
     assert data2["next_cursor"] is None
 
 
+def test_pagination_covers_all_items_for_each_sort(
+    client: TestClient, image_dir: Path
+) -> None:
+    """Paging one item at a time must visit every image exactly once, for any sort."""
+    all_hashes = set(_seed_images(client, image_dir))
+    assert len(all_hashes) == 3
+
+    for sort in ("name", "date_modified", "date_created", "size", "aspect_ratio"):
+        seen: list[str] = []
+        cursor: str | None = None
+        for _ in range(10):  # generous guard against an infinite loop
+            params = {"limit": 1, "sort": sort}
+            if cursor:
+                params["cursor"] = cursor
+            data = client.get("/api/v1/images", params=params).json()
+            seen.extend(i["content_hash"] for i in data["items"])
+            cursor = data["next_cursor"]
+            if cursor is None:
+                break
+        assert sorted(seen) == sorted(all_hashes), f"sort={sort} dropped/duplicated rows"
+        assert len(seen) == len(set(seen)), f"sort={sort} returned duplicates"
+
+
 def test_list_images_sort_desc(client: TestClient, image_dir: Path) -> None:
     _seed_images(client, image_dir)
 

@@ -127,11 +127,17 @@ def list_images(
     )
     total = conn.execute(count_sql, count_params).fetchone()[0]
 
-    # Query
+    # Query. Select the active sort column too (when it isn't already a summary
+    # field) so the cursor can carry its real value; extra columns are ignored
+    # when building ImageSummary.
+    select_cols = [
+        "content_hash", "filename", "source_id", "relative_path", "width", "height",
+        "aspect_ratio", "format", "thumb_generated", "archived", "nsfw",
+    ]
+    if col not in select_cols:
+        select_cols.append(col)
     sql, params = _apply_filters(
-        "SELECT content_hash, filename, source_id, relative_path, width, height, "
-        "aspect_ratio, format, thumb_generated, archived, nsfw "
-        "FROM images WHERE deleted = 0 AND archived = 0",
+        f"SELECT {', '.join(select_cols)} FROM images WHERE deleted = 0 AND archived = 0",
         [],
     )
 
@@ -152,13 +158,12 @@ def list_images(
     if has_next:
         rows = rows[:limit]
 
-    items = [ImageSummary(**dict(r)) for r in rows]
+    items = [ImageSummary(**{k: r[k] for k in ImageSummary.model_fields}) for r in rows]
 
     next_cursor = None
-    if has_next and items:
-        last = items[-1]
-        last_sort_val = getattr(last, sort if sort != "name" else "filename", last.filename)
-        next_cursor = f"{last_sort_val}|{last.content_hash}"
+    if has_next and rows:
+        last_row = rows[-1]
+        next_cursor = f"{last_row[col]}|{last_row['content_hash']}"
 
     return ImagePage(items=items, next_cursor=next_cursor, total_count=total)
 
