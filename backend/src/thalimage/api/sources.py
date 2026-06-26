@@ -10,12 +10,21 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse  # type: ignore[import-untyped]
 
+from thalimage.db.engine import connect
 from thalimage.deps import get_db, get_scan_manager, get_thumb_dir
 from thalimage.services.collection_service import get_or_create_source_preset
 from thalimage.services.scan_manager import ScanManager
 from thalimage.services.scan_service import run_scan
 
 router = APIRouter(prefix="/sources", tags=["sources"])
+
+
+def _connection_db_path(conn: sqlite3.Connection) -> str:
+    """Return the file path backing a SQLite connection's main database."""
+    for _seq, name, file in conn.execute("PRAGMA database_list").fetchall():
+        if name == "main":
+            return str(file)
+    raise RuntimeError("No main database found for connection")
 
 
 class SourceCreate(BaseModel):
@@ -123,12 +132,19 @@ async def trigger_scan(
 
     scan_manager.start(source_id)
 
+    # The scan runs in a worker thread; give it its own connection rather than
+    # sharing the request connection (a single sqlite3.Connection is not safe
+    # for concurrent use across threads). WAL mode makes its commits visible to
+    # the request connections.
+    db_path = Path(_connection_db_path(db))
+
     def do_scan() -> None:
+        worker_conn = connect(db_path, check_same_thread=False)
         try:
             def on_progress(**kwargs: object) -> None:
                 scan_manager.update(source_id, **kwargs)
 
-            result = run_scan(db, source_id, thumb_dir, progress_callback=on_progress)
+            result = run_scan(worker_conn, source_id, thumb_dir, progress_callback=on_progress)
             scan_manager.complete(
                 source_id,
                 added=result.added,
@@ -137,6 +153,8 @@ async def trigger_scan(
             )
         except Exception as exc:
             scan_manager.fail(source_id, message=str(exc))
+        finally:
+            worker_conn.close()
 
     asyncio.get_event_loop().run_in_executor(None, do_scan)
     return {"status": "started"}
