@@ -52,7 +52,9 @@ cross-origin access). The middleware is only added when origins are configured.
 Hashes flowed straight into filesystem paths for thumbnails. Traversal isn't currently
 reachable (single-segment route), but the constraint was implicit.
 
-**Fix:** validate the `{content_hash}` path param against `^[0-9a-f]{64}$`.
+**Fix:** validate the `{content_hash}` path param against `^[0-9a-f]{64}$` via a
+shared annotated type. Note: malformed hashes now return `422` instead of `404`
+(existing 404 tests were updated to use a well-formed but absent hash).
 
 ### 7. Scan errors swallowed without logging
 `run_scan`'s per-file `except Exception` incremented an error counter but discarded the
@@ -83,7 +85,8 @@ date/aspect/media-type WHERE clauses.
 **Fix:** reuse the existing `_parse_add_column` regex to detect ADD COLUMN statements.
 
 ### 12. `make fe-lint` referenced a non-existent `pnpm lint` script
-**Fix:** pointed it at the real `pnpm check` (svelte-check).
+**Fix:** replaced the target with `make fe-check`, which runs the real `pnpm check`
+(svelte-check) script.
 
 ## Deliberately not changed
 
