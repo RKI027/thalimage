@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from thalimage.api import collections, elo, images, settings, sources, tags
 from thalimage.config import get_settings
@@ -33,7 +34,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     app = FastAPI(title="Thalimage", version="0.1.0", lifespan=lifespan)
 
-    cors_origins = get_settings().cors_origins
+    config = get_settings()
+
+    # Reject requests with an unexpected Host header (DNS-rebinding defense).
+    # Loopback is always allowed; operators add the hostnames clients use.
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=["localhost", "127.0.0.1", *config.allowed_hosts],
+    )
+
+    cors_origins = config.cors_origins
     if cors_origins:
         app.add_middleware(
             CORSMiddleware,
