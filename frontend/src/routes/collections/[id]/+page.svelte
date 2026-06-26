@@ -184,7 +184,7 @@
 	<button class="collapse-btn" onclick={() => (filtersOpen = !filtersOpen)} title="Toggle sort controls">⊟</button>
 	{#if filtersOpen}
 		<div class="filter-row">
-			<SortControls {sort} {dir} onchange={onSortChange} />
+			<SortControls {sort} {dir} allowElo onchange={onSortChange} />
 			<FilterBar {filters} onchange={onFilterChange} />
 			<ThumbSizeSlider bind:size={thumbSize} />
 		</div>
@@ -205,7 +205,7 @@
 <OptionsSheet open={optionsOpen} onclose={() => (optionsOpen = false)}>
 	<div class="sheet-count">{totalCount} images</div>
 	<h3 class="sheet-section">Sort by</h3>
-	<SortControls {sort} {dir} onchange={(s, d) => { onSortChange(s, d); optionsOpen = false; }} />
+	<SortControls {sort} {dir} allowElo onchange={(s, d) => { onSortChange(s, d); optionsOpen = false; }} />
 	<h3 class="sheet-section">Filter</h3>
 	<FilterBar {filters} onchange={(f) => { onFilterChange(f); }} />
 	<h3 class="sheet-section">Thumbnail size</h3>

@@ -80,3 +80,45 @@ def test_rankings_empty(client: TestClient, db: sqlite3.Connection) -> None:
     resp = client.get(f"/api/v1/collections/{cid}/elo/rankings")
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+def test_sort_by_elo_orders_by_score(client: TestClient, db: sqlite3.Connection) -> None:
+    cid, hashes = _seed_collection(client, db)
+    # hashes[0] wins repeatedly over hashes[1]; the rest keep the 1500 default.
+    for _ in range(3):
+        client.post(
+            f"/api/v1/collections/{cid}/elo/vote",
+            json={"winner_hash": hashes[0], "loser_hash": hashes[1]},
+        )
+
+    data = client.get(
+        "/api/v1/images", params={"collection_id": cid, "sort": "elo", "dir": "desc"}
+    ).json()
+    ordered = [i["content_hash"] for i in data["items"]]
+    assert ordered[0] == hashes[0]   # highest score first
+    assert ordered[-1] == hashes[1]  # lowest score last
+
+
+def test_sort_by_elo_pagination_covers_all(
+    client: TestClient, db: sqlite3.Connection
+) -> None:
+    cid, hashes = _seed_collection(client, db)
+    client.post(
+        f"/api/v1/collections/{cid}/elo/vote",
+        json={"winner_hash": hashes[0], "loser_hash": hashes[1]},
+    )
+
+    seen: list[str] = []
+    cursor: str | None = None
+    for _ in range(10):
+        params = {"collection_id": cid, "sort": "elo", "dir": "desc", "limit": 2}
+        if cursor:
+            params["cursor"] = cursor
+        data = client.get("/api/v1/images", params=params).json()
+        seen.extend(i["content_hash"] for i in data["items"])
+        cursor = data["next_cursor"]
+        if cursor is None:
+            break
+
+    assert sorted(seen) == sorted(hashes)
+    assert len(seen) == len(set(seen))

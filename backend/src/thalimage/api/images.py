@@ -39,6 +39,10 @@ def get_images(
     show_nsfw: bool = Query(False),
     db: sqlite3.Connection = Depends(get_db),
 ) -> ImagePage:
+    # ELO scores are keyed by the collection being viewed; capture it before the
+    # source-preset rewrite below nulls collection_id.
+    elo_collection_id = collection_id if sort == "elo" else None
+
     # Source preset collections are served dynamically: rewrite to a source filter.
     if collection_id is not None:
         coll = get_collection(db, collection_id)
@@ -60,6 +64,7 @@ def get_images(
         media_type=media_type,
         tags=tags,
         show_nsfw=show_nsfw,
+        elo_collection_id=elo_collection_id,
     )
 
 
