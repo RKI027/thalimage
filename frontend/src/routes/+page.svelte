@@ -170,7 +170,7 @@
 				<ThumbSizeSlider bind:size={thumbSize} />
 			</div>
 		{/if}
-		<button class="slideshow-btn" onclick={startSlideshow} disabled={images.length === 0}>▶ Slideshow</button>
+		<button class="slideshow-btn" onclick={startSlideshow} disabled={images.length === 0}>Slideshow</button>
 		<span class="count">
 			{totalCount} images
 			{#if loading}<span class="loading-hint"> (loading…)</span>{/if}
@@ -196,7 +196,7 @@
 		<h3 class="sheet-section">Thumbnail size</h3>
 		<ThumbSizeSlider bind:size={thumbSize} />
 		<h3 class="sheet-section">Actions</h3>
-		<button class="sheet-action-btn" onclick={() => { startSlideshow(); optionsOpen = false; }} disabled={images.length === 0}>▶ Slideshow</button>
+		<button class="sheet-action-btn" onclick={() => { startSlideshow(); optionsOpen = false; }} disabled={images.length === 0}>Slideshow</button>
 	</OptionsSheet>
 {/if}
 

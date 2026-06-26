@@ -8,8 +8,6 @@ export interface SwipeHandlers {
 export interface SwipeOptions {
 	/** Minimum px to count as a swipe. Default: 50 */
 	threshold?: number;
-	/** Max vertical drift allowed for a horizontal swipe (and vice versa). Default: 80 */
-	maxVertical?: number;
 	/** Max ms elapsed; slower gestures are ignored. Default: 500 */
 	maxDuration?: number;
 }
@@ -24,7 +22,6 @@ export function attachSwipe(
 	options: SwipeOptions = {}
 ): () => void {
 	const threshold = options.threshold ?? 50;
-	const maxVertical = options.maxVertical ?? 80;
 	const maxDuration = options.maxDuration ?? 500;
 
 	let startX = 0;
@@ -68,15 +65,14 @@ export function attachSwipe(
 		// Too slow — treat as a drag, not a swipe
 		if (elapsed > maxDuration) return;
 
-		// Horizontal swipe
-		if (Math.abs(dx) > threshold && Math.abs(dy) < maxVertical) {
-			if (dx < 0) handlers.onSwipeLeft?.();
-			else handlers.onSwipeRight?.();
-			return;
-		}
-
-		// Downward swipe
-		if (dy > threshold && Math.abs(dx) < maxVertical) {
+		// Classify by the dominant axis so diagonal flicks still register as the
+		// gesture the user mostly intended, rather than being dropped.
+		if (Math.abs(dx) >= Math.abs(dy)) {
+			if (Math.abs(dx) > threshold) {
+				if (dx < 0) handlers.onSwipeLeft?.();
+				else handlers.onSwipeRight?.();
+			}
+		} else if (dy > threshold) {
 			handlers.onSwipeDown?.();
 		}
 	}

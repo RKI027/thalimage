@@ -23,6 +23,13 @@
 		VIDEO_EXTENSIONS.has(filename.slice(filename.lastIndexOf('.')).toLowerCase())
 	);
 
+	let loaded = $state(false);
+	// Reset the loading state whenever the source changes.
+	$effect(() => {
+		void hash;
+		loaded = false;
+	});
+
 	$effect(() => {
 		if (!videoEl) return;
 		videoEl.volume = parseFloat(localStorage.getItem('video:volume') ?? '1');
@@ -47,19 +54,28 @@
 			{loop}
 			preload="metadata"
 			controls
+			playsinline
+			onloadeddata={() => (loaded = true)}
+			onerror={() => (loaded = true)}
 			style="max-width: 100%; max-height: 100%; object-fit: contain;"
 		></video>
 	{:else}
 		<img
 			src={imageFileUrl(hash)}
 			alt={filename}
+			onload={() => (loaded = true)}
+			onerror={() => (loaded = true)}
 			style="max-width: 100%; max-height: 100%; object-fit: contain;"
 		/>
+	{/if}
+	{#if !loaded}
+		<div class="loading-spinner" aria-label="Loading"></div>
 	{/if}
 </div>
 
 <style>
 	.viewer {
+		position: relative;
 		flex: 1;
 		display: flex;
 		align-items: center;
@@ -67,5 +83,25 @@
 		overflow: hidden;
 		background: #000;
 		min-height: 0;
+	}
+
+	.loading-spinner {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: 36px;
+		height: 36px;
+		margin: -18px 0 0 -18px;
+		border: 3px solid rgba(255, 255, 255, 0.25);
+		border-top-color: rgba(255, 255, 255, 0.85);
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+		pointer-events: none;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 </style>

@@ -179,7 +179,7 @@
 		{#if collection}
 			<a class="elo-link" href="/elo/{collection.id}">ELO Vote</a>
 		{/if}
-		<button class="slideshow-btn" onclick={startSlideshow} disabled={images.length === 0}>▶ Slideshow</button>
+		<button class="slideshow-btn" onclick={startSlideshow} disabled={images.length === 0}>Slideshow</button>
 	</div>
 	<button class="collapse-btn" onclick={() => (filtersOpen = !filtersOpen)} title="Toggle sort controls">⊟</button>
 	{#if filtersOpen}
@@ -218,9 +218,9 @@
 		</label>
 	{/if}
 	<h3 class="sheet-section">Actions</h3>
-	<button class="sheet-action-btn" onclick={() => { startSlideshow(); optionsOpen = false; }} disabled={images.length === 0}>▶ Slideshow</button>
+	<button class="sheet-action-btn" onclick={() => { startSlideshow(); optionsOpen = false; }} disabled={images.length === 0}>Slideshow</button>
 	{#if collection}
-		<a class="elo-sheet-link" href="/elo/{collection.id}">ELO Vote →</a>
+		<a class="elo-sheet-link" href="/elo/{collection.id}">ELO Vote</a>
 	{/if}
 </OptionsSheet>
 
@@ -301,6 +301,7 @@
 		color: #ccc;
 		text-decoration: none;
 		font-size: 0.85rem;
+		white-space: nowrap;
 	}
 
 	.elo-link:hover {
@@ -316,6 +317,7 @@
 		cursor: pointer;
 		font-size: 0.85rem;
 		flex-shrink: 0;
+		white-space: nowrap;
 	}
 
 	.slideshow-btn:hover:not(:disabled) {

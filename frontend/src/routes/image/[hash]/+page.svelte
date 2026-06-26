@@ -2,7 +2,7 @@
 	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto, beforeNavigate } from '$app/navigation';
-	import { getImage, listImages, archiveImage } from '$lib/api';
+	import { getImage, listImages, archiveImage, imageFileUrl } from '$lib/api';
 	import { browsingContext, backDestination, backLabel } from '$lib/browsingContext';
 	import { settingsStore } from '$lib/stores';
 	import type { ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
@@ -235,6 +235,22 @@
 		}
 	});
 
+	// Preload nearby images so manual navigation and slideshow advance are
+	// instant and don't eat into the slideshow timer. Videos are skipped — their
+	// full files are too large to prefetch eagerly.
+	$effect(() => {
+		const idx = currentIndex;
+		if (idx < 0 || neighbors.length === 0) return;
+		for (const offset of [1, 2, -1]) {
+			const n = neighbors[idx + offset];
+			if (!n) continue;
+			const ext = n.filename.slice(n.filename.lastIndexOf('.')).toLowerCase();
+			if (VIDEO_EXTENSIONS.has(ext)) continue;
+			const img = new Image();
+			img.src = imageFileUrl(n.content_hash);
+		}
+	});
+
 	// Swipe-down to close bottom sheet
 	$effect(() => {
 		if (!sheetHandleEl || !bottomSheetOpen) return;
@@ -284,6 +300,7 @@
 				status={slideshowStore.status}
 				config={slideshowStore.config}
 				isFullscreen={slideshowStore.isFullscreen}
+				{isVideo}
 				overlayMode={slideshowStore.overlayMode}
 				onPrev={() => navigate(-1)}
 				onNext={() => navigate(1)}
@@ -313,7 +330,7 @@
 						Next →
 					</button>
 					<button onclick={enterSlideshow} title="Start slideshow (Space)" disabled={neighbors.length === 0}>
-						▶ Slideshow
+						Slideshow
 					</button>
 					{#if isVideo}
 						<button
@@ -357,7 +374,7 @@
 
 			<!-- body: desktop flex row; mobile full-screen -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div class="body" bind:this={bodyEl} style="touch-action: pan-y">
+			<div class="body" bind:this={bodyEl} style="touch-action: none">
 				<ImageViewer
 					hash={image.content_hash}
 					filename={image.filename}

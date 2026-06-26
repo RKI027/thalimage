@@ -10,6 +10,7 @@
 		status,
 		config,
 		isFullscreen,
+		isVideo,
 		overlayMode,
 		onPrev,
 		onNext,
@@ -25,6 +26,7 @@
 		status: SlideshowStatus;
 		config: SlideshowConfig;
 		isFullscreen: boolean;
+		isVideo: boolean;
 		overlayMode: OverlayMode;
 		onPrev: () => void;
 		onNext: () => void;
@@ -49,6 +51,22 @@
 		}, 3000);
 	}
 
+	function toggleControls() {
+		if (controlsVisible) {
+			controlsVisible = false;
+			if (fadeTimer !== null) clearTimeout(fadeTimer);
+		} else {
+			resetFadeTimer();
+		}
+	}
+
+	// Reveal controls when a mouse moves (desktop). Touch reveal/hide is handled
+	// by the tap handler so a stationary tap can toggle without a stray move event
+	// pre-revealing the controls.
+	function onPointerMove(e: PointerEvent) {
+		if (e.pointerType === 'mouse') resetFadeTimer();
+	}
+
 	function cycleOverlayMode() {
 		const idx = overlayModes.indexOf(overlayMode);
 		onOverlayModeChange(overlayModes[(idx + 1) % overlayModes.length]);
@@ -61,12 +79,14 @@
 		};
 	});
 
+	// Swipe and tap on the image surface. For video slides the native player owns
+	// the surface, so navigation goes through the always-visible control bar.
 	$effect(() => {
-		if (!overlayEl) return;
+		if (!overlayEl || isVideo) return;
 		return attachSwipe(overlayEl, {
 			onSwipeLeft: onNext,
 			onSwipeRight: onPrev,
-			onTap: resetFadeTimer
+			onTap: toggleControls
 		});
 	});
 </script>
@@ -74,12 +94,12 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	class="slideshow-overlay"
+	class:video={isVideo}
 	bind:this={overlayEl}
-	onpointermove={resetFadeTimer}
-	onpointerdown={resetFadeTimer}
+	onpointermove={onPointerMove}
 >
 	<!-- Controls bar -->
-	<div class="controls" class:visible={controlsVisible}>
+	<div class="controls" class:visible={controlsVisible || isVideo}>
 		<button class="ctrl-btn" onclick={onExit} title="Exit slideshow (Escape)">✕</button>
 		<button class="ctrl-btn" onclick={onTogglePlay} title="Play/Pause (Space)">
 			{status === 'playing' ? '⏸' : '▶'}
@@ -87,7 +107,9 @@
 		<button class="ctrl-btn" class:active={config.shuffle} onclick={onToggleShuffle} title="Shuffle (s)">
 			⇄
 		</button>
+		<button class="ctrl-btn" onclick={onPrev} title="Previous (←)">‹</button>
 		<span class="counter">{currentIndex + 1} / {total}</span>
+		<button class="ctrl-btn" onclick={onNext} title="Next (→)">›</button>
 		<button class="ctrl-btn" onclick={cycleOverlayMode} title="Cycle metadata overlay (i)">
 			{overlayMode === 'none' ? 'ℹ︎' : overlayMode === 'minimal' ? 'ℹ' : '⊞'}
 		</button>
@@ -105,10 +127,6 @@
 			{/if}
 		</div>
 	{/if}
-
-	<!-- Click zones for prev/next -->
-	<button class="zone left" onclick={onPrev} aria-label="Previous image"></button>
-	<button class="zone right" onclick={onNext} aria-label="Next image"></button>
 </div>
 
 <style>
@@ -116,6 +134,13 @@
 		position: fixed;
 		inset: 0;
 		z-index: 100;
+		/* Catch tap (toggle controls) and swipe (navigate) across the whole image. */
+		pointer-events: auto;
+	}
+
+	/* On video slides the native player must stay reachable, so the surface lets
+	   pointer events through; navigation uses the always-visible control bar. */
+	.slideshow-overlay.video {
 		pointer-events: none;
 	}
 
@@ -199,27 +224,5 @@
 		line-clamp: 3;
 		-webkit-line-clamp: 3;
 		-webkit-box-orient: vertical;
-	}
-
-	.zone {
-		position: absolute;
-		top: 0;
-		bottom: 0;
-		width: 30%;
-		background: transparent;
-		border: none;
-		cursor: pointer;
-		pointer-events: auto;
-		opacity: 0;
-	}
-
-	.zone.left {
-		left: 0;
-		cursor: w-resize;
-	}
-
-	.zone.right {
-		right: 0;
-		cursor: e-resize;
 	}
 </style>

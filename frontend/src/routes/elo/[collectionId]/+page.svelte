@@ -2,10 +2,12 @@
 	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { getEloPair, recordEloVote, getEloRankings, getCollection } from '$lib/api';
+	import { getEloPair, recordEloVote, getEloRankings, getCollection, imageFileUrl, thumbUrl } from '$lib/api';
 	import { settingsStore } from '$lib/stores';
-	import type { ImageSummary, EloRanking, Collection, FilterState } from '$lib/types';
+	import type { ImageSummary, EloRanking, Collection, FilterState, EloPair } from '$lib/types';
 	import SideBySideView from '$lib/components/views/SideBySideView.svelte';
+
+	const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.avi']);
 
 	let collection: Collection | null = $state(null);
 	let left: ImageSummary | null = $state(null);
@@ -18,13 +20,46 @@
 	let loading = $state(false);
 	let filters: FilterState = $state({});
 
+	// A pair fetched ahead of time so the next round shows instantly. Its images
+	// are preloaded; it may reflect ratings from just before the last vote.
+	let nextPair: EloPair | null = null;
+
 	function collectionId(): number {
 		return Number($page.params.collectionId);
+	}
+
+	function preload(item: ImageSummary) {
+		const ext = item.filename.slice(item.filename.lastIndexOf('.')).toLowerCase();
+		const img = new Image();
+		// Videos render from their thumbnail poster; warm that rather than fetching
+		// the full video file through an <img>.
+		img.src = VIDEO_EXTENSIONS.has(ext) ? thumbUrl(item.content_hash) : imageFileUrl(item.content_hash);
+	}
+
+	async function prefetchNext() {
+		try {
+			const pair = await getEloPair(collectionId(), filters, $settingsStore.show_nsfw);
+			preload(pair.left);
+			preload(pair.right);
+			nextPair = pair;
+		} catch {
+			// Prefetch is best-effort; a failure just means the next load fetches live.
+			nextPair = null;
+		}
 	}
 
 	async function loadPair() {
 		error = null;
 		selectedSide = null;
+
+		if (nextPair) {
+			left = nextPair.left;
+			right = nextPair.right;
+			nextPair = null;
+			prefetchNext();
+			return;
+		}
+
 		loading = true;
 		try {
 			const pair = await getEloPair(collectionId(), filters, $settingsStore.show_nsfw);
@@ -35,6 +70,7 @@
 		} finally {
 			loading = false;
 		}
+		prefetchNext();
 	}
 
 	async function vote(side: 'left' | 'right') {
@@ -84,6 +120,8 @@
 	$effect(() => {
 		const _id = $page.params.collectionId;
 		untrack(() => {
+			// A prefetched pair from another collection/filter set must not leak through.
+			nextPair = null;
 			filters = JSON.parse(localStorage.getItem(`collection:${collectionId()}:filters`) ?? '{}');
 			getCollection(collectionId()).then((c) => { collection = c; });
 			loadPair();
@@ -159,7 +197,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 8px 16px;
+		padding: calc(8px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 8px
+			max(16px, env(safe-area-inset-left));
 		background: #1a1a1a;
 		border-bottom: 1px solid #333;
 		flex-shrink: 0;
