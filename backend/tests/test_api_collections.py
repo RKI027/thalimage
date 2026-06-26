@@ -82,6 +82,19 @@ def test_add_images_to_collection(client: TestClient, image_dir: Path) -> None:
     assert resp.json()["image_count"] == 2
 
 
+def test_add_images_count_excludes_duplicates(client: TestClient, image_dir: Path) -> None:
+    hashes = _seed_images(client, image_dir)
+    cid = client.post("/api/v1/collections", json={"name": "Album"}).json()["id"]
+
+    client.post(f"/api/v1/collections/{cid}/images", json={"hashes": hashes[:2]})
+    # Re-adding the same two plus one new one should count only the new one.
+    resp = client.post(f"/api/v1/collections/{cid}/images", json={"hashes": hashes})
+    assert resp.json()["added"] == 1
+
+    resp = client.get(f"/api/v1/collections/{cid}")
+    assert resp.json()["image_count"] == len(hashes)
+
+
 def test_remove_images_from_collection(client: TestClient, image_dir: Path) -> None:
     hashes = _seed_images(client, image_dir)
     resp = client.post("/api/v1/collections", json={"name": "Album"})
