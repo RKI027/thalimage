@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from thalimage.deps import get_db
+from thalimage.deps import ContentHash, get_db
 from thalimage.services.tag_service import (
     Tag,
     add_image_tag,
@@ -78,7 +78,7 @@ def del_tag(
 
 @router.get("/images/{content_hash}/tags", response_model=list[Tag])
 def get_tags_for_image(
-    content_hash: str,
+    content_hash: ContentHash,
     db: sqlite3.Connection = Depends(get_db),
 ) -> list[Tag]:
     return get_image_tags(db, content_hash)
@@ -86,7 +86,7 @@ def get_tags_for_image(
 
 @router.post("/images/{content_hash}/tags", status_code=204)
 def post_image_tag(
-    content_hash: str,
+    content_hash: ContentHash,
     body: ImageTagBody,
     db: sqlite3.Connection = Depends(get_db),
 ) -> None:
@@ -97,7 +97,7 @@ def post_image_tag(
 
 @router.delete("/images/{content_hash}/tags/{tag_id}", status_code=204)
 def del_image_tag(
-    content_hash: str,
+    content_hash: ContentHash,
     tag_id: int,
     db: sqlite3.Connection = Depends(get_db),
 ) -> None:
