@@ -57,6 +57,36 @@ ASPECT_RATIO_FILTERS: dict[str, tuple[str, list[object]]] = {
 }
 
 
+def append_media_filters(
+    q: str,
+    params: list[object],
+    *,
+    prefix: str = "",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    aspect_ratio_filter: Optional[str] = None,
+    media_type: Optional[str] = None,
+) -> tuple[str, list[object]]:
+    """Append the date / aspect-ratio / media-type WHERE clauses shared by the
+    image listing and ELO pair queries. `prefix` qualifies column references
+    (e.g. "i." when the images table is aliased)."""
+    if date_from is not None:
+        q += f" AND {prefix}file_modified >= ?"
+        params.append(date_from)
+    if date_to is not None:
+        q += f" AND {prefix}file_modified <= ?"
+        params.append(date_to)
+    if aspect_ratio_filter in ASPECT_RATIO_FILTERS:
+        clause, _ = ASPECT_RATIO_FILTERS[aspect_ratio_filter]
+        q += f" AND {prefix}{clause}"
+    if media_type in ("video", "image"):
+        placeholders = ",".join("?" * len(VIDEO_FORMATS))
+        op = "IN" if media_type == "video" else "NOT IN"
+        q += f" AND {prefix}format {op} ({placeholders})"
+        params.extend(VIDEO_FORMATS)
+    return q, params
+
+
 def list_images(
     conn: sqlite3.Connection,
     *,
@@ -86,23 +116,13 @@ def list_images(
         if collection_id is not None:
             q += " AND content_hash IN (SELECT content_hash FROM collection_images WHERE collection_id = ?)"
             p.append(collection_id)
-        if date_from is not None:
-            q += " AND file_modified >= ?"
-            p.append(date_from)
-        if date_to is not None:
-            q += " AND file_modified <= ?"
-            p.append(date_to)
-        if aspect_ratio_filter is not None and aspect_ratio_filter in ASPECT_RATIO_FILTERS:
-            clause, _ = ASPECT_RATIO_FILTERS[aspect_ratio_filter]
-            q += f" AND {clause}"
-        if media_type == "video":
-            placeholders = ",".join("?" * len(VIDEO_FORMATS))
-            q += f" AND format IN ({placeholders})"
-            p.extend(VIDEO_FORMATS)
-        elif media_type == "image":
-            placeholders = ",".join("?" * len(VIDEO_FORMATS))
-            q += f" AND format NOT IN ({placeholders})"
-            p.extend(VIDEO_FORMATS)
+        q, _ = append_media_filters(
+            q, p,
+            date_from=date_from,
+            date_to=date_to,
+            aspect_ratio_filter=aspect_ratio_filter,
+            media_type=media_type,
+        )
         if tags:
             for tag_name in tags:
                 q += (
