@@ -168,6 +168,38 @@ def test_list_images_shows_nsfw_collection_images_when_requested(
     assert in_nsfw_coll in hashes
 
 
+def test_list_images_hides_images_in_nsfw_source_preset(db: sqlite3.Connection) -> None:
+    from thalimage.services.collection_service import (
+        get_or_create_source_preset,
+        update_collection,
+    )
+
+    sid = _seed_source(db)
+    h = _seed_image(db, "ps_nsfw1", source_id=sid)
+    preset = get_or_create_source_preset(db, sid, "test")
+    update_collection(db, preset.id, nsfw=True)
+
+    page = list_images(db)
+    assert h not in {i.content_hash for i in page.items}
+
+
+def test_list_images_shows_nsfw_source_preset_when_requested(
+    db: sqlite3.Connection,
+) -> None:
+    from thalimage.services.collection_service import (
+        get_or_create_source_preset,
+        update_collection,
+    )
+
+    sid = _seed_source(db)
+    h = _seed_image(db, "ps_nsfw2", source_id=sid)
+    preset = get_or_create_source_preset(db, sid, "test")
+    update_collection(db, preset.id, nsfw=True)
+
+    page = list_images(db, show_nsfw=True)
+    assert h in {i.content_hash for i in page.items}
+
+
 def test_image_in_safe_collection_not_hidden(db: sqlite3.Connection) -> None:
     from thalimage.services.collection_service import create_collection
 

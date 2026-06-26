@@ -136,9 +136,15 @@ def list_images(
         if not show_nsfw:
             q += (
                 " AND nsfw = 0"
+                # Hidden if a member of an NSFW manual/static collection...
                 " AND content_hash NOT IN ("
                 "SELECT ci.content_hash FROM collection_images ci"
                 " JOIN collections c ON c.id = ci.collection_id WHERE c.nsfw = 1)"
+                # ...or if the image's source has an NSFW source-preset collection
+                # (presets have no collection_images rows; they match by source).
+                " AND source_id NOT IN ("
+                "SELECT source_id FROM collections"
+                " WHERE type = 'source_preset' AND nsfw = 1 AND source_id IS NOT NULL)"
             )
         return q, p
 
