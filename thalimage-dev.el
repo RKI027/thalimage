@@ -74,6 +74,23 @@ Return the compilation buffer."
   (thalimage-dev-stop)
   (thalimage-dev-start))
 
+(defvar thalimage-dev-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [remap compile] #'thalimage-dev-restart)
+    (define-key map [remap recompile] #'thalimage-dev-restart)
+    (define-key map [remap project-compile] #'thalimage-dev-restart)
+    map)
+  "Keymap for `thalimage-dev-mode'.
+Remaps the compile commands to `thalimage-dev-restart' so the usual
+\"compile\" keybinding restarts the dev stack.")
+
+(define-minor-mode thalimage-dev-mode
+  "Buffer-local mode that makes the compile commands restart the dev stack.
+Enabled per project via .dir-locals.el; pressing the key bound to
+`compile' (or `recompile' / `project-compile') runs `thalimage-dev-restart'."
+  :lighter " ThaliDev"
+  :keymap thalimage-dev-mode-map)
+
 (provide 'thalimage-dev)
 
 ;;; thalimage-dev.el ends here
