@@ -4,14 +4,16 @@
 	let {
 		sort = 'name',
 		dir = 'asc',
+		allowElo = false,
 		onchange
 	}: {
 		sort?: SortField;
 		dir?: SortDirection;
+		allowElo?: boolean;
 		onchange?: (sort: SortField, dir: SortDirection) => void;
 	} = $props();
 
-	const fields: { value: SortField; label: string }[] = [
+	const baseFields: { value: SortField; label: string }[] = [
 		{ value: 'name', label: 'Name' },
 		{ value: 'date_modified', label: 'Modified' },
 		{ value: 'date_created', label: 'Created' },
@@ -19,8 +21,15 @@
 		{ value: 'aspect_ratio', label: 'Aspect' }
 	];
 
+	// ELO ranking only makes sense within a collection (not "All Images").
+	const fields = $derived(
+		allowElo ? [...baseFields, { value: 'elo' as SortField, label: 'ELO' }] : baseFields
+	);
+
 	function onFieldChange(e: Event) {
-		onchange?.((e.target as HTMLSelectElement).value as SortField, dir);
+		const newSort = (e.target as HTMLSelectElement).value as SortField;
+		// Default ELO to descending so the best-ranked images come first.
+		onchange?.(newSort, newSort === 'elo' ? 'desc' : dir);
 	}
 
 	function toggleDir() {
