@@ -1,5 +1,8 @@
 # Code Review Remediation — June 2026
 
+> **Archived.** A point-in-time remediation log; the issues below are resolved.
+> Kept for history. Current roadmap and backlog: [`agent/phases.md`](./agent/phases.md).
+
 Tracks the issues found in the full idiom/pattern/organization + security review and
 how each was fixed. One commit per issue; commit subjects referenced below.
 

@@ -1,5 +1,8 @@
 # Code Review #1 — 2026-04-17
 
+> **Archived.** A point-in-time code-review record; findings have since been
+> addressed. Kept for history. Current roadmap and backlog: [`phases.md`](./phases.md).
+
 Focus: code organization, duplicated functions, anti-patterns.
 
 ---

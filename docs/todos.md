@@ -1,3 +1,6 @@
+> **Archived.** Every item below is resolved (Phases 1–2.5). Kept as a fix log.
+> The live backlog now lives under "Unsorted" in [`agent/phases.md`](./agent/phases.md).
+
 # Phase 1 / MCP
 
 1. ~~split pane bug~~ — fixed by keying layout render on `$page.url.pathname`
