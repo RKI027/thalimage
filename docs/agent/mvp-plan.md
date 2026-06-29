@@ -1,5 +1,9 @@
 # Thalimage Reboot Plan
 
+> **Archived.** The original MVP implementation plan (Sprints 1–5), now complete.
+> Kept for historical reference. For the current roadmap and backlog see
+> [`phases.md`](./phases.md).
+
 ## Context
 
 Thalimage is a self-hosted image browser/manager for AI-generated images. The existing codebase (~2K lines Python + Gradio) works but the UI framework felt "toyish" and limiting. The user wants a fresh start with a proper client-server architecture that can run on a Synology NAS and be accessed from desktop and mobile. The existing core logic (metadata extraction, thumbnail generation, image scanning) is solid and will be ported.

@@ -1,3 +1,9 @@
+#+begin_quote
+*Archived.* The original vision and requirements notes that kicked off the
+reboot. Kept for historical reference; the design has since been realized and
+extended. For the current roadmap and backlog see [[file:phases.md][phases.md]].
+#+end_quote
+
 This repo was an attempt to work on my notes below. You can also consult the various docs of that repo.
 
 The progress was fine but the interface remained flaky in a way that's hard to describe but i wasn't satisfied.

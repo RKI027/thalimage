@@ -55,9 +55,39 @@ All settings can be set via environment variables with the `THALIMAGE_` prefix, 
 | `THALIMAGE_DATA_DIR` | `~/.thalimage` | Database and cache directory |
 | `THALIMAGE_DB_PATH` | `{data_dir}/thalimage.db` | SQLite database path |
 | `THALIMAGE_THUMB_DIR` | `{data_dir}/cache/thumbs` | Thumbnail storage path |
-| `THALIMAGE_HOST` | `0.0.0.0` | Server bind address |
+| `THALIMAGE_HOST` | `127.0.0.1` | Server bind address (the Docker image sets `0.0.0.0`) |
 | `THALIMAGE_PORT` | `8000` | Server port |
 | `THALIMAGE_DEBUG` | `false` | Debug mode |
+| `THALIMAGE_CONCURRENT_SCANS` | `true` | Allow source scans to run concurrently |
+| `THALIMAGE_CORS_ORIGINS` | `[]` | Allowed CORS origins (JSON list); empty since the frontend is served same-origin |
+| `THALIMAGE_ALLOWED_HOSTS` | `[]` | Permitted `Host` header values (JSON list); empty accepts all. Set the hostnames clients use (e.g. behind a reverse proxy or on a tailnet) |
+
+The host binds to loopback by default. To expose Thalimage on a LAN, reverse proxy, or tailnet, set `THALIMAGE_HOST` explicitly and list the public hostnames in `THALIMAGE_ALLOWED_HOSTS`.
+
+## Development
+
+Backend is Python (managed with [uv](https://docs.astral.sh/uv/)); frontend is SvelteKit (managed with [pnpm](https://pnpm.io/)). Common tasks are wrapped in the `Makefile`.
+
+```bash
+# Backend
+make install      # uv sync
+make dev          # run the API on http://127.0.0.1:8000
+make test         # pytest
+make lint         # ruff
+make typecheck    # mypy
+make check        # lint + typecheck + test
+
+# Frontend
+make fe-install   # pnpm install
+make fe-dev       # vite dev server on http://localhost:5173
+make fe-build     # build the static bundle
+make fe-preview   # serve the built bundle on http://127.0.0.1:4173
+make fe-check     # svelte-check
+```
+
+In development the frontend runs separately and proxies `/api` to the backend on port 8000 (see `frontend/vite.config.ts`), so run `make dev` alongside either `make fe-dev` (hot reload) or `make fe-build && make fe-preview` (production-like bundle). In production the backend serves the built bundle directly, so a single process answers both the UI and the API.
+
+`./check.sh` runs the backend lint/typecheck/test gate and is the validation to run after backend changes.
 
 ## Tech Stack
 
@@ -65,3 +95,9 @@ All settings can be set via environment variables with the `THALIMAGE_` prefix, 
 - **Frontend**: SvelteKit (SPA mode, adapter-static)
 - **Metadata**: sd-parsers, piexif, Pillow
 - **Thumbnails**: Pillow (WebP)
+
+## Documentation
+
+- `CLAUDE.md` — architecture, backend layout, and conventions for contributors
+- `docs/agent/phases.md` — current roadmap and backlog
+- `docs/` — historical planning and code-review records (each marked as archived)
