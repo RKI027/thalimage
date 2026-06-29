@@ -38,6 +38,8 @@ make dev          # Run backend dev server
 
 ## Documentation
 
-- `docs/agent/reboot.org` — original vision and requirements document
-- `docs/agent/mvp-plan.md` — implementation plan for the MVP (sprints 1-5, completed)
-- `docs/agent/phases.md` — roadmap of future phases (2-6)
+- `docs/agent/phases.md` — **current** roadmap and backlog
+- `docs/agent/reboot.org` — original vision/requirements (archived)
+- `docs/agent/mvp-plan.md` — MVP implementation plan, Sprints 1–5 (archived)
+- `docs/agent/cr_1.md`, `docs/code-review-2026-06.md` — code-review records (archived)
+- `docs/todos.md` — resolved Phase 1–2.5 fix log (archived)
