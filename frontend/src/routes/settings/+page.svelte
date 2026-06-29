@@ -65,7 +65,7 @@
 
 <div class="settings-page">
 	<div class="page-header">
-		<h2>Source Folders</h2>
+		<h2>Settings</h2>
 		<a href={backHref} class="close-btn">Close</a>
 	</div>
 	<section class="prefs-section">
@@ -122,7 +122,8 @@
 
 <style>
 	.settings-page {
-		padding: 24px;
+		padding: calc(24px + env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+			calc(24px + env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
 		max-width: 700px;
 	}
 
