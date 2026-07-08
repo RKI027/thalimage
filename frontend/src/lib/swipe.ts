@@ -15,6 +15,10 @@ export interface SwipeOptions {
 /**
  * Attach pointer-event swipe and tap detection to an element.
  * Returns a cleanup function that removes all added listeners.
+ *
+ * Gestures that begin on an interactive control (button, a, input, select,
+ * textarea, or any `[data-no-swipe]`) are ignored so the control receives its
+ * own click. This applies to every caller, not just any one surface.
  */
 export function attachSwipe(
 	el: HTMLElement,
@@ -32,6 +36,11 @@ export function attachSwipe(
 	function onDown(e: PointerEvent) {
 		// Ignore secondary touches (e.g. pinch) once a gesture is in progress.
 		if (activePointer !== null) return;
+		// Let interactive controls handle their own pointer. Capturing here would
+		// retarget their click to this element (Svelte delegates pointerdown to the
+		// app root, so a child's stopPropagation runs too late to prevent it).
+		if ((e.target as Element | null)?.closest('button, a, input, select, textarea, [data-no-swipe]'))
+			return;
 		activePointer = e.pointerId;
 		startX = e.clientX;
 		startY = e.clientY;
