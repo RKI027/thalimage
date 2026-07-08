@@ -109,9 +109,16 @@
 	}
 
 	function navigate(delta: number) {
+		if (inSlideshow) slideshowStore.resetTimer();
+		// In a shuffle slideshow, ←/→ walk the shuffle order/history (matching
+		// auto-advance) instead of the underlying collection order.
+		if (inSlideshow && slideshowStore.isShuffle) {
+			if (delta < 0) slideshowStore.back();
+			else slideshowStore.advance();
+			return;
+		}
 		const newIndex = currentIndex + delta;
 		if (newIndex >= 0 && newIndex < neighbors.length) {
-			if (inSlideshow) slideshowStore.resetTimer();
 			goto(`/image/${neighbors[newIndex].content_hash}`);
 		}
 	}
