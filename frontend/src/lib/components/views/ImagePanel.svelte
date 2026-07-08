@@ -20,10 +20,16 @@
 	);
 
 	let loaded = $state(false);
+	let imgEl = $state<HTMLImageElement | null>(null);
 	let videoEl = $state<HTMLVideoElement | null>(null);
+	// Reset the spinner when the image changes, but reflect the element's real
+	// state rather than always resetting to false. A cached image (pairs are
+	// preloaded) can fire its load event before this runs; unconditionally
+	// clearing `loaded` would then strand the spinner over a fully-decoded image
+	// with no further event to clear it. `complete` is true after load or error.
 	$effect(() => {
 		void hash;
-		loaded = false;
+		loaded = isVideo ? !!videoEl && videoEl.readyState >= 2 : !!imgEl && imgEl.complete;
 	});
 
 	// Autoplay the preview muted so video pairs can be judged in motion. The
@@ -54,6 +60,7 @@
 		></video>
 	{:else}
 		<img
+			bind:this={imgEl}
 			src={imageFileUrl(hash)}
 			alt={filename}
 			onload={() => (loaded = true)}
