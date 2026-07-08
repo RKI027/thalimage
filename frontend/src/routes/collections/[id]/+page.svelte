@@ -9,11 +9,7 @@
 	import { responsiveThumbSize } from '$lib/mobileStore.svelte';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import ImageGrid from '$lib/components/ImageGrid.svelte';
-	import SortControls from '$lib/components/SortControls.svelte';
-	import FilterBar from '$lib/components/FilterBar.svelte';
-	import ThumbSizeSlider from '$lib/components/ThumbSizeSlider.svelte';
-	import MobilePageHeader from '$lib/components/MobilePageHeader.svelte';
-	import OptionsSheet from '$lib/components/OptionsSheet.svelte';
+	import GridToolbar from '$lib/components/GridToolbar.svelte';
 	import type { FilterState, SortField, SortDirection } from '$lib/types';
 
 	let images: ImageSummary[] = $state([]);
@@ -27,8 +23,6 @@
 	let dir: SortDirection = $state('asc');
 	let filters: FilterState = $state({});
 	let thumbSize = $state(Number(localStorage.getItem('thumbSize')) || 200);
-	let filtersOpen = $state(true);
-	let optionsOpen = $state(false);
 	let loading = $state(false);
 	let currentScrollTop = $state(0);
 	let restoredScrollTop = $state(0);
@@ -154,43 +148,53 @@
 
 </script>
 
-<!-- Mobile single-row header -->
-<div class="mobile-only">
-	<MobilePageHeader
-		leftType="back"
-		backHref={backHref}
-		title={collection?.name ?? ''}
-		onMenuOpen={() => (optionsOpen = true)}
-	/>
-</div>
-
-<!-- Desktop toolbar -->
-<div class="toolbar desktop-only">
-	<div class="left">
-		<a href={backHref}>{backLabel}</a>
-		<h2>
-			{collection?.name ?? ''}
-		</h2>
-		{#if collection}
-			<button class="nsfw-toggle" class:active={collection.nsfw} onclick={toggleNsfw} title={collection.nsfw ? 'Mark as safe' : 'Mark as NSFW'}>
-				NSFW
-			</button>
-		{/if}
+<GridToolbar
+	{sort}
+	{dir}
+	{filters}
+	bind:thumbSize
+	count={totalCount}
+	{loading}
+	disabled={images.length === 0}
+	allowElo
+	title={collection?.name ?? ''}
+	leftType="back"
+	{backHref}
+	{onSortChange}
+	{onFilterChange}
+	onStartSlideshow={startSlideshow}
+>
+	{#snippet desktopLeading()}
+		<div class="left">
+			<a href={backHref}>{backLabel}</a>
+			<h2>{collection?.name ?? ''}</h2>
+			{#if collection}
+				<button class="nsfw-toggle" class:active={collection.nsfw} onclick={toggleNsfw} title={collection.nsfw ? 'Mark as safe' : 'Mark as NSFW'}>
+					NSFW
+				</button>
+			{/if}
+		</div>
+	{/snippet}
+	{#snippet desktopActions()}
 		{#if collection}
 			<a class="elo-link" href="/elo/{collection.id}">ELO Vote</a>
 		{/if}
-		<button class="slideshow-btn" onclick={startSlideshow} disabled={images.length === 0}>Slideshow</button>
-	</div>
-	<button class="collapse-btn" onclick={() => (filtersOpen = !filtersOpen)} title="Toggle sort controls">⊟</button>
-	{#if filtersOpen}
-		<div class="filter-row">
-			<SortControls {sort} {dir} allowElo onchange={onSortChange} />
-			<FilterBar {filters} onchange={onFilterChange} />
-			<ThumbSizeSlider bind:size={thumbSize} />
-		</div>
-	{/if}
-	<span class="count">{totalCount} images</span>
-</div>
+	{/snippet}
+	{#snippet sheetExtras()}
+		{#if collection}
+			<h3 class="sheet-section">Collection</h3>
+			<label class="sheet-toggle-row">
+				<span>NSFW collection</span>
+				<input type="checkbox" checked={collection.nsfw} onchange={toggleNsfw} />
+			</label>
+		{/if}
+	{/snippet}
+	{#snippet sheetActions()}
+		{#if collection}
+			<a class="elo-sheet-link" href="/elo/{collection.id}">ELO Vote</a>
+		{/if}
+	{/snippet}
+</GridToolbar>
 
 <ImageGrid
 	{images}
@@ -201,38 +205,7 @@
 	onScroll={(s) => { currentScrollTop = s; }}
 />
 
-<!-- Mobile options sheet -->
-<OptionsSheet open={optionsOpen} onclose={() => (optionsOpen = false)}>
-	<div class="sheet-count">{totalCount} images</div>
-	<h3 class="sheet-section">Sort by</h3>
-	<SortControls {sort} {dir} allowElo onchange={(s, d) => { onSortChange(s, d); optionsOpen = false; }} />
-	<h3 class="sheet-section">Filter</h3>
-	<FilterBar {filters} onchange={(f) => { onFilterChange(f); }} />
-	<h3 class="sheet-section">Thumbnail size</h3>
-	<ThumbSizeSlider bind:size={thumbSize} />
-	{#if collection}
-		<h3 class="sheet-section">Collection</h3>
-		<label class="sheet-toggle-row">
-			<span>NSFW collection</span>
-			<input type="checkbox" checked={collection.nsfw} onchange={toggleNsfw} />
-		</label>
-	{/if}
-	<h3 class="sheet-section">Actions</h3>
-	<button class="sheet-action-btn" onclick={() => { startSlideshow(); optionsOpen = false; }} disabled={images.length === 0}>Slideshow</button>
-	{#if collection}
-		<a class="elo-sheet-link" href="/elo/{collection.id}">ELO Vote</a>
-	{/if}
-</OptionsSheet>
-
 <style>
-	.toolbar {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 0 8px;
-		flex-shrink: 0;
-	}
-
 	.left {
 		display: flex;
 		align-items: center;
@@ -276,23 +249,6 @@
 		cursor: pointer;
 	}
 
-	.collapse-btn {
-		background: none;
-		border: 1px solid #444;
-		border-radius: 4px;
-		color: #888;
-		cursor: pointer;
-		font-size: 1rem;
-		padding: 4px 8px;
-		flex-shrink: 0;
-	}
-
-	.filter-row {
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-	}
-
 	.elo-link {
 		padding: 4px 12px;
 		border: 1px solid #444;
@@ -308,74 +264,13 @@
 		background: #3a3a3a;
 	}
 
-	.slideshow-btn {
-		padding: 4px 12px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #ccc;
-		cursor: pointer;
-		font-size: 0.85rem;
-		flex-shrink: 0;
-		white-space: nowrap;
-	}
-
-	.slideshow-btn:hover:not(:disabled) {
-		background: #3a3a3a;
-	}
-
-	.slideshow-btn:disabled {
-		opacity: 0.4;
-		cursor: default;
-	}
-
-	.sheet-action-btn {
-		display: block;
-		padding: 12px 0;
-		color: #6ea8fe;
-		font-size: 0.95rem;
-		background: none;
-		border: none;
-		cursor: pointer;
-		text-align: left;
-	}
-
-	.sheet-action-btn:hover:not(:disabled) {
-		color: #90c0ff;
-	}
-
-	.sheet-action-btn:disabled {
-		opacity: 0.4;
-		cursor: default;
-	}
-
-	.count {
-		color: #888;
-		font-size: 0.85rem;
-		padding-right: 8px;
-		margin-left: auto;
-	}
-
-	/* Mobile/desktop visibility */
-	.mobile-only { display: none; }
-	.desktop-only { display: flex; }
-
-	.sheet-count {
-		color: #888;
-		font-size: 0.85rem;
-		margin-bottom: 16px;
-	}
-
+	/* Injected into GridToolbar's options sheet; mirrors its section heading. */
 	.sheet-section {
 		margin: 16px 0 8px;
 		font-size: 0.8rem;
 		color: #6ea8fe;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
-	}
-
-	.sheet-section:first-of-type {
-		margin-top: 0;
 	}
 
 	.elo-sheet-link {
@@ -389,10 +284,5 @@
 	.elo-sheet-link:hover {
 		color: #90c0ff;
 		text-decoration: none;
-	}
-
-	@media (max-width: 768px) {
-		.mobile-only { display: block; }
-		.desktop-only { display: none; }
 	}
 </style>
