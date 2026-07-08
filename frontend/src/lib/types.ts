@@ -88,6 +88,7 @@ export type SortField = 'name' | 'date_modified' | 'date_created' | 'size' | 'as
 export type SortDirection = 'asc' | 'desc';
 export type MetadataMode = 'hidden' | 'compact' | 'full';
 export type SlideshowStatus = 'idle' | 'playing' | 'paused';
+export type SlideshowMode = 'sequential' | 'random' | 'elo';
 export type OverlayMode = 'none' | 'minimal' | 'full';
 
 export interface EloPair {
