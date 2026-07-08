@@ -15,6 +15,8 @@ const COOLDOWN_FACTOR = 0.05;
 // Maximum number of recent slides kept in the recency window. The effective
 // window is min(COOLDOWN_MAX, neighbors.length - 1).
 const COOLDOWN_MAX = 20;
+// How many shown slides ← can rewind through before the trail is trimmed.
+const HISTORY_MAX = 500;
 
 function readLocalStorage<T>(key: string, fallback: T): T {
 	try {
@@ -101,7 +103,12 @@ function createSlideshowStore() {
 	// cycle). elo mode: on-the-fly weighted draw with a recency cooldown.
 	let shuffleOrder: number[] | null = null;
 	let shufflePos = 0;
-	let cooldown: number[] = [];
+
+	// Ordered trail of neighbour indices shown this session, with a cursor.
+	// → replays forward through it (drawing a fresh pick only at the tip) and
+	// ← rewinds; it also feeds the elo recency window. Not used in sequential.
+	let history: number[] = [];
+	let historyPos = 0;
 
 	let timerId: ReturnType<typeof setInterval> | null = null;
 
@@ -123,7 +130,7 @@ function createSlideshowStore() {
 		// not excluded. k is capped so tiny collections always have ≥1 free
 		// candidate.
 		const k = Math.max(1, Math.min(COOLDOWN_MAX, n - 1));
-		const recent = new Set(cooldown.slice(-k));
+		const recent = new Set(history.slice(-k));
 
 		const weights: number[] = new Array(n);
 		let total = 0;
@@ -152,36 +159,57 @@ function createSlideshowStore() {
 		return config.mode === 'elo' && !eloAvailable ? 'random' : config.mode;
 	}
 
+	// Append a freshly drawn pick at the cursor, discarding any forward trail
+	// left over from an earlier rewind and bounding the trail's length.
+	function pushHistory(idx: number): void {
+		history = history.slice(0, historyPos + 1);
+		history.push(idx);
+		if (history.length > HISTORY_MAX) history = history.slice(history.length - HISTORY_MAX);
+		historyPos = history.length - 1;
+	}
+
+	// One step forward through the shuffle order: replay the visited trail if the
+	// cursor is behind the tip, otherwise draw a new pick per the active mode.
+	function stepForward(): number {
+		if (historyPos < history.length - 1) {
+			historyPos++;
+		} else if (effectiveMode() === 'random') {
+			// initOrder builds shuffleOrder whenever random is active; rebuild
+			// defensively if it is ever missing.
+			if (!shuffleOrder) shuffleOrder = fisherYates(neighbors.length, currentIndexRef);
+			shufflePos = (shufflePos + 1) % shuffleOrder.length;
+			pushHistory(shuffleOrder[shufflePos]);
+		} else {
+			pushHistory(drawWeighted());
+		}
+		return history[historyPos];
+	}
+
 	function advance() {
 		if (!neighbors.length) return;
 
-		let nextIndex: number;
-		const mode = effectiveMode();
-		if (mode === 'sequential') {
-			nextIndex = currentIndexRef + 1;
+		if (effectiveMode() === 'sequential') {
+			const nextIndex = currentIndexRef + 1;
 			if (nextIndex >= neighbors.length) {
 				// Stop at the end in sequential mode
 				stop();
 				return;
 			}
 			currentIndexRef = nextIndex;
-		} else if (mode === 'random') {
-			// initOrder builds shuffleOrder whenever random is active; rebuild
-			// defensively if it is ever missing rather than falling through to
-			// the elo draw below.
-			if (!shuffleOrder) shuffleOrder = fisherYates(neighbors.length, currentIndexRef);
-			shufflePos = (shufflePos + 1) % shuffleOrder.length;
-			nextIndex = shuffleOrder[shufflePos];
-			currentIndexRef = nextIndex;
 		} else {
-			// elo mode — weighted draw with recency cooldown
-			nextIndex = drawWeighted();
-			currentIndexRef = nextIndex;
-			cooldown.push(nextIndex);
-			if (cooldown.length > COOLDOWN_MAX) cooldown = cooldown.slice(-COOLDOWN_MAX);
+			currentIndexRef = stepForward();
 		}
 
-		onAdvanceCb?.(neighbors[nextIndex].content_hash);
+		onAdvanceCb?.(neighbors[currentIndexRef].content_hash);
+	}
+
+	// ← rewind: step back through the images actually shown this session. No-op
+	// at the start of the trail; the page only calls it in shuffle modes.
+	function back() {
+		if (!neighbors.length || historyPos <= 0) return;
+		historyPos--;
+		currentIndexRef = history[historyPos];
+		onAdvanceCb?.(neighbors[currentIndexRef].content_hash);
 	}
 
 	function stop() {
@@ -217,7 +245,8 @@ function createSlideshowStore() {
 	function initOrder(idx: number): void {
 		shuffleOrder = null;
 		shufflePos = 0;
-		cooldown = [idx];
+		history = [idx];
+		historyPos = 0;
 		if (effectiveMode() === 'random') {
 			shuffleOrder = fisherYates(neighbors.length, idx);
 			shufflePos = 0;
@@ -251,7 +280,8 @@ function createSlideshowStore() {
 		currentIndexRef = 0;
 		shuffleOrder = null;
 		shufflePos = 0;
-		cooldown = [];
+		history = [];
+		historyPos = 0;
 		eloScores = null;
 		eloAvailable = false;
 		onAdvanceCb = null;
@@ -287,20 +317,11 @@ function createSlideshowStore() {
 		}
 	}
 
-	// Called by the page when the user navigates manually during slideshow
+	// Sync the current index once the page settles on a new image. Navigation is
+	// driven by advance()/back(), which own the shuffle order and history; this
+	// just keeps the ref aligned with whatever is actually on screen.
 	function updateCurrentIndex(idx: number): void {
 		currentIndexRef = idx;
-		const mode = effectiveMode();
-		if (mode === 'random' && shuffleOrder) {
-			// Point shuffle position to the new index if it's in the order
-			const pos = shuffleOrder.indexOf(idx);
-			if (pos >= 0) shufflePos = pos;
-		} else if (mode === 'elo') {
-			// Treat a manual jump as a recent slide so the next auto-advance
-			// doesn't immediately snap back to it.
-			cooldown.push(idx);
-			if (cooldown.length > COOLDOWN_MAX) cooldown = cooldown.slice(-COOLDOWN_MAX);
-		}
 	}
 
 	function setInterval_(ms: number): void {
@@ -367,6 +388,9 @@ function createSlideshowStore() {
 		get pendingStart() { return pendingStart; },
 		get config() { return config; },
 		get eloAvailable() { return eloAvailable; },
+		// True when ←/→ should walk the shuffle order/history rather than the
+		// underlying collection order (i.e. any non-sequential effective mode).
+		get isShuffle() { return effectiveMode() !== 'sequential'; },
 		get metadataMode() { return metadataMode; },
 		get overlayMode() { return overlayMode; },
 		scheduleStart,
@@ -379,6 +403,7 @@ function createSlideshowStore() {
 		resetTimer,
 		suspendTimer,
 		advance,
+		back,
 		updateCurrentIndex,
 		setInterval: setInterval_,
 		toggleShuffle,
