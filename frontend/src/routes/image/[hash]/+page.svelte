@@ -2,7 +2,7 @@
 	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto, beforeNavigate } from '$app/navigation';
-	import { getImage, listImages, archiveImage, imageFileUrl } from '$lib/api';
+	import { getImage, listImages, archiveImage, imageFileUrl, getEloRankings } from '$lib/api';
 	import { browsingContext, backDestination, backLabel } from '$lib/browsingContext';
 	import { settingsStore } from '$lib/stores';
 	import type { ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
@@ -26,6 +26,11 @@
 	let topBarVisible = $state(false);
 	let topBarTimer: ReturnType<typeof setTimeout> | null = null;
 	let videoLoop = $state(localStorage.getItem('video:loop') === 'true');
+
+	// Cap on how many neighbours the slideshow walks. The ELO rankings fetch
+	// uses the same cap so every neighbour that can appear has a score fetched;
+	// keep the two in lockstep.
+	const NEIGHBOR_LIMIT = 1000;
 
 	const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.avi']);
 	const isVideo = $derived(
@@ -78,7 +83,7 @@
 			return;
 		}
 		const params: Parameters<typeof listImages>[0] = {
-			limit: 1000,
+			limit: NEIGHBOR_LIMIT,
 			show_nsfw: $settingsStore.show_nsfw
 		};
 		if (ctx.sort) params.sort = ctx.sort;
@@ -111,9 +116,26 @@
 		}
 	}
 
-	function enterSlideshow() {
+	async function enterSlideshow() {
 		if (neighbors.length === 0) return;
-		slideshowStore.enter(neighbors, currentIndex, (hash) => goto(`/image/${hash}`));
+		// ELO weighting needs a collection context (scores are per-collection).
+		// "All Images" has no collection row, so ELO is unavailable there.
+		let eloScores: Map<string, number> | null = null;
+		let eloAvailable = false;
+		if (ctx?.type === 'collection') {
+			eloAvailable = true;
+			try {
+				const rankings = await getEloRankings(ctx.collectionId!, NEIGHBOR_LIMIT);
+				eloScores = new Map(rankings.map((r) => [r.content_hash, r.score]));
+			} catch {
+				// No scores yet — defaults to uniform (all 1500).
+				eloScores = new Map();
+			}
+		}
+		slideshowStore.enter(neighbors, currentIndex, (hash) => goto(`/image/${hash}`), {
+			eloScores,
+			eloAvailable
+		});
 	}
 
 	function toggleVideoPlayback() {
@@ -162,6 +184,9 @@
 		} else if (e.key === 's' && inSlideshow) {
 			e.preventDefault();
 			slideshowStore.toggleShuffle();
+		} else if (e.key === 'e' && inSlideshow) {
+			e.preventDefault();
+			slideshowStore.toggleWeighted();
 		} else if (e.key === 'k' && isVideo) {
 			e.preventDefault();
 			toggleVideoPlayback();
@@ -301,12 +326,14 @@
 				config={slideshowStore.config}
 				isFullscreen={slideshowStore.isFullscreen}
 				{isVideo}
+				eloAvailable={slideshowStore.eloAvailable}
 				overlayMode={slideshowStore.overlayMode}
 				onPrev={() => navigate(-1)}
 				onNext={() => navigate(1)}
 				onExit={() => slideshowStore.exit()}
 				onTogglePlay={() => slideshowStore.togglePlay()}
 				onToggleShuffle={() => slideshowStore.toggleShuffle()}
+				onToggleWeighted={() => slideshowStore.toggleWeighted()}
 				onToggleFullscreen={() => pageEl && slideshowStore.toggleFullscreen(pageEl)}
 				onOverlayModeChange={(m) => slideshowStore.setOverlayMode(m)}
 			/>

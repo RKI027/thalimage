@@ -11,12 +11,14 @@
 		config,
 		isFullscreen,
 		isVideo,
+		eloAvailable,
 		overlayMode,
 		onPrev,
 		onNext,
 		onExit,
 		onTogglePlay,
 		onToggleShuffle,
+		onToggleWeighted,
 		onToggleFullscreen,
 		onOverlayModeChange
 	}: {
@@ -27,12 +29,14 @@
 		config: SlideshowConfig;
 		isFullscreen: boolean;
 		isVideo: boolean;
+		eloAvailable: boolean;
 		overlayMode: OverlayMode;
 		onPrev: () => void;
 		onNext: () => void;
 		onExit: () => void;
 		onTogglePlay: () => void;
 		onToggleShuffle: () => void;
+		onToggleWeighted: () => void;
 		onToggleFullscreen: () => void;
 		onOverlayModeChange: (mode: OverlayMode) => void;
 	} = $props();
@@ -104,9 +108,14 @@
 		<button class="ctrl-btn" onclick={onTogglePlay} title="Play/Pause (Space)">
 			{status === 'playing' ? '⏸' : '▶'}
 		</button>
-		<button class="ctrl-btn" class:active={config.shuffle} onclick={onToggleShuffle} title="Shuffle (s)">
+		<button class="ctrl-btn" class:active={config.mode !== 'sequential'} onclick={onToggleShuffle} title="Shuffle (s)">
 			⇄
 		</button>
+		{#if eloAvailable}
+			<button class="ctrl-btn" class:active={config.mode === 'elo'} onclick={onToggleWeighted} title="Weight by ELO score (e)">
+				⚖
+			</button>
+		{/if}
 		<button class="ctrl-btn" onclick={onPrev} title="Previous (←)">‹</button>
 		<span class="counter">{currentIndex + 1} / {total}</span>
 		<button class="ctrl-btn" onclick={onNext} title="Next (→)">›</button>
