@@ -1,0 +1,97 @@
+# Code Review — 2026-07
+
+Superficial review pass (walkthrough of codebase, tests, and docs). Date: 2026-07-07.
+
+## Scope
+
+Read-through of backend (`src/thalimage/**`), frontend (`frontend/src/**`), migrations,
+config, scan/DB layers, and the test suite. Ran `check.sh` (ruff + mypy + pytest, 178
+passing). Did not run the frontend or exercise endpoints live.
+
+## Strengths
+
+- **Security defaults on the happy path.** Content-hash path params constrained to
+  `^[0-9a-f]{64}$` (`deps.py`) keep attacker-controlled values out of filesystem paths
+  and SQL. SPA fallback uses `is_relative_to(frontend_root)` to prevent traversal.
+  `TrustedHostMiddleware` guards DNS rebinding; app binds to loopback by default; CORS
+  off by default. Good defaults for a self-hosted app.
+- **Content-addressed storage.** SHA-256 identity gives free cross-source duplicate
+  detection; thumbnails sharded by `hash[:2]` avoid giant flat dirs.
+- **Migrations.** Tidy transactional runner (`db/engine.py`) with idempotent
+  `ALTER TABLE ADD COLUMN` skip and correct statement splitting that handles trigger
+  bodies. 9 migrations, monotonic versioning.
+- **Scan design.** Worker thread gets its own SQLite connection (a single
+  `sqlite3.Connection` isn't safe across threads); WAL makes commits visible to request
+  connections; mtime+size short-circuits unchanged files; deleted files reconciled.
+  `ScanManager` captures the loop at `start()` and uses `call_soon_threadsafe` to notify
+  SSE subscribers from the worker thread.
+- **Cursor pagination** with `(sort_value, hash)` tiebreakers instead of OFFSET.
+- **Test coverage** is solid for the services/core layer (scanner, hasher, metadata,
+  thumbnails, ELO, tags, NSFW, scan manager, API endpoints).
+
+## Issues
+
+### 1. Shared DB connection across request threads (real bug risk) — HIGH
+
+`app.state.db` is a **single** `sqlite3.Connection` opened with
+`check_same_thread=False`, and FastAPI runs sync endpoints in a threadpool. So
+concurrent requests (e.g. two ELO votes, or a vote while a tag is being edited) share
+one connection across threads. `check_same_thread=False` only disables the *guard*; it
+does not make concurrent use safe — you can hit "Recursive use of cursors not allowed"
+or interleaved statement state under concurrent writes.
+
+The scan worker correctly opens its own connection, which suggests this was considered
+— but the request handlers themselves don't. Options: a per-request connection (cheap in
+WAL mode), a small connection pool, or an async-safe wrapper/lock. **Most important
+item to address.**
+
+### 2. Cursor pagination breaks for numeric sort columns — MEDIUM
+
+In `image_service.list_images`, the cursor is built as
+`f"{last_row[cursor_col]}|{hash}"` and parsed back into `raw_sort_val` as a **string**.
+For text columns (`filename`, `file_modified`) that's fine, but for `file_size` and
+`aspect_ratio` the comparison becomes `(sort_expr, content_hash) > (?, ?)` with a text
+`?` against a numeric column. SQLite's column affinity may coerce, but the cursor
+round-trip through a string is fragile — a numeric value serialized then re-bound as
+text can mis-compare and skip/duplicate rows across pages.
+
+Fix: encode the cursor with type awareness (store numeric sorts as a number, or
+base64-encode a small JSON blob carrying the value's type).
+
+### 3. No auth, but README documents LAN/tailnet exposure — MEDIUM (doc)
+
+App binds to loopback by default, but the README explicitly tells users to set
+`THALIMAGE_HOST` and list hostnames for tailnet/reverse-proxy exposure. With no
+authentication, that exposes full write access: add/delete sources, trigger scans,
+archive images, edit tags, delete collections. For a single-user self-hosted tool on a
+trusted tailnet this is a deliberate tradeoff, but add at least a one-line warning in
+the README that exposure = unauthenticated admin access, and that a reverse proxy with
+auth is expected.
+
+### 4. Minor / nits — LOW
+
+- `generate_thumbnail` skips regeneration if `dest.exists()`, so a half-written/corrupt
+  thumbnail from a crashed run is never recovered. Cheap fix: write to a temp file then
+  atomically rename.
+- `run_scan` reconciles deletions by `content_hash` per source. If an image is moved
+  *between* sources, the old source marks it `deleted=1` even though it still exists
+  elsewhere; the upsert-on-conflict un-deletes it only when the new source scans.
+  Probably fine in practice — worth a comment.
+- The NSFW filtering subquery (`NOT IN (...)` over `collection_images` + `collections`)
+  runs on every list/count query. Fine now; at scale an `EXISTS` rewrite or a
+  denormalized flag would help. The `images.nsfw` column already covers the image-level
+  case; the collection-membership check is the only expensive part.
+- `check.sh` is backend-only; `phases.md` already notes wiring `fe-check` in guarded.
+  Low priority but the gate is asymmetric today.
+- `pyproject.toml` lists `license = {text = "Proprietary"}` while the README implies
+  open self-hosting — confirm that's intentional.
+- `aiosqlite` is a dependency but the DB layer uses stdlib `sqlite3` directly;
+  `aiosqlite` appears unused. Remove or document why it's kept.
+
+## Summary
+
+A solid, thoughtfully-built small project. Code is readable, conventions are consistent
+(cursor pagination, content addressing, ISO dates, WAL), tests are real and passing,
+and the security defaults are good. The standout fix is the **shared connection across
+request threads**; the cursor-typing issue is the second thing to tighten. Everything
+else is polish.
