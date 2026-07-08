@@ -1,9 +1,20 @@
-import type { ImageSummary, MetadataMode, OverlayMode, SlideshowStatus } from './types';
+import type { ImageSummary, MetadataMode, OverlayMode, SlideshowMode, SlideshowStatus } from './types';
 
 export interface SlideshowConfig {
 	interval: number;
-	shuffle: boolean;
+	mode: SlideshowMode;
 }
+
+// ELO-weighted shuffle tuning (non-user-facing).
+// Softmax temperature: ELO's natural ~400 scale means a 300-point gap ≈ 2.1×
+// selection ratio. Lower = more biased toward high ELO.
+const ELO_TEMPERATURE = 400;
+// Weight multiplier applied to recently-shown images. Much less likely, but
+// never zero — satisfies "chance shouldn't drop to zero".
+const COOLDOWN_FACTOR = 0.05;
+// Maximum number of recent slides kept in the recency window. The effective
+// window is min(COOLDOWN_MAX, neighbors.length - 1).
+const COOLDOWN_MAX = 20;
 
 function readLocalStorage<T>(key: string, fallback: T): T {
 	try {
@@ -21,6 +32,28 @@ function writeLocalStorage(key: string, value: unknown): void {
 	} catch {
 		// ignore storage errors
 	}
+}
+
+function removeLocalStorage(key: string): void {
+	try {
+		localStorage.removeItem(key);
+	} catch {
+		// ignore storage errors
+	}
+}
+
+// Migrate the old `slideshow:shuffle` boolean to the new `slideshow:mode` value,
+// then retire the legacy key so this runs at most once.
+function readInitialMode(): SlideshowMode {
+	const stored = readLocalStorage<SlideshowMode | null>('slideshow:mode', null);
+	if (stored === 'sequential' || stored === 'random' || stored === 'elo') return stored;
+	const legacy = readLocalStorage<boolean | null>('slideshow:shuffle', null);
+	const mode: SlideshowMode = legacy === true ? 'random' : 'sequential';
+	if (legacy !== null) {
+		writeLocalStorage('slideshow:mode', mode);
+		removeLocalStorage('slideshow:shuffle');
+	}
+	return mode;
 }
 
 function fisherYates(length: number, startIndex: number): number[] {
@@ -41,7 +74,7 @@ function createSlideshowStore() {
 	let pendingStart = $state(false);
 	let config = $state<SlideshowConfig>({
 		interval: readLocalStorage('slideshow:interval', 5000),
-		shuffle: readLocalStorage('slideshow:shuffle', false)
+		mode: readInitialMode()
 	});
 	let metadataMode = $state<MetadataMode>(
 		readLocalStorage('viewer:metadataMode', 'full' as MetadataMode)
@@ -53,19 +86,78 @@ function createSlideshowStore() {
 	// Internal runtime state (not reactive state — just bookkeeping)
 	let neighbors: ImageSummary[] = [];
 	let currentIndexRef = 0;
+	let onAdvanceCb: ((hash: string) => void) | null = null;
+
+	// ELO weighting: score map + whether the current context supports ELO.
+	// "All Images" has no collection row, so ELO is unavailable there.
+	let eloScores: Map<string, number> | null = null;
+	let eloAvailable = false;
+
+	// Remember the last non-sequential choice so ⇄ restores it (random or elo).
+	let lastWeighted: 'random' | 'elo' =
+		readLocalStorage<'random' | 'elo' | null>('slideshow:lastWeighted', null) ?? 'random';
+
+	// random mode: precomputed permutation walked cyclically (no repeats per
+	// cycle). elo mode: on-the-fly weighted draw with a recency cooldown.
 	let shuffleOrder: number[] | null = null;
 	let shufflePos = 0;
+	let cooldown: number[] = [];
+
 	let timerId: ReturnType<typeof setInterval> | null = null;
-	let onAdvanceCb: ((hash: string) => void) | null = null;
+
+	function drawWeighted(): number {
+		const n = neighbors.length;
+		if (n === 1) return 0;
+
+		// Base weights via softmax over ELO (missing scores default to 1500).
+		let mean = 0;
+		const scores: number[] = new Array(n);
+		for (let i = 0; i < n; i++) {
+			const s = eloScores?.get(neighbors[i].content_hash) ?? 1500;
+			scores[i] = s;
+			mean += s;
+		}
+		mean /= n;
+
+		// Recency window: the last k shown slides are heavily suppressed but
+		// not excluded. k is capped so tiny collections always have ≥1 free
+		// candidate.
+		const k = Math.max(1, Math.min(COOLDOWN_MAX, n - 1));
+		const recent = new Set(cooldown.slice(-k));
+
+		const weights: number[] = new Array(n);
+		let total = 0;
+		for (let i = 0; i < n; i++) {
+			let w = Math.exp((scores[i] - mean) / ELO_TEMPERATURE);
+			if (recent.has(i)) w *= COOLDOWN_FACTOR;
+			weights[i] = w;
+			total += w;
+		}
+
+		if (!(total > 0)) return Math.floor(Math.random() * n);
+
+		let r = Math.random() * total;
+		for (let i = 0; i < n; i++) {
+			r -= weights[i];
+			if (r <= 0) return i;
+		}
+		return n - 1;
+	}
+
+	// The user's persisted `config.mode` is a preference; the mode actually
+	// walked depends on the current context. `elo` degrades to `random` when
+	// the context has no ELO scores (e.g. "All Images"), without touching the
+	// stored preference — so it comes back on its own in a collection.
+	function effectiveMode(): SlideshowMode {
+		return config.mode === 'elo' && !eloAvailable ? 'random' : config.mode;
+	}
 
 	function advance() {
 		if (!neighbors.length) return;
 
 		let nextIndex: number;
-		if (config.shuffle && shuffleOrder) {
-			shufflePos = (shufflePos + 1) % shuffleOrder.length;
-			nextIndex = shuffleOrder[shufflePos];
-		} else {
+		const mode = effectiveMode();
+		if (mode === 'sequential') {
 			nextIndex = currentIndexRef + 1;
 			if (nextIndex >= neighbors.length) {
 				// Stop at the end in sequential mode
@@ -73,6 +165,20 @@ function createSlideshowStore() {
 				return;
 			}
 			currentIndexRef = nextIndex;
+		} else if (mode === 'random') {
+			// initOrder builds shuffleOrder whenever random is active; rebuild
+			// defensively if it is ever missing rather than falling through to
+			// the elo draw below.
+			if (!shuffleOrder) shuffleOrder = fisherYates(neighbors.length, currentIndexRef);
+			shufflePos = (shufflePos + 1) % shuffleOrder.length;
+			nextIndex = shuffleOrder[shufflePos];
+			currentIndexRef = nextIndex;
+		} else {
+			// elo mode — weighted draw with recency cooldown
+			nextIndex = drawWeighted();
+			currentIndexRef = nextIndex;
+			cooldown.push(nextIndex);
+			if (cooldown.length > COOLDOWN_MAX) cooldown = cooldown.slice(-COOLDOWN_MAX);
 		}
 
 		onAdvanceCb?.(neighbors[nextIndex].content_hash);
@@ -108,21 +214,32 @@ function createSlideshowStore() {
 		return false;
 	}
 
+	function initOrder(idx: number): void {
+		shuffleOrder = null;
+		shufflePos = 0;
+		cooldown = [idx];
+		if (effectiveMode() === 'random') {
+			shuffleOrder = fisherYates(neighbors.length, idx);
+			shufflePos = 0;
+		}
+	}
+
 	function enter(
 		nbrs: ImageSummary[],
 		idx: number,
-		onAdvance: (hash: string) => void
+		onAdvance: (hash: string) => void,
+		opts?: { eloScores?: Map<string, number> | null; eloAvailable?: boolean }
 	): void {
 		neighbors = nbrs;
 		currentIndexRef = idx;
 		onAdvanceCb = onAdvance;
+		eloScores = opts?.eloScores ?? null;
+		eloAvailable = opts?.eloAvailable ?? false;
 
-		if (config.shuffle) {
-			shuffleOrder = fisherYates(neighbors.length, idx);
-			shufflePos = 0;
-		} else {
-			shuffleOrder = null;
-		}
+		// A persisted `elo` preference is honored as-is; `effectiveMode` (used by
+		// `initOrder`/`advance`) transparently walks it as `random` when this
+		// context has no ELO scores, so the preference survives the visit.
+		initOrder(idx);
 
 		status = 'playing';
 		startTimer();
@@ -134,6 +251,9 @@ function createSlideshowStore() {
 		currentIndexRef = 0;
 		shuffleOrder = null;
 		shufflePos = 0;
+		cooldown = [];
+		eloScores = null;
+		eloAvailable = false;
 		onAdvanceCb = null;
 		status = 'idle';
 
@@ -170,10 +290,16 @@ function createSlideshowStore() {
 	// Called by the page when the user navigates manually during slideshow
 	function updateCurrentIndex(idx: number): void {
 		currentIndexRef = idx;
-		if (config.shuffle && shuffleOrder) {
+		const mode = effectiveMode();
+		if (mode === 'random' && shuffleOrder) {
 			// Point shuffle position to the new index if it's in the order
 			const pos = shuffleOrder.indexOf(idx);
 			if (pos >= 0) shufflePos = pos;
+		} else if (mode === 'elo') {
+			// Treat a manual jump as a recent slide so the next auto-advance
+			// doesn't immediately snap back to it.
+			cooldown.push(idx);
+			if (cooldown.length > COOLDOWN_MAX) cooldown = cooldown.slice(-COOLDOWN_MAX);
 		}
 	}
 
@@ -183,16 +309,34 @@ function createSlideshowStore() {
 		if (status === 'playing') startTimer();
 	}
 
+	// ⇄ button: toggle shuffle on/off. Restores the last weighted choice
+	// (random or elo) when turning back on.
 	function toggleShuffle(): void {
-		const next = !config.shuffle;
-		config = { ...config, shuffle: next };
-		writeLocalStorage('slideshow:shuffle', next);
-		if (next && neighbors.length) {
-			shuffleOrder = fisherYates(neighbors.length, currentIndexRef);
-			shufflePos = 0;
-		} else {
-			shuffleOrder = null;
+		const next: SlideshowMode = config.mode === 'sequential' ? lastWeighted : 'sequential';
+		setMode(next);
+	}
+
+	// ⚖ pill / e key: toggle ELO weighting. Turning it on also enables
+	// shuffle (elo implies non-sequential); turning it off falls back to
+	// plain random shuffle rather than all the way to sequential.
+	function toggleWeighted(): void {
+		if (!eloAvailable) return;
+		if (config.mode === 'elo') setMode('random');
+		else setMode('elo');
+	}
+
+	function setMode(mode: SlideshowMode): void {
+		// Store the preference verbatim; `effectiveMode` handles ELO availability.
+		if (mode === config.mode) return;
+		config = { ...config, mode };
+		writeLocalStorage('slideshow:mode', mode);
+		if (mode === 'random' || mode === 'elo') {
+			lastWeighted = mode;
+			writeLocalStorage('slideshow:lastWeighted', mode);
 		}
+		// Rebuild the order/cooldown for the new strategy.
+		if (neighbors.length) initOrder(currentIndexRef);
+		if (status === 'playing') startTimer();
 	}
 
 	function setIsFullscreen(v: boolean): void {
@@ -222,6 +366,7 @@ function createSlideshowStore() {
 		get isFullscreen() { return isFullscreen; },
 		get pendingStart() { return pendingStart; },
 		get config() { return config; },
+		get eloAvailable() { return eloAvailable; },
 		get metadataMode() { return metadataMode; },
 		get overlayMode() { return overlayMode; },
 		scheduleStart,
@@ -237,6 +382,8 @@ function createSlideshowStore() {
 		updateCurrentIndex,
 		setInterval: setInterval_,
 		toggleShuffle,
+		toggleWeighted,
+		setMode,
 		setIsFullscreen,
 		toggleFullscreen,
 		setMetadataMode,
