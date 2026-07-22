@@ -9,6 +9,7 @@
 		width,
 		height,
 		loop = false,
+		nativeControls = true,
 		videoEl = $bindable(null)
 	}: {
 		hash: string;
@@ -16,6 +17,7 @@
 		width: number;
 		height: number;
 		loop?: boolean;
+		nativeControls?: boolean;
 		videoEl?: HTMLVideoElement | null;
 	} = $props();
 
@@ -53,7 +55,7 @@
 			poster={thumbUrl(hash)}
 			{loop}
 			preload="metadata"
-			controls
+			controls={nativeControls}
 			playsinline
 			onloadeddata={() => (loaded = true)}
 			onerror={() => (loaded = true)}
