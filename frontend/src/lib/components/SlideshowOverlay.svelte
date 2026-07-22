@@ -145,6 +145,9 @@
 		z-index: 100;
 		/* Catch tap (toggle controls) and swipe (navigate) across the whole image. */
 		pointer-events: auto;
+		/* Refuse browser pan/zoom so vertical-ish drags reach attachSwipe instead
+		   of being consumed as a scroll/bounce. */
+		touch-action: none;
 	}
 
 	/* On video slides the native player must stay reachable, so the surface lets

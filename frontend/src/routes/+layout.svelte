@@ -56,6 +56,8 @@
 <style>
 	:global(html) {
 		-webkit-text-size-adjust: 100%;
+		overflow: hidden;
+		overscroll-behavior: none;
 	}
 
 	:global(body) {
@@ -63,6 +65,8 @@
 		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 		background: #111;
 		color: #eee;
+		overflow: hidden;
+		overscroll-behavior: none;
 	}
 
 	/* Treat interactive chrome like app controls: no tap-highlight flash, no
