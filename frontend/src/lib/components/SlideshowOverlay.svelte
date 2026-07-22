@@ -11,12 +11,16 @@
 		config,
 		isFullscreen,
 		isVideo,
+		videoPlaying,
+		videoMuted,
 		eloAvailable,
 		overlayMode,
 		onPrev,
 		onNext,
 		onExit,
 		onTogglePlay,
+		onToggleVideo,
+		onToggleMute,
 		onToggleShuffle,
 		onToggleWeighted,
 		onToggleFullscreen,
@@ -29,12 +33,16 @@
 		config: SlideshowConfig;
 		isFullscreen: boolean;
 		isVideo: boolean;
+		videoPlaying: boolean;
+		videoMuted: boolean;
 		eloAvailable: boolean;
 		overlayMode: OverlayMode;
 		onPrev: () => void;
 		onNext: () => void;
 		onExit: () => void;
 		onTogglePlay: () => void;
+		onToggleVideo: () => void;
+		onToggleMute: () => void;
 		onToggleShuffle: () => void;
 		onToggleWeighted: () => void;
 		onToggleFullscreen: () => void;
@@ -83,10 +91,10 @@
 		};
 	});
 
-	// Swipe and tap on the image surface. For video slides the native player owns
-	// the surface, so navigation goes through the always-visible control bar.
+	// Swipe and tap on the image surface. Video slides are swipable too — the
+	// overlay owns the surface and playback is driven by the control bar.
 	$effect(() => {
-		if (!overlayEl || isVideo) return;
+		if (!overlayEl) return;
 		return attachSwipe(overlayEl, {
 			onSwipeLeft: onNext,
 			onSwipeRight: onPrev,
@@ -98,12 +106,11 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	class="slideshow-overlay"
-	class:video={isVideo}
 	bind:this={overlayEl}
 	onpointermove={onPointerMove}
 >
 	<!-- Controls bar -->
-	<div class="controls" class:visible={controlsVisible || isVideo}>
+	<div class="controls" class:visible={controlsVisible}>
 		<button class="ctrl-btn" onclick={onExit} title="Exit slideshow (Escape)">✕</button>
 		<button class="ctrl-btn" onclick={onTogglePlay} title="Play/Pause (Space)">
 			{status === 'playing' ? '⏸' : '▶'}
@@ -126,6 +133,18 @@
 			{isFullscreen ? '⤡' : '⤢'}
 		</button>
 	</div>
+
+	<!-- Video playback controls, bottom-centered -->
+	{#if isVideo}
+		<div class="video-controls" class:visible={controlsVisible}>
+			<button class="ctrl-btn" onclick={onToggleVideo} title="Play/pause video (k)">
+				{videoPlaying ? '⏸' : '▶'}
+			</button>
+			<button class="ctrl-btn" onclick={onToggleMute} title="Mute/unmute video">
+				{videoMuted ? '🔇' : '🔊'}
+			</button>
+		</div>
+	{/if}
 
 	<!-- Metadata overlay -->
 	{#if overlayMode !== 'none'}
@@ -150,12 +169,6 @@
 		touch-action: none;
 	}
 
-	/* On video slides the native player must stay reachable, so the surface lets
-	   pointer events through; navigation uses the always-visible control bar. */
-	.slideshow-overlay.video {
-		pointer-events: none;
-	}
-
 	:global(:fullscreen) .slideshow-overlay {
 		position: absolute;
 	}
@@ -178,6 +191,26 @@
 	}
 
 	.controls.visible {
+		opacity: 1;
+	}
+
+	.video-controls {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 1;
+		display: flex;
+		justify-content: center;
+		gap: 8px;
+		padding: 16px max(16px, env(safe-area-inset-right))
+			calc(16px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+		pointer-events: auto;
+		opacity: 0;
+		transition: opacity 0.4s;
+	}
+
+	.video-controls.visible {
 		opacity: 1;
 	}
 

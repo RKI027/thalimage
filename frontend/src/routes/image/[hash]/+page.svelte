@@ -22,6 +22,8 @@
 	let sheetHandleEl: HTMLElement | null = $state(null);
 
 	let videoEl = $state<HTMLVideoElement | null>(null);
+	let videoPlaying = $state(false);
+	let videoMuted = $state(false);
 	let bottomSheetOpen = $state(false);
 	let topBarVisible = $state(false);
 	let topBarTimer: ReturnType<typeof setTimeout> | null = null;
@@ -151,6 +153,30 @@
 		if (v.paused) v.play().catch(() => {});
 		else v.pause();
 	}
+
+	function toggleVideoMute() {
+		if (videoEl) videoEl.muted = !videoEl.muted;
+	}
+
+	// Mirror the video element's playback/mute state so the custom controls
+	// (which replace the native chrome) can reflect and toggle it.
+	$effect(() => {
+		const v = videoEl;
+		if (!v) return;
+		const sync = () => {
+			videoPlaying = !v.paused;
+			videoMuted = v.muted;
+		};
+		sync();
+		v.addEventListener('play', sync);
+		v.addEventListener('pause', sync);
+		v.addEventListener('volumechange', sync);
+		return () => {
+			v.removeEventListener('play', sync);
+			v.removeEventListener('pause', sync);
+			v.removeEventListener('volumechange', sync);
+		};
+	});
 
 	function onKeydown(e: KeyboardEvent) {
 		const tag = (e.target as HTMLElement).tagName;
@@ -323,6 +349,7 @@
 				width={image.width}
 				height={image.height}
 				loop={false}
+				nativeControls={false}
 				bind:videoEl
 			/>
 			<SlideshowOverlay
@@ -333,12 +360,16 @@
 				config={slideshowStore.config}
 				isFullscreen={slideshowStore.isFullscreen}
 				{isVideo}
+				{videoPlaying}
+				{videoMuted}
 				eloAvailable={slideshowStore.eloAvailable}
 				overlayMode={slideshowStore.overlayMode}
 				onPrev={() => navigate(-1)}
 				onNext={() => navigate(1)}
 				onExit={() => slideshowStore.exit()}
 				onTogglePlay={() => slideshowStore.togglePlay()}
+				onToggleVideo={toggleVideoPlayback}
+				onToggleMute={toggleVideoMute}
 				onToggleShuffle={() => slideshowStore.toggleShuffle()}
 				onToggleWeighted={() => slideshowStore.toggleWeighted()}
 				onToggleFullscreen={() => pageEl && slideshowStore.toggleFullscreen(pageEl)}
@@ -415,6 +446,7 @@
 					width={image.width}
 					height={image.height}
 					loop={videoLoop}
+					nativeControls={false}
 					bind:videoEl
 				/>
 				<!-- Desktop: metadata side panel. Hidden on mobile via CSS. -->
@@ -422,6 +454,19 @@
 					<MetadataPanel {image} mode={slideshowStore.metadataMode} />
 				</div>
 			</div>
+
+			<!-- Video playback controls, bottom-centered -->
+			{#if isVideo}
+				<div class="video-controls" class:visible={topBarVisible}>
+					<button class="mobile-btn" onclick={toggleVideoPlayback} title="Play/pause video (k)">{videoPlaying ? '⏸' : '▶'}</button>
+					<button
+						class="mobile-btn"
+						class:active={videoMuted}
+						onclick={toggleVideoMute}
+						title="Mute/unmute video"
+					>{videoMuted ? '🔇' : '🔊'}</button>
+				</div>
+			{/if}
 
 			<!-- Mobile bottom sheet -->
 			{#if bottomSheetOpen}
@@ -561,6 +606,40 @@
 		color: #888;
 	}
 
+	/* Video playback controls, bottom-centered. Always shown on desktop; on
+	   mobile they fade with the rest of the chrome (see media query). */
+	.video-controls {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 10;
+		display: flex;
+		justify-content: center;
+		gap: 8px;
+		padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+	}
+
+	.video-controls .mobile-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(255, 255, 255, 0.15);
+		border: 1px solid rgba(255, 255, 255, 0.3);
+		border-radius: 4px;
+		color: #fff;
+		cursor: pointer;
+		font-size: 1rem;
+		padding: 8px 14px;
+		min-height: 44px;
+		min-width: 44px;
+	}
+
+	.video-controls .mobile-btn.active {
+		border-color: #6ea8fe;
+		color: #6ea8fe;
+	}
+
 	@media (max-width: 768px) {
 		/* top-bar becomes a transparent overlay that fades in on tap */
 		.top-bar {
@@ -579,6 +658,19 @@
 		}
 
 		.top-bar.visible {
+			opacity: 1;
+			pointer-events: auto;
+		}
+
+		/* Bottom video controls fade with the top bar on mobile */
+		.video-controls {
+			opacity: 0;
+			pointer-events: none;
+			background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+			transition: opacity 0.4s;
+		}
+
+		.video-controls.visible {
 			opacity: 1;
 			pointer-events: auto;
 		}
