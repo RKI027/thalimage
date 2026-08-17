@@ -1,0 +1,7 @@
+# Fail the install when the local Node/pnpm version does not satisfy the
+# "engines" field in package.json.
+engineStrict: true
+
+# Allow non-interactive installs (Emacs compilation buffers, CI) to rebuild
+# node_modules after a Node ABI change instead of aborting for lack of a TTY.
+confirmModulesPurge: false
