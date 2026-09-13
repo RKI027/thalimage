@@ -46,7 +46,9 @@
 
 <svelte:head><title>{title} — Thalimage</title></svelte:head>
 
-<MobilePageHeader leftType="back" backHref="/" title="Documentation" />
+<div class="mobile-only">
+	<MobilePageHeader leftType="back" backHref="/" title="Documentation" />
+</div>
 
 <div class="docs">
 	<nav class="toc">
@@ -71,6 +73,10 @@
 </div>
 
 <style>
+	.mobile-only {
+		display: none;
+	}
+
 	.docs {
 		flex: 1;
 		min-height: 0;
@@ -188,16 +194,37 @@
 	}
 
 	@media (max-width: 768px) {
+		.mobile-only {
+			display: block;
+		}
+
 		.docs {
 			flex-direction: column;
-			padding: 12px calc(12px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom))
-				calc(12px + env(safe-area-inset-left));
-			gap: 16px;
+			/* No padding or gap above the sticky nav: any transparent strip
+			   around it shows the article scrolling through. */
+			padding: 0 calc(12px + env(safe-area-inset-right))
+				calc(24px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+			gap: 0;
 		}
 
 		.toc {
-			position: static;
+			top: 0;
 			width: 100%;
+			/* Opaque so the article scrolls underneath rather than through. */
+			background: #111;
+			padding: 8px 0;
+			border-bottom: 1px solid #333;
+			z-index: 1;
+		}
+
+		.content {
+			padding-top: 16px;
+		}
+
+		/* The page header already reads "Documentation"; on a phone the
+		   heading is a duplicate that costs scarce vertical space. */
+		.toc h2 {
+			display: none;
 		}
 
 		.toc ul {
