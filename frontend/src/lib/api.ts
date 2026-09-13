@@ -10,7 +10,9 @@ import type {
 	EloRanking,
 	FilterState,
 	SortField,
-	SortDirection
+	SortDirection,
+	DocSummary,
+	DocPage
 } from './types';
 
 const BASE = '/api/v1';
@@ -252,4 +254,14 @@ export function patchSettings(patch: Partial<UserSettings>): Promise<UserSetting
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(patch)
 	});
+}
+
+// Documentation
+
+export function listDocs(): Promise<DocSummary[]> {
+	return fetchJSON(`${BASE}/docs`);
+}
+
+export function getDoc(slug: string): Promise<DocPage> {
+	return fetchJSON(`${BASE}/docs/${slug}`);
 }
