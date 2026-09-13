@@ -122,6 +122,10 @@
 
 <style>
 	.settings-page {
+		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior-y: contain;
 		padding: calc(24px + env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
 			calc(24px + env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
 		max-width: 700px;
@@ -195,6 +199,7 @@
 
 	.add-form {
 		display: flex;
+		flex-wrap: wrap;
 		gap: 8px;
 		margin-bottom: 24px;
 	}
@@ -208,12 +213,16 @@
 		font-size: 0.9rem;
 	}
 
+	/* Inputs default to min-width:auto, which is the placeholder's width and
+	   wide enough to push the row off a phone screen. */
 	.path-input {
 		flex: 2;
+		min-width: 0;
 	}
 
 	.label-input {
 		flex: 1;
+		min-width: 0;
 	}
 
 	button {
@@ -251,8 +260,10 @@
 
 	li {
 		display: flex;
+		flex-wrap: wrap;
 		justify-content: space-between;
 		align-items: flex-start;
+		gap: 12px;
 		padding: 16px 8px;
 		border-bottom: 1px solid #2a2a2a;
 	}
@@ -261,12 +272,19 @@
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
+		flex: 1;
+		min-width: 0;
+		/* An unlabelled source shows its path as the title; paths have no
+		   spaces to break at and would otherwise run under the buttons. */
+		overflow-wrap: anywhere;
 	}
 
 	.path {
 		color: #888;
 		font-size: 0.85rem;
 		font-family: monospace;
+		/* Folder paths have no spaces to break at. */
+		overflow-wrap: anywhere;
 	}
 
 	.meta {
@@ -283,5 +301,19 @@
 		display: flex;
 		gap: 8px;
 		flex-shrink: 0;
+	}
+
+	@media (max-width: 768px) {
+		/* Two inputs and a button do not fit a phone row. */
+		.add-form {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		/* Side by side, a path and its buttons leave both cramped. */
+		li {
+			flex-direction: column;
+			align-items: stretch;
+		}
 	}
 </style>
