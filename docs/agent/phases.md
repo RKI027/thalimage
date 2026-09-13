@@ -108,7 +108,7 @@ query result) or dynamic (backed by a live query).
 - ELO vote stacks vertically on mobile with tap hints
 - 44px minimum touch targets throughout
 
-## Phase 5.3 — Delivery Performance
+## Phase 5.3 — Delivery Performance ✓
 
 Viewing over wifi from a phone is bandwidth-bound: only two sizes are
 served today, the 400px thumbnail and the original file. The viewer,
@@ -120,17 +120,17 @@ needs ~1200px on the long edge, so a PNG is roughly a 15x overfetch.
 The viewer preloads three neighbours at full resolution, which on a
 weak link competes for bandwidth with the image being displayed.
 
-- **Preview endpoint.** `/images/{hash}/preview?size=` serving a
+- **Preview endpoint.** `/images/{hash}/preview?size=` serves a
   long-edge-capped WebP in buckets (1280/1920/2560), generated on
-  demand and cached on disk alongside thumbs. Client picks the bucket
-  from viewport x devicePixelRatio. Generation is a PIL resize (~200ms
-  for a 2000px PNG), paid once per image per bucket.
-- **Cache headers.** `/file`, `/thumb` and `/preview` send no
-  `Cache-Control`. Content is addressed by SHA-256 and therefore
-  immutable: `max-age=31536000, immutable` removes a revalidation
-  round-trip per tile on the gallery grid.
-- **Preload budget.** Preload neighbours at preview size, and consider
-  deferring the +2/-1 preloads until the current image has loaded.
+  demand and cached under `{data_dir}/cache/previews/{size}/`. The
+  client picks the bucket from viewport x devicePixelRatio. Measured on
+  the library: a 36.6 MB PNG becomes 73 KB at 1920px (491x), generated
+  once in ~580ms.
+- **Cache headers.** `/file`, `/thumb` and `/preview` send
+  `max-age=31536000, immutable`; content is addressed by SHA-256, so a
+  URL never changes meaning.
+- **Preload budget.** Neighbours preload at preview size. Deferring the
+  +2/-1 preloads until the current image has loaded is still open.
 - **Video is already ranged.** Starlette's `FileResponse` honours
   `Range`, so seeking and progressive playback work and large files are
   not fetched whole. No change needed for correctness.

@@ -34,6 +34,12 @@ def get_thumb_dir(request: Request) -> Path:
     return thumb_dir
 
 
+def get_preview_dir(request: Request) -> Path:
+    """Get the preview directory."""
+    preview_dir: Path = request.app.state.settings.resolved_preview_dir
+    return preview_dir
+
+
 def get_docs_dir() -> Path:
     """Get the directory holding the documentation Markdown files."""
     return DOCS_DIR
