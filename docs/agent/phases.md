@@ -139,7 +139,7 @@ weak link competes for bandwidth with the image being displayed.
   config flag. ffmpeg is already a dependency, but the CPU and disk
   cost should not be the default.
 
-## Phase 5.4 — In-App Documentation
+## Phase 5.4 — In-App Documentation ✓
 
 A `/docs` route in the app for behaviour that is real but invisible
 from the UI, so design details stop living only in the code. Markdown
@@ -160,10 +160,10 @@ Fixes to consider: weight sampling by inverse match count, or draw one
 side from the minimum-matches bucket; pick the opponent by ELO
 proximity.
 
-Pages to write: ELO (pair selection, K-factor, what `matches` counts,
-why scores are per-collection, what archived/NSFW filtering excludes),
-image delivery (which size is served where), scanning and hashing,
-collection types.
+Published at `/docs`, sourced from `backend/src/thalimage/docs/*.md`:
+overview, ranking by vote, image delivery, scanning. The ELO bias above
+is documented there rather than silently fixed — the fix itself is still
+open.
 
 ## Phase 6 — Perceptual Dedup
 - Perceptual hashing at scan time (pHash/dHash)

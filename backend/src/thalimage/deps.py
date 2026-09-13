@@ -16,6 +16,11 @@ if TYPE_CHECKING:
 # attacker-controlled values out of filesystem paths and DB lookups.
 ContentHash = Annotated[str, PathParam(pattern=r"^[0-9a-f]{64}$")]
 
+# Documentation slugs address files on disk; constrain them at the edge.
+DocSlug = Annotated[str, PathParam(pattern=r"^[a-z0-9-]+$")]
+
+DOCS_DIR = Path(__file__).resolve().parent / "docs"
+
 
 def get_db(request: Request) -> sqlite3.Connection:
     """Get the shared DB connection from app state."""
@@ -27,6 +32,11 @@ def get_thumb_dir(request: Request) -> Path:
     """Get the thumbnail directory."""
     thumb_dir: Path = request.app.state.settings.resolved_thumb_dir
     return thumb_dir
+
+
+def get_docs_dir() -> Path:
+    """Get the directory holding the documentation Markdown files."""
+    return DOCS_DIR
 
 
 def get_scan_manager(request: Request) -> ScanManager:
