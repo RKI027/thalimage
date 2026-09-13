@@ -7,15 +7,15 @@
 - Collections (CRUD, add/remove images)
 - Settings page, sidebar, Docker deployment
 
-## Phase 2 — Core UX improvements
-- ELO voting mode (schema ready, needs API + UI: show two images,
-  swipe/click to vote, update scores)
-- SSE scan progress (placeholder exists, wire up real progress)
+## Phase 2 — Core UX improvements ✓
+- ELO voting mode (two images, swipe/click to vote, scores update)
+- SSE scan progress
 - Video thumbnails via ffmpeg
 - Thumbnail size slider
-- View mode toggle for metadata (none/custom/all with keybind)
+- View mode toggle for metadata — superseded by the metadata
+  display levels in Phase 5.1
 
-## Phase 2.5 — Unified Collections
+## Phase 2.5 — Unified Collections ✓
 
 Collections become the universal container for images. A collection is
 a set of images — either static (manually curated or snapshot of a
@@ -63,16 +63,6 @@ query result) or dynamic (backed by a live query).
 - Unique partial index on `(source_id) WHERE type = 'source_preset'`
   prevents duplicate presets.
 
-### Source Removal UX (deferred to later)
-When removing a source, the user will choose:
-1. **Keep DB entries or not** — convenience (preserve ELO scores,
-   tags, collection memberships) vs. clean-up (privacy, declutter).
-   Kept entries are flagged as orphaned and recoverable if the source
-   is re-added.
-2. **Generate sidecar files or not** — write metadata (ELO scores,
-   tags, prompt data) to sidecar files alongside the original images
-   before removal, so data survives independently of the DB.
-
 ### Migration Path
 - Sources UI is replaced by collections UI; source management stays in
   Settings.
@@ -83,25 +73,8 @@ When removing a source, the user will choose:
 - The `sources` table remains as backend plumbing (scan targets), but
   users interact only through collections.
 
-## Phase 5a — Presenter: Slideshow & Metadata ✓
-- Slideshow mode (timed, shuffle, fullscreen, fading overlay controls)
-- Configurable metadata display levels (hidden/compact/full), persisted
-- Overlay mode (none/minimal/full) independent of metadata mode
-
-## Phase 5b — Presenter: Mobile ✓
-- Hamburger drawer sidebar with backdrop
-- Compact single-row page headers (hamburger/back + title + ⋮ options sheet)
-- Collapsible filter toolbar on gallery and collection views
-- Responsive auto thumb size (2 cols portrait / 3 cols landscape)
-- Swipe left/right navigation in image viewer
-- Fading top bar overlay with ▶ and ℹ buttons
-- Metadata bottom sheet (swipe-down to dismiss)
-- Slideshow entry point from gallery/collection toolbar and options sheet
-- ELO vote stacks vertically on mobile with tap hints
-- 44px minimum touch targets throughout
-
 ## Phase 3 — Quick Wins ✓
-- Per-collection sort persistence (sort resets on every open today)
+- Per-collection sort persistence
 - Basic filtering UI: source, date range, aspect ratio, media type (dropdowns, no DSL)
 - Source presets transition from static (sync on scan) to dynamic
   (`WHERE source_id = X`, always live)
@@ -118,6 +91,80 @@ When removing a source, the user will choose:
 - Saved searches become dynamic collections (`type = 'dynamic_query'`,
   `query` JSON column in collections table)
 
+## Phase 5.1 — Presenter: Slideshow & Metadata ✓
+- Slideshow mode (timed, shuffle, fullscreen, fading overlay controls)
+- Configurable metadata display levels (hidden/compact/full), persisted
+- Overlay mode (none/minimal/full) independent of metadata mode
+
+## Phase 5.2 — Presenter: Mobile ✓
+- Hamburger drawer sidebar with backdrop
+- Compact single-row page headers (hamburger/back + title + ⋮ options sheet)
+- Collapsible filter toolbar on gallery and collection views
+- Responsive auto thumb size (2 cols portrait / 3 cols landscape)
+- Swipe left/right navigation in image viewer
+- Fading top bar overlay with ▶ and ℹ buttons
+- Metadata bottom sheet (swipe-down to dismiss)
+- Slideshow entry point from gallery/collection toolbar and options sheet
+- ELO vote stacks vertically on mobile with tap hints
+- 44px minimum touch targets throughout
+
+## Phase 5.3 — Delivery Performance
+
+Viewing over wifi from a phone is bandwidth-bound: only two sizes are
+served today, the 400px thumbnail and the original file. The viewer,
+slideshow and ELO all use the original.
+
+Measured on the working library: PNGs average 3.6 MB (max 34.9 MB) at
+~1400x2000, JPEGs 426 KB, MP4s 13.7 MB (max 246 MB). A phone screen
+needs ~1200px on the long edge, so a PNG is roughly a 15x overfetch.
+The viewer preloads three neighbours at full resolution, which on a
+weak link competes for bandwidth with the image being displayed.
+
+- **Preview endpoint.** `/images/{hash}/preview?size=` serving a
+  long-edge-capped WebP in buckets (1280/1920/2560), generated on
+  demand and cached on disk alongside thumbs. Client picks the bucket
+  from viewport x devicePixelRatio. Generation is a PIL resize (~200ms
+  for a 2000px PNG), paid once per image per bucket.
+- **Cache headers.** `/file`, `/thumb` and `/preview` send no
+  `Cache-Control`. Content is addressed by SHA-256 and therefore
+  immutable: `max-age=31536000, immutable` removes a revalidation
+  round-trip per tile on the gallery grid.
+- **Preload budget.** Preload neighbours at preview size, and consider
+  deferring the +2/-1 preloads until the current image has loaded.
+- **Video is already ranged.** Starlette's `FileResponse` honours
+  `Range`, so seeking and progressive playback work and large files are
+  not fetched whole. No change needed for correctness.
+- **Video preview transcode (deferred, opt-in).** A 720p H.264 variant
+  generated at scan time for files above a size threshold, behind a
+  config flag. ffmpeg is already a dependency, but the CPU and disk
+  cost should not be the default.
+
+## Phase 5.4 — In-App Documentation
+
+A `/docs` route in the app for behaviour that is real but invisible
+from the UI, so design details stop living only in the code. Markdown
+served by the backend, rendered in the frontend.
+
+First subject, and the reason this exists: **ELO pair selection is
+biased against new images.** `elo_service.get_pair` sorts candidates by
+match count, takes the bottom quartile, then samples two of them
+*uniformly* — so match count decides pool membership but applies no
+preference within the pool. On an 885-image collection the quartile is
+221 images, of which 24 have zero matches; a new image therefore
+surfaces about once in 110 pairs, no more often than one already seen
+five times. Related: pairs are not score-matched, so each vote carries
+little information; and the query loads every candidate row on each
+request, twice per vote because the frontend prefetches.
+
+Fixes to consider: weight sampling by inverse match count, or draw one
+side from the minimum-matches bucket; pick the opponent by ELO
+proximity.
+
+Pages to write: ELO (pair selection, K-factor, what `matches` counts,
+why scores are per-collection, what archived/NSFW filtering excludes),
+image delivery (which size is served where), scanning and hashing,
+collection types.
+
 ## Phase 6 — Perceptual Dedup
 - Perceptual hashing at scan time (pHash/dHash)
 - Near-duplicate detection (configurable distance threshold)
@@ -133,6 +180,22 @@ When removing a source, the user will choose:
 - Multi-user support (auth, per-user votes/tags/ELO)
 - Batch operations
 - TIFF/GIF/AVIF support expansion
+
+## Deferred — Source Removal
+
+Designed during Phase 2.5, not implemented. Deleting a source today
+(`api/sources.py:delete_source`) is an unconditional cascade: the preset
+collection, image rows, metadata, ELO scores, tags and collection
+memberships all go, with no prompt and no way back.
+
+When removing a source, the user should choose:
+1. **Keep DB entries or not** — convenience (preserve ELO scores,
+   tags, collection memberships) vs. clean-up (privacy, declutter).
+   Kept entries are flagged as orphaned and recoverable if the source
+   is re-added.
+2. **Generate sidecar files or not** — write metadata (ELO scores,
+   tags, prompt data) to sidecar files alongside the original images
+   before removal, so data survives independently of the DB.
 
 ## Unsorted
 
