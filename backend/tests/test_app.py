@@ -59,3 +59,24 @@ def test_loopback_host_is_allowed(spa_client: TestClient) -> None:
 def test_unexpected_host_is_rejected(spa_client: TestClient) -> None:
     resp = spa_client.get("/foo.txt", headers={"host": "evil.example"})
     assert resp.status_code == 400
+
+
+def test_unknown_api_path_returns_json_404(spa_client: TestClient) -> None:
+    """The SPA fallback must not answer for the API namespace."""
+    resp = spa_client.get("/api/v1/nonexistent")
+    assert resp.status_code == 404
+    assert resp.headers["content-type"].startswith("application/json")
+
+
+def test_unknown_api_path_is_404_for_any_depth(spa_client: TestClient) -> None:
+    for path in ("/api", "/api/", "/api/v1/docs/a/b", "/api/v99/whatever"):
+        resp = spa_client.get(path)
+        assert resp.status_code == 404, path
+        assert "INDEX" not in resp.text, path
+
+
+def test_spa_fallback_still_serves_app_routes(spa_client: TestClient) -> None:
+    """A client-side route that merely starts with 'api' is not the API."""
+    resp = spa_client.get("/apiary")
+    assert resp.status_code == 200
+    assert resp.text == "INDEX"

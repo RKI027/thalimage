@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -68,6 +68,10 @@ def create_app() -> FastAPI:
 
         @app.get("/{path:path}")
         async def spa_fallback(path: str) -> FileResponse:
+            # The API namespace is not the SPA's to answer for: an unmatched
+            # endpoint must report a JSON 404, not index.html with a 200.
+            if path == "api" or path.startswith("api/"):
+                raise HTTPException(404, "Not found")
             file = (frontend_root / path).resolve()
             if file.is_file() and file.is_relative_to(frontend_root):
                 return FileResponse(file)
