@@ -12,7 +12,8 @@ import type {
 	SortField,
 	SortDirection,
 	DocSummary,
-	DocPage
+	DocPage,
+	VersionInfo
 } from './types';
 
 const BASE = '/api/v1';
@@ -282,4 +283,8 @@ export function listDocs(): Promise<DocSummary[]> {
 
 export function getDoc(slug: string): Promise<DocPage> {
 	return fetchJSON(`${BASE}/docs/${slug}`);
+}
+
+export function getVersion(): Promise<VersionInfo> {
+	return fetchJSON(`${BASE}/version`);
 }
