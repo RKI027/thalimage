@@ -104,6 +104,7 @@
 			</section>
 
 			<section>
+				<a href="/docs" class="settings-link" onclick={onMobileClose}>Documentation</a>
 				<a href={settingsHref} class="settings-link" onclick={onMobileClose}>Settings</a>
 			</section>
 		</nav>

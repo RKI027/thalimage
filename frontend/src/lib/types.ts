@@ -102,3 +102,14 @@ export interface EloRanking {
 	score: number;
 	matches: number;
 }
+
+export interface DocSummary {
+	slug: string;
+	title: string;
+}
+
+export interface DocPage {
+	slug: string;
+	title: string;
+	markdown: string;
+}
