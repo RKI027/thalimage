@@ -72,6 +72,10 @@
 
 <style>
 	.docs {
+		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior-y: contain;
 		display: flex;
 		gap: 32px;
 		padding: 24px;
@@ -186,7 +190,8 @@
 	@media (max-width: 768px) {
 		.docs {
 			flex-direction: column;
-			padding: 12px;
+			padding: 12px calc(12px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom))
+				calc(12px + env(safe-area-inset-left));
 			gap: 16px;
 		}
 
