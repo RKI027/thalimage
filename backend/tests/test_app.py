@@ -80,3 +80,14 @@ def test_spa_fallback_still_serves_app_routes(spa_client: TestClient) -> None:
     resp = spa_client.get("/apiary")
     assert resp.status_code == 200
     assert resp.text == "INDEX"
+
+
+def test_openapi_explorer_lives_under_the_api_prefix(spa_client: TestClient) -> None:
+    """The /docs URL belongs to the in-app documentation, not to Swagger."""
+    assert spa_client.get("/api/docs").status_code == 200
+    assert spa_client.get("/api/openapi.json").status_code == 200
+
+
+def test_docs_url_is_left_to_the_frontend(spa_client: TestClient) -> None:
+    resp = spa_client.get("/docs")
+    assert resp.text == "INDEX"
