@@ -1,13 +1,22 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress } from '$lib/api';
+	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress, getVersion } from '$lib/api';
 	import { collectionsStore, sourcesStore, settingsStore } from '$lib/stores';
-	import type { Source } from '$lib/types';
+	import type { Source, VersionInfo } from '$lib/types';
 
 	let sources: Source[] = $state([]);
 	let newPath = $state('');
 	let newLabel = $state('');
 	let scanStatus: Record<number, string> = $state({});
+	let backendVersion: string | null = $state(null);
+	let backendCommit: string | null = $state(null);
+
+	const buildCommit: string | null = __BUILD_COMMIT__;
+	// Both halves ship from one commit; a mismatch means the frontend bundle
+	// being served is older than the running backend.
+	const stale = $derived(
+		buildCommit !== null && backendCommit !== null && backendCommit !== buildCommit
+	);
 
 	const backHref = $derived($page.url.searchParams.get('returnTo') || '/');
 
@@ -60,7 +69,15 @@
 	}
 
 	import { onMount } from 'svelte';
-	onMount(() => { refresh(); });
+	onMount(() => {
+		refresh();
+		getVersion()
+			.then((v: VersionInfo) => {
+				backendVersion = v.version;
+				backendCommit = v.commit;
+			})
+			.catch(() => {});
+	});
 </script>
 
 <div class="settings-page">
@@ -118,6 +135,20 @@
 			{/each}
 		</ul>
 	{/if}
+
+	<section class="about">
+		<h3>About</h3>
+		<dl>
+			<dt>Backend</dt>
+			<dd>{backendVersion ? `${backendVersion} (${backendCommit ?? 'unknown commit'})` : '…'}</dd>
+			<dt>Frontend</dt>
+			<dd>{buildCommit ?? 'unknown commit'}</dd>
+		</dl>
+		{#if stale}
+			<p class="stale">This page was built from a different commit than the
+				running backend. Rebuild the frontend to match.</p>
+		{/if}
+	</section>
 </div>
 
 <style>
@@ -301,6 +332,43 @@
 		display: flex;
 		gap: 8px;
 		flex-shrink: 0;
+	}
+
+	.about {
+		margin-top: 40px;
+		padding-top: 16px;
+		border-top: 1px solid #2a2a2a;
+	}
+
+	.about h3 {
+		margin: 0 0 12px;
+		font-size: 1rem;
+		color: #ccc;
+	}
+
+	.about dl {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		gap: 4px 16px;
+		margin: 0;
+		font-size: 0.85rem;
+	}
+
+	.about dt {
+		color: #888;
+	}
+
+	.about dd {
+		margin: 0;
+		color: #ccc;
+		font-family: monospace;
+		overflow-wrap: anywhere;
+	}
+
+	.stale {
+		margin: 12px 0 0;
+		color: #e0a458;
+		font-size: 0.85rem;
 	}
 
 	@media (max-width: 768px) {
