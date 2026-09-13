@@ -76,6 +76,24 @@ export function thumbUrl(hash: string): string {
 	return `${BASE}/images/${hash}/thumb`;
 }
 
+/**
+ * Long edge, in device pixels, needed to fill this screen. The server snaps it
+ * up to its nearest size bucket, so an exact value is not required.
+ */
+export function displaySize(): number {
+	if (typeof window === 'undefined') return 1920;
+	const dpr = Math.min(window.devicePixelRatio || 1, 2);
+	return Math.round(Math.max(window.innerWidth, window.innerHeight) * dpr);
+}
+
+/**
+ * A display-sized WebP rather than the original. Originals average several
+ * megabytes and are far larger than any screen needs, which is felt over wifi.
+ */
+export function previewUrl(hash: string, size: number = displaySize()): string {
+	return `${BASE}/images/${hash}/preview?size=${size}`;
+}
+
 // Sources
 
 export function listSources(): Promise<Source[]> {

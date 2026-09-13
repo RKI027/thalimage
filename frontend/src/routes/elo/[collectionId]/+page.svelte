@@ -2,7 +2,7 @@
 	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { getEloPair, recordEloVote, getEloRankings, getCollection, imageFileUrl, thumbUrl } from '$lib/api';
+	import { getEloPair, recordEloVote, getEloRankings, getCollection, previewUrl, thumbUrl } from '$lib/api';
 	import { settingsStore } from '$lib/stores';
 	import type { ImageSummary, EloRanking, Collection, FilterState, EloPair } from '$lib/types';
 	import SideBySideView from '$lib/components/views/SideBySideView.svelte';
@@ -33,7 +33,7 @@
 		const img = new Image();
 		// Videos render from their thumbnail poster; warm that rather than fetching
 		// the full video file through an <img>.
-		img.src = VIDEO_EXTENSIONS.has(ext) ? thumbUrl(item.content_hash) : imageFileUrl(item.content_hash);
+		img.src = VIDEO_EXTENSIONS.has(ext) ? thumbUrl(item.content_hash) : previewUrl(item.content_hash);
 	}
 
 	async function prefetchNext() {

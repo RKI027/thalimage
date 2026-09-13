@@ -219,3 +219,51 @@ def test_filter_by_date_to(client: TestClient, image_dir: Path) -> None:
     resp = client.get("/api/v1/images?date_to=1970-01-01T00:00:00")
     assert resp.status_code == 200
     assert resp.json()["total_count"] == 0
+
+
+def test_get_image_preview_returns_webp(client: TestClient, image_dir: Path) -> None:
+    hashes = _seed_images(client, image_dir)
+    resp = client.get(f"/api/v1/images/{hashes[0]}/preview")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/webp"
+    assert len(resp.content) > 0
+
+
+def test_preview_size_snaps_to_a_bucket(client: TestClient, image_dir: Path) -> None:
+    hashes = _seed_images(client, image_dir)
+    resp = client.get(f"/api/v1/images/{hashes[0]}/preview", params={"size": 1000})
+    assert resp.status_code == 200
+    assert resp.headers["x-preview-size"] == "1280"
+
+
+def test_preview_rejects_an_absurd_size(client: TestClient, image_dir: Path) -> None:
+    hashes = _seed_images(client, image_dir)
+    resp = client.get(f"/api/v1/images/{hashes[0]}/preview", params={"size": 99999})
+    assert resp.status_code == 422
+
+
+def test_preview_not_found(client: TestClient) -> None:
+    resp = client.get(f"/api/v1/images/{ABSENT_HASH}/preview")
+    assert resp.status_code == 404
+
+
+def test_preview_rejects_a_video(client: TestClient, tmp_path: Path) -> None:
+    root = tmp_path / "vids"
+    root.mkdir()
+    (root / "clip.mp4").write_bytes(b"not really a video")
+    hashes = _seed_images(client, root)
+    if not hashes:
+        return
+    resp = client.get(f"/api/v1/images/{hashes[0]}/preview")
+    assert resp.status_code == 415
+
+
+def test_immutable_cache_headers_on_served_files(
+    client: TestClient, image_dir: Path
+) -> None:
+    """Content is addressed by hash, so responses never need revalidating."""
+    hashes = _seed_images(client, image_dir)
+    for route in ("file", "thumb", "preview"):
+        resp = client.get(f"/api/v1/images/{hashes[0]}/{route}")
+        assert resp.status_code == 200, route
+        assert "immutable" in resp.headers["cache-control"], route

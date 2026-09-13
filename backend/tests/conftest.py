@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from thalimage.app import create_app
-from thalimage.deps import get_db, get_scan_manager, get_thumb_dir
+from thalimage.deps import get_db, get_preview_dir, get_scan_manager, get_thumb_dir
 from thalimage.db.engine import connect, migrate
 from thalimage.services.scan_manager import ScanManager
 
@@ -27,11 +27,14 @@ def client(db: sqlite3.Connection, tmp_path: Path):
     """FastAPI test client with overridden DB and thumb dir."""
     thumb_dir = tmp_path / "thumbs"
     thumb_dir.mkdir()
+    preview_dir = tmp_path / "previews"
+    preview_dir.mkdir()
 
     scan_manager = ScanManager()
     app = create_app()
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_thumb_dir] = lambda: thumb_dir
+    app.dependency_overrides[get_preview_dir] = lambda: preview_dir
     app.dependency_overrides[get_scan_manager] = lambda: scan_manager
 
     # base_url drives the Host header; use loopback so TrustedHostMiddleware

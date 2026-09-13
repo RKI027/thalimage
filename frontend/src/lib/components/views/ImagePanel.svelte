@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { imageFileUrl, thumbUrl } from '$lib/api';
+	import { imageFileUrl, previewUrl, thumbUrl } from '$lib/api';
 
 	const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.avi']);
 
@@ -61,7 +61,7 @@
 	{:else}
 		<img
 			bind:this={imgEl}
-			src={imageFileUrl(hash)}
+			src={previewUrl(hash)}
 			alt={filename}
 			onload={() => (loaded = true)}
 			onerror={() => (loaded = true)}

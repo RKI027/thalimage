@@ -2,7 +2,7 @@
 	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto, beforeNavigate } from '$app/navigation';
-	import { getImage, listImages, archiveImage, imageFileUrl, getEloRankings } from '$lib/api';
+	import { getImage, listImages, archiveImage, previewUrl, getEloRankings } from '$lib/api';
 	import { browsingContext, backDestination, backLabel } from '$lib/browsingContext';
 	import { settingsStore } from '$lib/stores';
 	import type { ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
@@ -305,7 +305,7 @@
 			const ext = n.filename.slice(n.filename.lastIndexOf('.')).toLowerCase();
 			if (VIDEO_EXTENSIONS.has(ext)) continue;
 			const img = new Image();
-			img.src = imageFileUrl(n.content_hash);
+			img.src = previewUrl(n.content_hash);
 		}
 	});
 
