@@ -32,7 +32,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Thalimage", version="0.1.0", lifespan=lifespan)
+    # The OpenAPI explorer sits under /api, alongside the API it describes:
+    # /docs is the in-app documentation the SPA serves to users.
+    app = FastAPI(
+        title="Thalimage",
+        version="0.1.0",
+        lifespan=lifespan,
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
+        openapi_url="/api/openapi.json",
+    )
 
     config = get_settings()
 
