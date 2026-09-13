@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     data_dir: Path = default_data_dir()
     db_path: Optional[Path] = None
     thumb_dir: Optional[Path] = None
+    preview_dir: Optional[Path] = None
 
     @property
     def resolved_db_path(self) -> Path:
@@ -77,10 +78,15 @@ class Settings(BaseSettings):
     def resolved_thumb_dir(self) -> Path:
         return self.thumb_dir or (self.data_dir / "cache" / "thumbs")
 
+    @property
+    def resolved_preview_dir(self) -> Path:
+        return self.preview_dir or (self.data_dir / "cache" / "previews")
+
     def ensure_dirs(self) -> None:
         """Create data and cache directories if they don't exist."""
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.resolved_thumb_dir.mkdir(parents=True, exist_ok=True)
+        self.resolved_preview_dir.mkdir(parents=True, exist_ok=True)
 
 
 @lru_cache

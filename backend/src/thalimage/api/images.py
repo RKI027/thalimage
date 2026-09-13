@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from thalimage.core.previews import PREVIEW_SIZES, generate_preview, nearest_size
 from thalimage.core.thumbnails import thumbnail_path
-from thalimage.deps import ContentHash, get_db, get_thumb_dir
+from thalimage.deps import ContentHash, get_db, get_preview_dir, get_thumb_dir
 from thalimage.services.collection_service import get_collection
 from thalimage.services.image_service import (
     ImageDetail,
@@ -21,6 +22,11 @@ from thalimage.services.image_service import (
 )
 
 router = APIRouter(prefix="/images", tags=["images"])
+
+# Responses are addressed by content hash, so a given URL can never change
+# meaning. Caching them for a year removes a revalidation round-trip per
+# tile, which dominates gallery load time on a slow link.
+IMMUTABLE = {"Cache-Control": "public, max-age=31536000, immutable"}
 
 
 @router.get("", response_model=ImagePage)
@@ -90,7 +96,7 @@ def get_image_file(
     p = Path(file_path)
     if not p.exists():
         raise HTTPException(404, "File not found on disk")
-    return FileResponse(p)
+    return FileResponse(p, headers=IMMUTABLE)
 
 
 @router.get("/{content_hash}/thumb")
@@ -101,7 +107,40 @@ def get_image_thumb(
     p = thumbnail_path(thumb_dir, content_hash)
     if not p.exists():
         raise HTTPException(404, "Thumbnail not found")
-    return FileResponse(p, media_type="image/webp")
+    return FileResponse(p, media_type="image/webp", headers=IMMUTABLE)
+
+
+@router.get("/{content_hash}/preview")
+def get_image_preview(
+    content_hash: ContentHash,
+    size: int = Query(
+        PREVIEW_SIZES[0],
+        ge=1,
+        le=PREVIEW_SIZES[-1],
+        description="Desired long edge in pixels; snapped up to the nearest bucket.",
+    ),
+    db: sqlite3.Connection = Depends(get_db),
+    preview_dir: Path = Depends(get_preview_dir),
+) -> FileResponse:
+    """Serve a display-sized WebP, generating and caching it on first request."""
+    file_path = resolve_file_path(db, content_hash)
+    if file_path is None:
+        raise HTTPException(404, "Image not found")
+    source = Path(file_path)
+    if not source.exists():
+        raise HTTPException(404, "File not found on disk")
+
+    bucket = nearest_size(size)
+    try:
+        p = generate_preview(source, preview_dir, content_hash, bucket)
+    except ValueError as exc:
+        raise HTTPException(415, "No preview available for this file type") from exc
+
+    return FileResponse(
+        p,
+        media_type="image/webp",
+        headers={**IMMUTABLE, "X-Preview-Size": str(bucket)},
+    )
 
 
 class ArchiveRequest(BaseModel):
