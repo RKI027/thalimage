@@ -1,5 +1,19 @@
+import { execSync } from 'node:child_process';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+
+/**
+ * The commit this bundle was built from, stamped in so a stale build can be
+ * spotted by comparing it with the commit the backend reports.
+ */
+function buildCommit(): string | null {
+	if (process.env.THALIMAGE_COMMIT) return process.env.THALIMAGE_COMMIT;
+	try {
+		return execSync('git describe --tags --always --dirty', { encoding: 'utf8' }).trim() || null;
+	} catch {
+		return null;
+	}
+}
 
 const apiProxy = {
 	'/api': {
@@ -10,6 +24,9 @@ const apiProxy = {
 
 export default defineConfig({
 	plugins: [sveltekit()],
+	define: {
+		__BUILD_COMMIT__: JSON.stringify(buildCommit())
+	},
 	server: {
 		proxy: apiProxy
 	},

@@ -113,3 +113,8 @@ export interface DocPage {
 	title: string;
 	markdown: string;
 }
+
+export interface VersionInfo {
+	version: string;
+	commit: string | null;
+}
