@@ -38,17 +38,23 @@
 </script>
 
 <div class="sort-controls">
-	<select value={sort} onchange={onFieldChange}>
+	<select class="control" value={sort} onchange={onFieldChange}>
 		{#each fields as field}
 			<option value={field.value}>{field.label}</option>
 		{/each}
 	</select>
-	<button class="dir-btn" onclick={toggleDir} title={dir === 'asc' ? 'Ascending' : 'Descending'}>
+	<button class="control dir-btn" onclick={toggleDir} title={dir === 'asc' ? 'Ascending' : 'Descending'}>
 		{dir === 'asc' ? '↑' : '↓'}
 	</button>
 </div>
 
 <style>
+	.dir-btn {
+		justify-content: center;
+		padding: 0;
+		width: var(--control-min-height);
+	}
+
 	.sort-controls {
 		display: flex;
 		align-items: center;
@@ -56,44 +62,10 @@
 		padding: 8px;
 	}
 
-	select {
-		padding: 4px 8px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #ccc;
-		cursor: pointer;
-		font-size: 0.85rem;
-	}
-
-	select:focus {
-		outline: none;
-		border-color: #6ea8fe;
-	}
-
-	.dir-btn {
-		padding: 4px 8px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #ccc;
-		cursor: pointer;
-		font-size: 0.85rem;
-		line-height: 1;
-	}
-
-	.dir-btn:hover {
-		background: #3a3a3a;
-	}
-
 	@media (max-width: 768px) {
 		.sort-controls {
 			padding: 4px;
 		}
 
-		select,
-		.dir-btn {
-			padding: 10px 12px;
-		}
 	}
 </style>

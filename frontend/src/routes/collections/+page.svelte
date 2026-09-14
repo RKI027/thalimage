@@ -57,8 +57,8 @@
 		<h3 class="section-label">Collections</h3>
 
 		<div class="add-form">
-			<input bind:value={newName} placeholder="New collection name" onkeydown={(e) => e.key === 'Enter' && addCollection()} />
-			<button onclick={addCollection}>Create</button>
+			<input class="control" bind:value={newName} placeholder="New collection name" onkeydown={(e) => e.key === 'Enter' && addCollection()} />
+			<button class="control control-primary" onclick={addCollection}>Create</button>
 		</div>
 
 		{#if collections.length === 0}
@@ -108,25 +108,6 @@
 
 	input {
 		flex: 1;
-		padding: 8px 12px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #eee;
-		font-size: 0.9rem;
-	}
-
-	button {
-		padding: 8px 16px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #3a5a8a;
-		color: #fff;
-		cursor: pointer;
-	}
-
-	button:hover {
-		background: #4a6a9a;
 	}
 
 	.empty {
