@@ -226,7 +226,7 @@
 	}
 
 	button {
-		padding: 8px 16px;
+		padding: 6px 16px;
 		border: 1px solid #444;
 		border-radius: 4px;
 		background: #3a5a8a;
@@ -314,6 +314,12 @@
 		li {
 			flex-direction: column;
 			align-items: stretch;
+		}
+
+		/* The global 44px touch minimum leaves these secondary buttons mostly
+		   empty space around a single short word. */
+		button {
+			min-height: 36px;
 		}
 	}
 </style>
