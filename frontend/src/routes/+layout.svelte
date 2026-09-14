@@ -57,6 +57,7 @@
 	:global(:root) {
 		--control-min-height: 36px;
 		--control-padding-x: 12px;
+		--control-chevron-width: 10px;
 		--control-radius: 4px;
 		--control-font-size: 0.85rem;
 		--control-bg: #2a2a2a;
@@ -145,12 +146,18 @@
 		cursor: pointer;
 		-webkit-appearance: none;
 		appearance: none;
+		/* height, not min-height: the box has to be imposed on a select,
+		   which means it cannot grow with its content the way the others can. */
 		height: var(--control-min-height);
-		padding-right: 30px;
+		/* Room for the chevron: its own width plus a gap, past the usual
+		   padding, so both track the padding token. The chevron's colour is
+		   the one thing here that cannot: a custom property does not resolve
+		   inside url(), so it repeats --control-text by hand. */
+		padding-right: calc(var(--control-padding-x) + var(--control-chevron-width) + 8px);
 		background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%23cccccc' stroke-width='1.5' stroke-linecap='round'/></svg>");
 		background-repeat: no-repeat;
-		background-position: right 11px center;
-		background-size: 10px 6px;
+		background-position: right var(--control-padding-x) center;
+		background-size: var(--control-chevron-width) 6px;
 	}
 
 	:global(input.control:focus),
@@ -164,6 +171,7 @@
 	:global(input[type='date'].control) {
 		-webkit-appearance: none;
 		appearance: none;
+		/* As with a select, the height has to be imposed rather than a floor. */
 		height: var(--control-min-height);
 	}
 
