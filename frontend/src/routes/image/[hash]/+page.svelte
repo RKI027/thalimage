@@ -382,31 +382,32 @@
 				<a href={back}>{backText}</a>
 				<span class="filename">{image.filename}</span>
 				<div class="nav-buttons">
-					<button disabled={currentIndex <= 0} onclick={() => navigate(-1)}>← Prev</button>
+					<button class="control" disabled={currentIndex <= 0} onclick={() => navigate(-1)}>← Prev</button>
 					<span class="position">
 						{#if currentIndex >= 0}
 							{currentIndex + 1} / {neighbors.length}
 						{/if}
 					</span>
 					<button
+						class="control"
 						disabled={currentIndex < 0 || currentIndex >= neighbors.length - 1}
 						onclick={() => navigate(1)}
 					>
 						Next →
 					</button>
-					<button onclick={enterSlideshow} title="Start slideshow (Space)" disabled={neighbors.length === 0}>
+					<button class="control" onclick={enterSlideshow} title="Start slideshow (Space)" disabled={neighbors.length === 0}>
 						Slideshow
 					</button>
 					{#if isVideo}
 						<button
-							class="loop-btn"
+							class="control loop-btn"
 							class:active={videoLoop}
 							onclick={() => (videoLoop = !videoLoop)}
 							title="Toggle loop"
 						>⟲ Loop</button>
 					{/if}
 					<button
-						class="archive-btn"
+						class="control archive-btn"
 						class:archived={image.archived}
 						onclick={toggleArchive}
 						title={image.archived ? 'Unarchive' : 'Archive'}
@@ -513,58 +514,14 @@
 		gap: 8px;
 	}
 
-	.nav-buttons button {
-		padding: 4px 12px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #ccc;
-		cursor: pointer;
-	}
-
-	.nav-buttons button:hover:not(:disabled) {
-		background: #3a3a3a;
-	}
-
-	.nav-buttons button:disabled {
-		opacity: 0.4;
-		cursor: default;
-	}
-
-	.loop-btn {
-		padding: 4px 12px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #888;
-		cursor: pointer;
-	}
-
 	.loop-btn.active {
 		border-color: #6ea8fe;
 		color: #6ea8fe;
 	}
 
-	.loop-btn:hover {
-		background: #3a3a3a;
-	}
-
-	.archive-btn {
-		padding: 4px 12px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #888;
-		cursor: pointer;
-	}
-
 	.archive-btn.archived {
 		border-color: #f6a84b;
 		color: #f6a84b;
-	}
-
-	.archive-btn:hover {
-		background: #3a3a3a;
 	}
 
 	.position {

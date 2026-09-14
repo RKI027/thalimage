@@ -54,6 +54,120 @@
 </div>
 
 <style>
+	:global(:root) {
+		--control-min-height: 36px;
+		--control-padding-x: 12px;
+		--control-radius: 4px;
+		--control-font-size: 0.85rem;
+		--control-bg: #2a2a2a;
+		--control-bg-hover: #3a3a3a;
+		--control-border: #444;
+		--control-text: #ccc;
+		--control-text-hover: #fff;
+		--control-focus: #6ea8fe;
+		--control-primary-bg: #3a5a8a;
+		--control-primary-bg-hover: #4a6a9a;
+		--control-primary-text: #fff;
+		--control-danger-bg: #5a2a2a;
+		--control-danger-border: #844;
+		--control-danger-bg-hover: #6a3a3a;
+	}
+
+	/* One box for every button, select and text field, so controls sitting
+	   next to each other line up. Opt-in: icon-only chrome keeps its own. */
+	:global(.control) {
+		box-sizing: border-box;
+		display: inline-flex;
+		align-items: center;
+		min-height: var(--control-min-height);
+		padding: 0 var(--control-padding-x);
+		border: 1px solid var(--control-border);
+		border-radius: var(--control-radius);
+		background: var(--control-bg);
+		color: var(--control-text);
+		font-size: var(--control-font-size);
+		font-family: inherit;
+		line-height: 1;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	:global(a.control) {
+		text-decoration: none;
+	}
+
+	:global(a.control:hover),
+	:global(button.control:hover:not(:disabled)) {
+		background: var(--control-bg-hover);
+		color: var(--control-text-hover);
+		text-decoration: none;
+	}
+
+	:global(.control:focus-visible) {
+		outline: none;
+		border-color: var(--control-focus);
+	}
+
+	:global(.control:disabled) {
+		opacity: 0.4;
+		cursor: default;
+	}
+
+	:global(.control-primary) {
+		background: var(--control-primary-bg);
+		color: var(--control-primary-text);
+	}
+
+	:global(button.control-primary:hover:not(:disabled)) {
+		background: var(--control-primary-bg-hover);
+		color: var(--control-primary-text);
+	}
+
+	:global(.control-danger) {
+		background: var(--control-danger-bg);
+		border-color: var(--control-danger-border);
+		color: var(--control-text);
+	}
+
+	:global(button.control-danger:hover:not(:disabled)) {
+		background: var(--control-danger-bg-hover);
+	}
+
+	/* Text fields and selects wrap rather than nowrap, and fill their slot. */
+	:global(input.control),
+	:global(select.control),
+	:global(textarea.control) {
+		width: 100%;
+		cursor: auto;
+	}
+
+	:global(select.control) {
+		cursor: pointer;
+	}
+
+	:global(input.control:focus),
+	:global(select.control:focus) {
+		outline: none;
+		border-color: var(--control-focus);
+	}
+
+	/* A native date field sizes itself from the spinner, not from padding,
+	   and comes out far taller than its neighbours without this. */
+	:global(input[type='date'].control) {
+		-webkit-appearance: none;
+		appearance: none;
+		height: var(--control-min-height);
+	}
+
+	:global(input[type='date'].control::-webkit-date-and-time-value) {
+		text-align: left;
+		margin: 0;
+	}
+
+	:global(input[type='date'].control::-webkit-datetime-edit) {
+		padding: 0;
+	}
+
 	:global(html) {
 		-webkit-text-size-adjust: 100%;
 		overflow: hidden;

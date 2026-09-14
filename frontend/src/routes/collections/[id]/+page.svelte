@@ -177,7 +177,7 @@
 	{/snippet}
 	{#snippet desktopActions()}
 		{#if collection}
-			<a class="elo-link" href="/elo/{collection.id}">ELO Vote</a>
+			<a class="control" href="/elo/{collection.id}">ELO Vote</a>
 		{/if}
 	{/snippet}
 	{#snippet sheetExtras()}
@@ -191,7 +191,7 @@
 	{/snippet}
 	{#snippet sheetActions()}
 		{#if collection}
-			<a class="elo-sheet-link" href="/elo/{collection.id}">ELO Vote</a>
+			<a class="control elo-sheet-link" href="/elo/{collection.id}">ELO Vote</a>
 		{/if}
 	{/snippet}
 </GridToolbar>
@@ -249,21 +249,6 @@
 		cursor: pointer;
 	}
 
-	.elo-link {
-		padding: 4px 12px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #ccc;
-		text-decoration: none;
-		font-size: 0.85rem;
-		white-space: nowrap;
-	}
-
-	.elo-link:hover {
-		background: #3a3a3a;
-	}
-
 	/* Injected into GridToolbar's options sheet; mirrors its section heading. */
 	.sheet-section {
 		margin: 16px 0 8px;
@@ -274,11 +259,10 @@
 	}
 
 	.elo-sheet-link {
-		display: block;
-		padding: 12px 0;
-		color: #6ea8fe;
-		font-size: 0.95rem;
-		text-decoration: none;
+		display: flex;
+		width: 100%;
+		justify-content: center;
+		margin-top: 6px;
 	}
 
 	.elo-sheet-link:hover {

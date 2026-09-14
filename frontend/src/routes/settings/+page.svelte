@@ -83,7 +83,7 @@
 <div class="settings-page">
 	<div class="page-header">
 		<h2>Settings</h2>
-		<a href={backHref} class="close-btn">Close</a>
+		<a href={backHref} class="control">Close</a>
 	</div>
 	<section class="prefs-section">
 		<h3>Preferences</h3>
@@ -102,9 +102,9 @@
 	<p class="description">Add folders containing your AI-generated images. Thalimage will scan them for images and extract metadata.</p>
 
 	<div class="add-form">
-		<input bind:value={newPath} placeholder="Folder path (e.g. /photos/ai)" class="path-input" />
-		<input bind:value={newLabel} placeholder="Label (optional)" class="label-input" />
-		<button onclick={addSource}>Add</button>
+		<input bind:value={newPath} placeholder="Folder path (e.g. /photos/ai)" class="control path-input" />
+		<input bind:value={newLabel} placeholder="Label (optional)" class="control label-input" />
+		<button class="control control-primary" onclick={addSource}>Add</button>
 	</div>
 
 	{#if sources.length === 0}
@@ -128,8 +128,8 @@
 						{/if}
 					</div>
 					<div class="source-actions">
-						<button onclick={() => scan(source.id)}>Scan</button>
-						<button class="danger" onclick={() => remove(source.id)}>Remove</button>
+						<button class="control control-primary" onclick={() => scan(source.id)}>Scan</button>
+						<button class="control control-danger" onclick={() => remove(source.id)}>Remove</button>
 					</div>
 				</li>
 			{/each}
@@ -171,20 +171,6 @@
 
 	h2 {
 		margin: 0;
-	}
-
-	.close-btn {
-		padding: 4px 12px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #ccc;
-		font-size: 0.85rem;
-	}
-
-	.close-btn:hover {
-		background: #3a3a3a;
-		text-decoration: none;
 	}
 
 	.description {
@@ -235,15 +221,6 @@
 		margin-bottom: 24px;
 	}
 
-	input {
-		padding: 8px 12px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #eee;
-		font-size: 0.9rem;
-	}
-
 	/* Inputs default to min-width:auto, which is the placeholder's width and
 	   wide enough to push the row off a phone screen. */
 	.path-input {
@@ -254,29 +231,6 @@
 	.label-input {
 		flex: 1;
 		min-width: 0;
-	}
-
-	button {
-		padding: 6px 16px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #3a5a8a;
-		color: #fff;
-		cursor: pointer;
-		white-space: nowrap;
-	}
-
-	button:hover {
-		background: #4a6a9a;
-	}
-
-	button.danger {
-		background: #5a2a2a;
-		border-color: #844;
-	}
-
-	button.danger:hover {
-		background: #6a3a3a;
 	}
 
 	.empty {
