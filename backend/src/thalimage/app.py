@@ -14,6 +14,7 @@ from thalimage.api import collections, docs, elo, images, settings, sources, tag
 from thalimage.config import get_settings
 from thalimage.db.engine import connect, migrate
 from thalimage.services.scan_manager import ScanManager
+from thalimage.version import version_info
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "build"
 
@@ -36,7 +37,7 @@ def create_app() -> FastAPI:
     # /docs is the in-app documentation the SPA serves to users.
     app = FastAPI(
         title="Thalimage",
-        version="0.1.0",
+        version=version_info().version,
         lifespan=lifespan,
         docs_url="/api/docs",
         redoc_url="/api/redoc",
