@@ -154,11 +154,12 @@
 			cursor: default;
 		}
 
-		/* Global touch targets */
+		/* Baseline touch targets. Controls that carry a screen's primary
+		   action set their own, larger, minimum. */
 		:global(button),
 		:global(.tap-target) {
-			min-height: 44px;
-			min-width: 44px;
+			min-height: 36px;
+			min-width: 36px;
 		}
 	}
 </style>
