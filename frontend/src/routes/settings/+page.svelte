@@ -383,11 +383,5 @@
 			flex-direction: column;
 			align-items: stretch;
 		}
-
-		/* The global 44px touch minimum leaves these secondary buttons mostly
-		   empty space around a single short word. */
-		button {
-			min-height: 36px;
-		}
 	}
 </style>
