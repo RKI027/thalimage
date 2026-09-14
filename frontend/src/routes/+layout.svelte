@@ -143,6 +143,14 @@
 
 	:global(select.control) {
 		cursor: pointer;
+		-webkit-appearance: none;
+		appearance: none;
+		height: var(--control-min-height);
+		padding-right: 30px;
+		background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%23cccccc' stroke-width='1.5' stroke-linecap='round'/></svg>");
+		background-repeat: no-repeat;
+		background-position: right 11px center;
+		background-size: 10px 6px;
 	}
 
 	:global(input.control:focus),
@@ -253,6 +261,14 @@
 	}
 
 	@media (max-width: 768px) {
+		/* Safari zooms the page in when a field smaller than 16px takes focus,
+		   and does not reliably zoom back out when the keyboard is dismissed.
+		   Staying at 16px avoids the zoom rather than trying to undo it; the
+		   whole scale moves together so controls still match each other. */
+		:global(:root) {
+			--control-font-size: 16px;
+		}
+
 		/* Pages render their own single-row mobile header, so the app header
 		   is suppressed on mobile. */
 		header {

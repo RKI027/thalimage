@@ -150,7 +150,7 @@
 				</div>
 				<div class="tag-input-wrap">
 					<input
-						class="tag-input"
+						class="control tag-input"
 						type="text"
 						placeholder="Add tag…"
 						value={tagInput}
@@ -287,18 +287,6 @@
 
 	.tag-input {
 		width: 100%;
-		padding: 4px 6px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #ccc;
-		font-size: 0.82rem;
-		box-sizing: border-box;
-	}
-
-	.tag-input:focus {
-		outline: none;
-		border-color: #6ea8fe;
 	}
 
 	.tag-suggestions {
