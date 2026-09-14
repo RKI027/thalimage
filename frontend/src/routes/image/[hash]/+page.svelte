@@ -8,6 +8,7 @@
 	import type { ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import { attachSwipe } from '$lib/swipe';
+	import Icon from '$lib/components/Icon.svelte';
 	import ImageViewer from '$lib/components/ImageViewer.svelte';
 	import MetadataPanel from '$lib/components/MetadataPanel.svelte';
 	import SlideshowOverlay from '$lib/components/SlideshowOverlay.svelte';
@@ -424,17 +425,29 @@
 							class:active={videoLoop}
 							onclick={() => (videoLoop = !videoLoop)}
 							title="Toggle loop"
-						>⟲</button>
+						>
+							<Icon name="loop" />
+							<span class="mobile-btn-label">Loop</span>
+						</button>
 					{:else}
-						<button class="mobile-btn" onclick={enterSlideshow} disabled={neighbors.length === 0} title="Start slideshow">▶</button>
+						<button class="mobile-btn" onclick={enterSlideshow} disabled={neighbors.length === 0} title="Start slideshow">
+							<Icon name="play" />
+							<span class="mobile-btn-label">Slides</span>
+						</button>
 					{/if}
 					<button
 						class="mobile-btn"
 						class:active={image.archived}
 						onclick={toggleArchive}
 						title={image.archived ? 'Unarchive' : 'Archive'}
-					>{image.archived ? '↩' : '⬜'}</button>
-					<button class="mobile-btn" onclick={() => { bottomSheetOpen = true; showTopBar(); }} title="Image info">ℹ</button>
+					>
+						<Icon name={image.archived ? 'unarchive' : 'archive'} />
+						<span class="mobile-btn-label">{image.archived ? 'Restore' : 'Archive'}</span>
+					</button>
+					<button class="mobile-btn" onclick={() => { bottomSheetOpen = true; showTopBar(); }} title="Image info">
+						<Icon name="info" />
+						<span class="mobile-btn-label">Info</span>
+					</button>
 				</div>
 			</div>
 
@@ -459,13 +472,17 @@
 			<!-- Video playback controls, bottom-centered -->
 			{#if isVideo}
 				<div class="video-controls" class:visible={topBarVisible}>
-					<button class="mobile-btn" onclick={toggleVideoPlayback} title="Play/pause video (k)">{videoPlaying ? '⏸' : '▶'}</button>
+					<button class="mobile-btn" onclick={toggleVideoPlayback} title="Play/pause video (k)">
+						<Icon name={videoPlaying ? 'pause' : 'play'} />
+					</button>
 					<button
 						class="mobile-btn"
 						class:active={videoMuted}
 						onclick={toggleVideoMute}
 						title="Mute/unmute video"
-					>{videoMuted ? '🔇' : '🔊'}</button>
+					>
+						<Icon name={videoMuted ? 'mute' : 'volume'} />
+					</button>
 				</div>
 			{/if}
 
@@ -655,17 +672,24 @@
 
 		.mobile-btn {
 			display: flex;
+			flex-direction: column;
 			align-items: center;
 			justify-content: center;
+			gap: 3px;
 			background: rgba(255, 255, 255, 0.15);
 			border: 1px solid rgba(255, 255, 255, 0.3);
 			border-radius: 4px;
 			color: #fff;
 			cursor: pointer;
-			font-size: 1rem;
-			padding: 4px 10px;
+			padding: 4px 8px;
 			min-height: 44px;
 			min-width: 44px;
+		}
+
+		.mobile-btn-label {
+			font-size: 10px;
+			line-height: 1;
+			letter-spacing: 0.01em;
 		}
 
 		.mobile-btn:disabled {
