@@ -136,8 +136,8 @@
 		<a href="/collections/{collectionId()}">← {collection?.name ?? 'Collection'}</a>
 		<span class="vote-count">{voteCount} votes this session</span>
 		<div class="actions">
-			<button onclick={loadRankings}>Rankings</button>
-			<button onclick={() => loadPair()}>Skip</button>
+			<button class="control" onclick={loadRankings}>Rankings</button>
+			<button class="control" onclick={() => loadPair()}>Skip</button>
 		</div>
 	</div>
 
@@ -150,7 +150,7 @@
 			<div class="rankings">
 				<div class="rankings-header">
 					<h3>Rankings</h3>
-					<button onclick={() => (showRankings = false)}>Close</button>
+					<button class="control" onclick={() => (showRankings = false)}>Close</button>
 				</div>
 				{#if rankings.length === 0}
 					<p class="empty">No votes recorded yet.</p>
@@ -214,19 +214,6 @@
 		gap: 8px;
 	}
 
-	.actions button {
-		padding: 4px 12px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #ccc;
-		cursor: pointer;
-	}
-
-	.actions button:hover {
-		background: #3a3a3a;
-	}
-
 	.controls {
 		display: flex;
 		align-items: center;
@@ -276,15 +263,6 @@
 
 	.rankings-header h3 {
 		margin: 0;
-	}
-
-	.rankings-header button {
-		padding: 4px 12px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #ccc;
-		cursor: pointer;
 	}
 
 	.empty {
@@ -352,10 +330,6 @@
 			text-align: center;
 			order: 3;
 			font-size: 0.75rem;
-		}
-
-		.actions button {
-			padding: 0 16px;
 		}
 	}
 </style>

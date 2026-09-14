@@ -24,6 +24,7 @@
 		<label for="filter-date-from">From</label>
 		<input
 			id="filter-date-from"
+			class="control"
 			type="date"
 			value={filters.date_from?.slice(0, 10) ?? ''}
 			onchange={(e) => {
@@ -37,6 +38,7 @@
 		<label for="filter-date-to">To</label>
 		<input
 			id="filter-date-to"
+			class="control"
 			type="date"
 			value={filters.date_to?.slice(0, 10) ?? ''}
 			onchange={(e) => {
@@ -50,6 +52,7 @@
 		<label for="filter-aspect">Shape</label>
 		<select
 			id="filter-aspect"
+			class="control"
 			value={filters.aspect_ratio ?? ''}
 			onchange={(e) => update({ aspect_ratio: (e.target as HTMLSelectElement).value || undefined })}
 		>
@@ -65,6 +68,7 @@
 		<label for="filter-media">Type</label>
 		<select
 			id="filter-media"
+			class="control"
 			value={filters.media_type ?? ''}
 			onchange={(e) => update({ media_type: (e.target as HTMLSelectElement).value || undefined })}
 		>
@@ -78,6 +82,7 @@
 		<label for="filter-tags">Tags</label>
 		<input
 			id="filter-tags"
+			class="control"
 			type="text"
 			placeholder="tag1, tag2"
 			value={filters.tags?.join(', ') ?? ''}
@@ -93,7 +98,7 @@
 	</div>
 
 	{#if Object.keys(filters).length > 0}
-		<button class="clear-btn" onclick={() => onchange?.({})}>✕ Clear</button>
+		<button class="control" onclick={() => onchange?.({})}>✕ Clear</button>
 	{/if}
 </div>
 
@@ -118,53 +123,11 @@
 		white-space: nowrap;
 	}
 
-	input[type='text'],
-	input[type='date'],
-	select {
-		padding: 3px 6px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #ccc;
-		font-size: 0.85rem;
-		cursor: pointer;
-	}
-
-	input[type='text']:focus,
-	input[type='date']:focus,
-	select:focus {
-		outline: none;
-		border-color: #6ea8fe;
-	}
-
-	.clear-btn {
-		padding: 3px 8px;
-		border: 1px solid #666;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #aaa;
-		cursor: pointer;
-		font-size: 0.8rem;
-	}
-
-	.clear-btn:hover {
-		background: #3a3a3a;
-		color: #ccc;
-	}
-
 	@media (max-width: 768px) {
 		.filter-bar {
 			flex-direction: column;
 			align-items: flex-start;
 			padding: 4px;
-		}
-
-		input[type='text'],
-		input[type='date'],
-		select {
-			padding: 8px 6px;
-			min-height: 44px;
-			width: 100%;
 		}
 
 		.filter-group {
@@ -175,10 +138,5 @@
 			min-width: 60px;
 		}
 
-		.clear-btn {
-			align-self: flex-end;
-			min-height: 44px;
-			padding: 8px 16px;
-		}
 	}
 </style>

@@ -72,7 +72,7 @@
 		</div>
 	{/if}
 	{#if desktopActions}{@render desktopActions()}{/if}
-	<button class="slideshow-btn" onclick={onStartSlideshow} {disabled}>Slideshow</button>
+	<button class="control slideshow-btn" onclick={onStartSlideshow} {disabled}>Slideshow</button>
 	<span class="count">
 		{count} images{#if loading}<span class="loading-hint"> (loading…)</span>{/if}
 	</span>
@@ -89,7 +89,7 @@
 	<ThumbSizeSlider bind:size={thumbSize} />
 	{#if sheetExtras}{@render sheetExtras()}{/if}
 	<h3 class="sheet-section">Actions</h3>
-	<button class="sheet-action-btn" onclick={() => { onStartSlideshow(); optionsOpen = false; }} {disabled}>Slideshow</button>
+	<button class="control sheet-action-btn" onclick={() => { onStartSlideshow(); optionsOpen = false; }} {disabled}>Slideshow</button>
 	{#if sheetActions}{@render sheetActions()}{/if}
 </OptionsSheet>
 
@@ -113,31 +113,22 @@
 		flex-shrink: 0;
 	}
 
+	.slideshow-btn {
+		flex-shrink: 0;
+	}
+
+	/* A sheet action spans the sheet rather than hugging its label. */
+	.sheet-action-btn {
+		display: flex;
+		width: 100%;
+		justify-content: center;
+		margin-top: 6px;
+	}
+
 	.filter-row {
 		display: flex;
 		align-items: center;
 		flex-wrap: wrap;
-	}
-
-	.slideshow-btn {
-		padding: 4px 12px;
-		border: 1px solid #444;
-		border-radius: 4px;
-		background: #2a2a2a;
-		color: #ccc;
-		cursor: pointer;
-		font-size: 0.85rem;
-		flex-shrink: 0;
-		white-space: nowrap;
-	}
-
-	.slideshow-btn:hover:not(:disabled) {
-		background: #3a3a3a;
-	}
-
-	.slideshow-btn:disabled {
-		opacity: 0.4;
-		cursor: default;
 	}
 
 	.count {
@@ -149,26 +140,6 @@
 
 	.loading-hint {
 		color: #666;
-	}
-
-	.sheet-action-btn {
-		display: block;
-		padding: 12px 0;
-		color: #6ea8fe;
-		font-size: 0.95rem;
-		background: none;
-		border: none;
-		cursor: pointer;
-		text-align: left;
-	}
-
-	.sheet-action-btn:hover:not(:disabled) {
-		color: #90c0ff;
-	}
-
-	.sheet-action-btn:disabled {
-		opacity: 0.4;
-		cursor: default;
 	}
 
 	.sheet-count {
