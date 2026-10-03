@@ -208,7 +208,12 @@ def _sort_key(sort: str, elo_collection_id: Optional[int]) -> _SortKey:
             "elo_score",
             True,
         )
-    return _SortKey(SORT_COLUMNS.get(sort, "filename"), (), "sort_key", False)
+    column = SORT_COLUMNS.get(sort, "filename")
+    return _SortKey(column, (), "sort_key", column in _NUMERIC_SORT_COLUMNS)
+
+
+# Sort keys whose cursor values are bound as numbers, not text.
+_NUMERIC_SORT_COLUMNS = frozenset({"file_size", "aspect_ratio"})
 
 
 _LIVE = "FROM images WHERE deleted = 0 AND archived = 0"
