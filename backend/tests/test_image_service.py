@@ -39,3 +39,22 @@ def test_date_created_sort_pages_through_null_birthtimes(db: sqlite3.Connection)
             if cursor is None:
                 break
         assert seen == expected, direction
+
+
+def test_grid_queries_use_an_index_for_every_sort(db: sqlite3.Connection) -> None:
+    """GEN-016: no full scan + temp sort of images per page."""
+    from thalimage.services import image_service
+
+    captured: list[tuple[str, list[object]]] = []
+
+    class Spy:
+        def execute(self, sql: str, params: object = ()) -> sqlite3.Cursor:
+            captured.append((sql, list(params)))  # type: ignore[call-overload]
+            return db.execute(sql, params)  # type: ignore[arg-type]
+
+    for sort in image_service.SORT_COLUMNS:
+        list_images(Spy(), sort=sort, cursor="x|y")  # type: ignore[arg-type]
+        sql, params = captured[-1]
+        plan = " / ".join(r[3] for r in db.execute("EXPLAIN QUERY PLAN " + sql, params))
+        assert "USING INDEX idx_images_live_" in plan, (sort, plan)
+        assert "TEMP B-TREE" not in plan, (sort, plan)
