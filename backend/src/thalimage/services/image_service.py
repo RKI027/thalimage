@@ -81,7 +81,12 @@ def append_media_filters(
         q += f" AND {prefix}file_modified >= ?"
         params.append(date_from)
     if date_to is not None:
-        q += f" AND {prefix}file_modified <= ?"
+        if len(date_to) == 10:
+            # A bare date (the UI sends YYYY-MM-DD) means the whole day:
+            # file_modified is a full timestamp, so compare with the next day.
+            q += f" AND {prefix}file_modified < date(?, '+1 day')"
+        else:
+            q += f" AND {prefix}file_modified <= ?"
         params.append(date_to)
     if aspect_ratio_filter in ASPECT_RATIO_FILTERS:
         clause, _ = ASPECT_RATIO_FILTERS[aspect_ratio_filter]
