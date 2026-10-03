@@ -7,6 +7,10 @@ install:
 test:
 	cd backend && uv run pytest
 
+# Line + branch coverage of the backend, with the lines missed.
+cov:
+	cd backend && uv run pytest --cov=thalimage --cov-branch --cov-report=term-missing
+
 lint:
 	cd backend && uv run ruff check src/ tests/
 
