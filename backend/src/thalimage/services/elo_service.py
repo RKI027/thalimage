@@ -33,7 +33,9 @@ def get_pair(
                FROM images i
                LEFT JOIN elo_scores e ON i.content_hash = e.content_hash
                     AND e.collection_id = ?
-               WHERE i.source_id = ? AND i.deleted = 0 AND i.archived = 0"""
+               WHERE i.deleted = 0 AND i.archived = 0
+                 AND i.content_hash IN
+                     (SELECT content_hash FROM image_locations WHERE source_id = ?)"""
         params: list[object] = [collection_id, source_id]
     else:
         q = """SELECT i.content_hash, i.filename, i.source_id, i.relative_path,
@@ -142,7 +144,8 @@ def _in_collection(
     collection_images rows; their members are the source's images."""
     if coll_type == "source_preset":
         row = conn.execute(
-            "SELECT 1 FROM images WHERE content_hash = ? AND source_id = ? AND deleted = 0",
+            "SELECT 1 FROM images i JOIN image_locations l ON l.content_hash = i.content_hash"
+            " WHERE i.content_hash = ? AND l.source_id = ? AND i.deleted = 0",
             (content_hash, source_id),
         ).fetchone()
     else:
