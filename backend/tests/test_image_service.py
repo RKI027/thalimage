@@ -46,7 +46,7 @@ def test_grid_queries_use_an_index_for_every_sort(db: sqlite3.Connection) -> Non
             return db.execute(sql, params)  # type: ignore[arg-type]
 
     for sort in image_service.SORT_COLUMNS:
-        list_images(Spy(), sort=sort, cursor="x|y")  # type: ignore[arg-type]
+        list_images(Spy(), sort=sort, cursor="1|y")  # type: ignore[arg-type]
         sql, params = captured[-1]
         plan = " / ".join(r[3] for r in db.execute("EXPLAIN QUERY PLAN " + sql, params))
         assert "USING INDEX idx_images_live_" in plan, (sort, plan)
@@ -164,3 +164,20 @@ def test_neighbors_of_unknown_image(db: sqlite3.Connection) -> None:
     from thalimage.services.image_service import neighbors
 
     assert neighbors(db, "f" * 64) is None
+
+
+def test_numeric_sorts_page_by_number_not_text(db: sqlite3.Connection) -> None:
+    """2026-07 review, issue 2: "9" sorts after "10" as text; as numbers the
+    pages must follow 9 < 10 < 100."""
+    for size, h in ((9, "a"), (10, "b"), (100, "c")):
+        insert_image(db, h * 64)
+        db.execute("UPDATE images SET file_size = ? WHERE content_hash = ?", (size, h * 64))
+    db.commit()
+    seen, cursor = [], None
+    for _ in range(5):
+        page = list_images(db, sort="size", limit=1, cursor=cursor)
+        seen += [i.content_hash[0] for i in page.items]
+        cursor = page.next_cursor
+        if cursor is None:
+            break
+    assert seen == ["a", "b", "c"]

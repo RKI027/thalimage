@@ -24,10 +24,11 @@ has no collection row to attach scores to.
 ## How pairs are chosen
 
 Candidates are every image in the collection that is not deleted and not
-archived, minus NSFW images unless you have chosen to show them. Those
-are sorted by how many matches each has already had, and the quarter
-with the fewest matches becomes the pool. Two images are then drawn from
-that pool at random.
+archived, minus NSFW images unless you have chosen to show them, and
+narrowed by the date, aspect-ratio and media-type filters set on the
+collection. Those are sorted by how many matches each has already had,
+and the quarter with the fewest matches becomes the pool. Two images are
+then drawn from that pool at random.
 
 **This under-favours new images, and it is worth knowing about.** Match
 count decides whether an image enters the pool, but inside the pool

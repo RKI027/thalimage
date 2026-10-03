@@ -1,4 +1,9 @@
-# Thalimage Phases
+# Thalimage Roadmap
+
+What is done, what is next, and the backlog. Everything here describes
+the code as it is now; superseded plans say so where they stand.
+Records of earlier work are in [`archive/`](archive/README.md); full
+review runs, with their resolution ledgers, are in [`review/`](review/).
 
 ## Done (MVP — Sprints 1-5)
 - Source folder scanning with metadata extraction
@@ -32,8 +37,8 @@ query result) or dynamic (backed by a live query).
   per-collection. An image tagged "landscape" is tagged "landscape"
   everywhere. Collections filter by tags.
 - **Source presets: static for Phase 2.5** (auto-populated when scan
-  runs). Become dynamic queries (`WHERE source_id = X`, always live)
-  in Phase 3.
+  runs). *Superseded in Phase 3:* presets are live views of their
+  source's images, with nothing to sync.
 - **"All Images" is virtual.** No DB row, no collection_images
   entries. Represented as `id: null` in the browsing context. ELO not
   available on it.
@@ -48,18 +53,19 @@ query result) or dynamic (backed by a live query).
 - **Static collections** hold a fixed set of image hashes. Can be
   created manually or by snapshotting a query result. The originating
   query and snapshot date are stored for reference.
-- **Dynamic collections** (Phase 3) are defined by a query (source,
+- **Dynamic collections** (now planned for Phase 5) are defined by a query (source,
   date range, metadata filters, tags — eventually the full DSL). The
   query runs on access; results are always current.
-- **Preset collections** are built-in: one per source (auto-synced on
-  scan), not user-deletable. "All Images" is virtual (no DB row).
+- **Preset collections** are built-in: one per source, not
+  user-deletable. (Auto-synced on scan in Phase 2.5; live views of the
+  source since Phase 3.) "All Images" is virtual (no DB row).
   Future presets: "Photos", "Videos", etc.
 
 ### Schema
 - `collections` table gains `type TEXT NOT NULL DEFAULT 'manual'` and
   `source_id INTEGER REFERENCES sources(id)`
-- Type values: `'manual'`, `'source_preset'`. Phase 3 adds
-  `'dynamic_query'` + `query JSON` column.
+- Type values: `'manual'`, `'source_preset'`. Phase 5 is to add
+  `'dynamic_query'` + a `query` JSON column.
 - Unique partial index on `(source_id) WHERE type = 'source_preset'`
   prevents duplicate presets.
 
@@ -110,20 +116,21 @@ query result) or dynamic (backed by a live query).
 
 ## Phase 5.3 — Delivery Performance ✓
 
-Viewing over wifi from a phone is bandwidth-bound: only two sizes are
-served today, the 400px thumbnail and the original file. The viewer,
-slideshow and ELO all use the original.
+Viewing over wifi from a phone is bandwidth-bound. Before this phase
+only two sizes were served, the 400px thumbnail and the original file,
+and the viewer, slideshow and ELO all used the original.
 
 Measured on the working library: PNGs average 3.6 MB (max 34.9 MB) at
 ~1400x2000, JPEGs 426 KB, MP4s 13.7 MB (max 246 MB). A phone screen
-needs ~1200px on the long edge, so a PNG is roughly a 15x overfetch.
-The viewer preloads three neighbours at full resolution, which on a
-weak link competes for bandwidth with the image being displayed.
+needs ~1200px on the long edge, so a PNG was roughly a 15x overfetch,
+and the viewer preloaded three neighbours at full resolution, competing
+for bandwidth with the image being displayed.
 
 - **Preview endpoint.** `/images/{hash}/preview?size=` serves a
   long-edge-capped WebP in buckets (1280/1920/2560), generated on
   demand and cached under `{data_dir}/cache/previews/{size}/`. The
-  client picks the bucket from viewport x devicePixelRatio. Measured on
+  client picks the bucket from viewport x devicePixelRatio; larger
+  requests get the 2560 bucket. Measured on
   the library: a 36.6 MB PNG becomes 73 KB at 1920px (491x), generated
   once in ~580ms.
 - **Cache headers.** `/file`, `/thumb` and `/preview` send
@@ -191,8 +198,10 @@ What this pass delivers:
   `network_mode: service:tailscale`; `tailscale serve` terminates TLS.
   Nothing is published to the host, so the app is unreachable from the
   LAN, and Tailscale does not need to be on the Docker host.
-- **Bind-mounted data directory** holding the database, both cache trees
-  and the Tailscale node state.
+- **Bind-mounted data directory** with two siblings: `app/` (the
+  database and both cache trees, mounted at `/data`) and `tailscale/`
+  (the node state, kept out of the app container since the 2026-09-29
+  review).
 
 Traefik was considered and not used: it would have needed a tailnet-bound
 entrypoint on the shared homelab stack, a DNS record, and Tailscale on
@@ -203,6 +212,33 @@ rejoin a Docker network.
 Not addressed, and still true: **there is no authentication in the app**.
 The tailnet is the entire access boundary. Narrowing to specific devices
 is a Tailscale ACL question. In-app auth remains a Phase 8 item.
+
+## Phase 5.6 — 2026-09-29 Review Remediation ✓
+
+The full review of 2026-09-29 found 63 issues; every one is resolved or
+explained in [`review/2026-09-29/RESOLUTION.md`](review/2026-09-29/RESOLUTION.md).
+The changes that alter behaviour:
+
+- **One SQLite connection per request**, rolled back when a request
+  leaves a transaction open; the scan writes in short batches instead of
+  holding the write lock for its whole run.
+- **Image locations.** `image_locations` records every source and path
+  where a file's content exists. An image keeps a stable primary location
+  and is deleted only when no copy is left; a copy appears under every
+  source it lies in.
+- **Scans refuse an unreachable source** (missing, unreadable, or empty
+  where images were indexed) instead of marking everything deleted.
+- **Viewer prev/next** walks the grid's own listing (source, filters,
+  sort) at any depth, through `GET /images/{hash}/neighbors`.
+- **Cross-site writes are refused** (`csrf.py`); there is still no
+  authentication.
+- **AI parameters are extracted at last.** The extractor read attribute
+  names sd-parsers does not have, so no prompt, negative prompt, tool or
+  raw parameters had ever been stored. Fixed, with an
+  `extractor_version` on each metadata row: the first scan after
+  upgrading re-reads every still image once to fill them in.
+- Frontend unit tests (vitest), migration tests on populated databases,
+  and `make cov`.
 
 ## Phase 6 — Perceptual Dedup
 - Perceptual hashing at scan time (pHash/dHash)
@@ -218,14 +254,16 @@ is a Tailscale ACL question. In-app auth remains a Phase 8 item.
 - Model interrogation for prompt inspiration
 - Multi-user support (auth, per-user votes/tags/ELO)
 - Batch operations
-- TIFF/GIF/AVIF support expansion
+- AVIF support (TIFF and GIF are already scanned)
 
 ## Deferred — Source Removal
 
 Designed during Phase 2.5, not implemented. Deleting a source today
-(`api/sources.py:delete_source`) is an unconditional cascade: the preset
-collection, image rows, metadata, ELO scores, tags and collection
-memberships all go, with no prompt and no way back.
+(`services/source_service.py:delete_source`) removes its preset
+collection and every image found only in that source, with their
+metadata, ELO scores, tags and collection memberships, with no prompt
+and no way back. Content that also lies in another source survives with
+everything attached.
 
 When removing a source, the user should choose:
 1. **Keep DB entries or not** — convenience (preserve ELO scores,
@@ -264,3 +302,9 @@ When removing a source, the user should choose:
   (currently unused since NSFW is driven by the tag named "nsfw").
 - bulk edit (multi select picture: range and one by one) then
   trash/archive/tags edit
+- NSFW filtering runs a `NOT IN` subquery over NSFW collections'
+  members on every listing and count. Fine at today's sizes; at scale,
+  an `EXISTS` rewrite or a denormalised flag. (From the 2026-07 review.)
+- The slideshow walks the window of neighbours it starts with, up to
+  1001 images around the starting image; a slideshow over a larger
+  listing stops at the window's end.

@@ -326,3 +326,42 @@ def test_unreadable_file_keeps_its_image(tmp_path: Path, monkeypatch) -> None:
     assert result.errors == 1
     assert set(_live(conn)) == {"a.png"}
     conn.close()
+
+
+# --- AI metadata reaches the database, and older extractions are redone ---
+
+
+def _a1111_png(path: Path) -> None:
+    from PIL import PngImagePlugin
+
+    info = PngImagePlugin.PngInfo()
+    info.add_text("parameters", "a lighthouse\nNegative prompt: fog\nSteps: 20, Sampler: Euler a, Seed: 1")
+    Image.new("RGB", (10, 10), "red").save(path, pnginfo=info)
+
+
+def test_scan_stores_the_generation_prompt(tmp_path: Path) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    _a1111_png(img_dir / "gen.png")
+
+    run_scan(conn, source_id, thumbs)
+
+    row = conn.execute("SELECT ai_tool, prompt, negative_prompt FROM image_metadata").fetchone()
+    assert tuple(row) == ("AUTOMATIC1111", "a lighthouse", "fog")
+    conn.close()
+
+
+def test_images_from_an_older_extractor_are_read_again_once(tmp_path: Path) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    _a1111_png(img_dir / "gen.png")
+    run_scan(conn, source_id, thumbs)
+    # As 0.5.0 left it: the row exists, extracted by version 0, prompt empty.
+    conn.execute("UPDATE image_metadata SET extractor_version = 0, prompt = NULL")
+    conn.commit()
+
+    again = run_scan(conn, source_id, thumbs)
+    assert (again.added, again.skipped) == (1, 0)
+    assert conn.execute("SELECT prompt FROM image_metadata").fetchone()[0] == "a lighthouse"
+
+    settled = run_scan(conn, source_id, thumbs)
+    assert (settled.added, settled.skipped) == (0, 1)
+    conn.close()
