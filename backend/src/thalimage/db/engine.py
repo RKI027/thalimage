@@ -65,8 +65,11 @@ def _split_statements(sql: str) -> list[str]:
     return statements
 
 
-def migrate(conn: sqlite3.Connection) -> int:
+def migrate(conn: sqlite3.Connection, *, target: int | None = None) -> int:
     """Run all pending migrations and return the new schema version.
+
+    `target` stops after that version (tests use it to seed data the way an
+    older release left it, then migrate the rest of the way).
 
     Migrations are SQL files in the migrations/ directory named NNN_description.sql.
     Each migration runs inside a transaction: either all statements succeed and the
@@ -90,6 +93,8 @@ def migrate(conn: sqlite3.Connection) -> int:
         migration_version = int(migration_path.name.split("_")[0])  # type: ignore[union-attr]
         if migration_version <= version:
             continue
+        if target is not None and migration_version > target:
+            break
 
         sql = migration_path.read_text()  # type: ignore[union-attr]
         statements = _split_statements(sql)
@@ -110,31 +115,33 @@ def migrate(conn: sqlite3.Connection) -> int:
 
 def _statements_to_script(statements: list[str], conn: sqlite3.Connection) -> str:
     """Return statements as a SQL script, omitting ALTER TABLE ADD COLUMN
-    statements for columns that already exist in the database."""
+    statements for columns that already exist in the database, and DROP
+    COLUMN statements for columns that are already gone."""
     lines: list[str] = []
     for stmt in statements:
-        table, col = _parse_add_column(stmt)
+        action, table, col = _parse_alter_column(stmt)
         if table and col:
             exists = conn.execute(
                 "SELECT 1 FROM pragma_table_info(?) WHERE name = ?",
                 (table, col),
             ).fetchone()
-            if exists:
-                continue  # Column already present; skip to avoid error
+            if (action == "ADD") == bool(exists):
+                continue  # Already applied; skip to avoid an error
         lines.append(stmt + ("" if stmt.rstrip().endswith(";") else ";"))
         lines.append("\n")
     return "".join(lines)
 
 
-def _parse_add_column(stmt: str) -> tuple[str, str] | tuple[None, None]:
-    """Extract (table_name, column_name) from ALTER TABLE t ADD [COLUMN] c ...
-    Returns (None, None) if the statement cannot be parsed."""
+def _parse_alter_column(stmt: str) -> tuple[str, str, str] | tuple[None, None, None]:
+    """Extract (ADD|DROP, table_name, column_name) from
+    ALTER TABLE t ADD|DROP [COLUMN] c ...
+    Returns (None, None, None) if the statement cannot be parsed."""
     import re
     m = re.match(
-        r"ALTER\s+TABLE\s+(\w+)\s+ADD\s+(?:COLUMN\s+)?(\w+)",
+        r"ALTER\s+TABLE\s+(\w+)\s+(ADD|DROP)\s+(?:COLUMN\s+)?(\w+)",
         stmt.strip(),
         re.IGNORECASE,
     )
     if m:
-        return m.group(1), m.group(2)
-    return None, None
+        return m.group(2).upper(), m.group(1), m.group(3)
+    return None, None, None
