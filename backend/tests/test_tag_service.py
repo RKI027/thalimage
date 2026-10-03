@@ -41,12 +41,6 @@ def test_create_tag(db: sqlite3.Connection) -> None:
     tag = create_tag(db, "landscape")
     assert tag.id is not None
     assert tag.name == "landscape"
-    assert tag.nsfw is False
-
-
-def test_create_tag_nsfw(db: sqlite3.Connection) -> None:
-    tag = create_tag(db, "adult", nsfw=True)
-    assert tag.nsfw is True
 
 
 def test_create_tag_duplicate_raises(db: sqlite3.Connection) -> None:
@@ -100,14 +94,6 @@ def test_update_tag_name(db: sqlite3.Connection) -> None:
     updated = update_tag(db, tag.id, name="new-name")
     assert updated is not None
     assert updated.name == "new-name"
-    assert updated.nsfw is False
-
-
-def test_update_tag_nsfw_flag(db: sqlite3.Connection) -> None:
-    tag = create_tag(db, "safe", nsfw=False)
-    updated = update_tag(db, tag.id, nsfw=True)
-    assert updated is not None
-    assert updated.nsfw is True
 
 
 def test_update_tag_missing_returns_none(db: sqlite3.Connection) -> None:

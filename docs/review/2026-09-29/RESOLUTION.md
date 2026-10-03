@@ -47,7 +47,7 @@ finding's fix), **won't fix** (with the reason), or **open**.
 | [ORG-001](organization.md#org-001-define-the-video-extension-list-once-per-side) | medium | Define the video-extension list once per side | open | |
 | [ORG-002](organization.md#org-002-pull-the-shared-gallery-logic-out-of-the-two-grid-pages) | medium | Pull the shared gallery logic out of the two grid pages | open | |
 | [ORG-003](organization.md#org-003-merge-the-duplicated-images-upsert-in-the-scan-service) | medium | Merge the duplicated `images` upsert in the scan service | open | |
-| [ORG-004](organization.md#org-004-remove-the-dead-tagsnsfw-flag-from-the-service-api-and-client) | medium | Remove the dead `tags.nsfw` flag from the service, API and client | open | |
+| [ORG-004](organization.md#org-004-remove-the-dead-tagsnsfw-flag-from-the-service-api-and-client) | medium | Remove the dead `tags.nsfw` flag from the service, API and client | fixed | migrations PR: `nsfw` removed from the Tag model, request bodies, TS type and `createTag`; migration 011 drops the column (the runner now skips a DROP COLUMN that is already applied) |
 | [ORG-005](organization.md#org-005-share-the-imagesummary-column-list-and-row-conversion) | medium | Share the ImageSummary column list and row conversion | open | |
 | [ORG-006](organization.md#org-006-remove-unused-exported-client-functions) | low | Remove unused exported client functions | open | |
 | [ORG-007](organization.md#org-007-remove-the-test-only-generate_thumbnails_parallel) | low | Remove the test-only `generate_thumbnails_parallel` | open | |

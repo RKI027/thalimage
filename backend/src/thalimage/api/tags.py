@@ -24,12 +24,10 @@ router = APIRouter(tags=["tags"])
 
 class TagCreate(BaseModel):
     name: str
-    nsfw: bool = False
 
 
 class TagUpdate(BaseModel):
     name: Optional[str] = None
-    nsfw: Optional[bool] = None
 
 
 class ImageTagBody(BaseModel):
@@ -50,7 +48,7 @@ def post_tag(
     db: sqlite3.Connection = Depends(get_db),
 ) -> Tag:
     try:
-        return create_tag(db, body.name, nsfw=body.nsfw)
+        return create_tag(db, body.name)
     except sqlite3.IntegrityError as exc:
         raise HTTPException(409, f"Tag '{body.name}' already exists") from exc
 
@@ -62,7 +60,7 @@ def patch_tag(
     db: sqlite3.Connection = Depends(get_db),
 ) -> Tag:
     try:
-        result = update_tag(db, tag_id, name=body.name, nsfw=body.nsfw)
+        result = update_tag(db, tag_id, name=body.name)
     except sqlite3.IntegrityError as exc:
         raise HTTPException(409, f"Tag '{body.name}' already exists") from exc
     if result is None:

@@ -15,7 +15,6 @@ export interface ImageSummary {
 export interface Tag {
 	id: number;
 	name: string;
-	nsfw: boolean;
 	created_at: string;
 }
 
