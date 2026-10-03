@@ -39,10 +39,14 @@ class ImagePage(BaseModel):
     total_count: int
 
 
+# Sort key per sort name: a column, or an expression that is never NULL.
+# file_created comes from st_birthtime, which Linux does not report, so the
+# Created sort falls back to the modification time; a NULL key would make
+# the keyset comparison NULL and stop pagination after one page.
 SORT_COLUMNS = {
     "name": "filename",
     "date_modified": "file_modified",
-    "date_created": "file_created",
+    "date_created": "COALESCE(file_created, file_modified)",
     "size": "file_size",
     "aspect_ratio": "aspect_ratio",
 }
@@ -125,8 +129,8 @@ def list_images(
         )
         order_col = cursor_col = "elo_score"
     else:
-        col = SORT_COLUMNS.get(sort, "filename")
-        sort_expr = order_col = cursor_col = col
+        sort_expr = SORT_COLUMNS.get(sort, "filename")
+        order_col = cursor_col = "sort_key"
 
     def _apply_filters(q: str, p: list[object]) -> tuple[str, list[object]]:
         """Append WHERE clauses for optional filters."""
@@ -173,17 +177,16 @@ def list_images(
     )
     total = conn.execute(count_sql, count_params).fetchone()[0]
 
-    # Query. Select the active sort column too (when it isn't already a summary
-    # field) so the cursor can carry its real value; extra columns are ignored
-    # when building ImageSummary.
+    # Query. Select the active sort key too so the cursor can carry its real
+    # value; extra columns are ignored when building ImageSummary.
     select_cols = [
         "content_hash", "filename", "source_id", "relative_path", "width", "height",
         "aspect_ratio", "format", "thumb_generated", "archived", "nsfw",
     ]
     if elo_sort:
         select_cols.append(f"{sort_expr} AS elo_score")
-    elif col not in select_cols:
-        select_cols.append(col)
+    else:
+        select_cols.append(f"{sort_expr} AS sort_key")
     # The elo sort expression carries a placeholder in the SELECT clause, so its
     # parameter must lead the list.
     initial_params: list[object] = [elo_collection_id] if elo_sort else []
