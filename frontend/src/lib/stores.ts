@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
-import { listSources, listCollections, getSettings, patchSettings } from '$lib/api';
-import type { Source, Collection, UserSettings } from '$lib/types';
+import { listCollections, getSettings, patchSettings } from '$lib/api';
+import type { Collection, UserSettings } from '$lib/types';
 
 function createDataStore<T>(fetcher: () => Promise<T[]>) {
 	const { subscribe, set } = writable<T[]>([]);
@@ -33,6 +33,5 @@ function createSettingsStore() {
 	return { subscribe, refresh, patch };
 }
 
-export const sourcesStore = createDataStore<Source>(listSources);
 export const collectionsStore = createDataStore<Collection>(listCollections);
 export const settingsStore = createSettingsStore();
