@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 
 /**
  * The commit this bundle was built from, stamped in so a stale build can be
@@ -35,5 +35,11 @@ export default defineConfig({
 		port: 4173,
 		allowedHosts: ['.ts.net'],
 		proxy: apiProxy
+	},
+	test: {
+		environment: 'jsdom',
+		include: ['src/**/*.test.ts'],
+		// Stores read localStorage at import time; give each file a clean one.
+		restoreMocks: true
 	}
 });

@@ -13,6 +13,7 @@ import type {
 	SortDirection,
 	DocSummary,
 	DocPage,
+	Neighbors,
 	VersionInfo
 } from './types';
 
@@ -28,19 +29,19 @@ async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
 
 // Images
 
-export function listImages(params: {
-	cursor?: string | null;
-	limit?: number;
+/** What a listing is: its order, scope and filters (no paging). */
+export interface ListingParams {
 	sort?: SortField;
 	dir?: SortDirection;
 	source_id?: number;
 	collection_id?: number;
 	filters?: FilterState;
 	show_nsfw?: boolean;
-} = {}): Promise<ImagePage> {
+}
+
+/** The query string the backend reads a listing from. */
+export function listingQuery(params: ListingParams): URLSearchParams {
 	const q = new URLSearchParams();
-	if (params.cursor) q.set('cursor', params.cursor);
-	if (params.limit) q.set('limit', String(params.limit));
 	if (params.sort) q.set('sort', params.sort);
 	if (params.dir) q.set('dir', params.dir);
 	if (params.source_id) q.set('source_id', String(params.source_id));
@@ -54,7 +55,28 @@ export function listImages(params: {
 		if (f.media_type) q.set('media_type', f.media_type);
 		if (f.tags) f.tags.forEach((t) => q.append('tags', t));
 	}
-	return fetchJSON(`${BASE}/images?${q}`);
+	return q;
+}
+
+export function listImages(
+	params: ListingParams & { cursor?: string | null; limit?: number } = {},
+	init?: RequestInit
+): Promise<ImagePage> {
+	const q = listingQuery(params);
+	if (params.cursor) q.set('cursor', params.cursor);
+	if (params.limit) q.set('limit', String(params.limit));
+	return fetchJSON(`${BASE}/images?${q}`, init);
+}
+
+/** Up to `window` images either side of `hash` in a listing, with its place in it. */
+export function getNeighbors(
+	hash: string,
+	params: ListingParams & { window?: number } = {},
+	init?: RequestInit
+): Promise<Neighbors> {
+	const q = listingQuery(params);
+	if (params.window) q.set('window', String(params.window));
+	return fetchJSON(`${BASE}/images/${hash}/neighbors?${q}`, init);
 }
 
 export function getImage(hash: string): Promise<ImageDetail> {
