@@ -13,6 +13,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from thalimage.api import collections, docs, elo, images, sources, tags, version
 from thalimage.api import settings as user_settings
 from thalimage.config import get_settings
+from thalimage.csrf import CrossSiteWriteGuard
 from thalimage.db.engine import connect, migrate
 from thalimage.services.scan_manager import ScanManager
 from thalimage.version import version_info
@@ -46,16 +47,19 @@ def create_app() -> FastAPI:
         docs_url="/api/docs",
         redoc_url="/api/redoc",
         openapi_url="/api/openapi.json",
+        # A JSON body must be sent as application/json. A cross-site form can
+        # only send "simple" content types, so this keeps JSON endpoints out
+        # of its reach without a preflight. FastAPI's default today, but not
+        # in every release the dependency range once allowed.
+        strict_content_type=True,
     )
 
     config = get_settings()
 
     # Reject requests with an unexpected Host header (DNS-rebinding defense).
     # Loopback is always allowed; operators add the hostnames clients use.
-    app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", *config.allowed_hosts],
-    )
+    allowed_hosts = ["localhost", "127.0.0.1", *config.allowed_hosts]
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
     cors_origins = config.cors_origins
     if cors_origins:
@@ -65,6 +69,14 @@ def create_app() -> FastAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+    # Added last, so it runs first: a foreign page's write is refused before
+    # CORS or routing see it (SEC-002).
+    app.add_middleware(
+        CrossSiteWriteGuard,
+        allowed_hosts=allowed_hosts,
+        allowed_origins=cors_origins,
+    )
 
     app.include_router(sources.router, prefix="/api/v1")
     app.include_router(images.router, prefix="/api/v1")
