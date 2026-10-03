@@ -165,6 +165,45 @@ overview, ranking by vote, image delivery, scanning. The ELO bias above
 is documented there rather than silently fixed — the fix itself is still
 open.
 
+## Phase 5.5 — Deployment ✓
+
+The MVP bullet above credits "Docker deployment" to Sprint 5, but that
+setup was never rebuilt afterwards and had drifted: the image copied the
+backend source without the `backend/` level, so the four-parent path math
+in `app.py` and `version.py` resolved outside the app and the container
+served the API with no SPA; `uv sync` ran before the source was copied;
+the builder was on Node 22 against an `engines` floor of 24 with
+`engineStrict` on; and the entrypoint's group creation collided with any
+GID already in the base image.
+
+What this pass delivers:
+
+- **Image published to GHCR** by `.github/workflows/docker.yml` on pushes
+  to main and `v*` tags, `linux/amd64`, with `THALIMAGE_COMMIT` passed as
+  a build arg so both the API and the bundle report the build they came
+  from. `.github/workflows/ci.yml` runs `check.sh` on push and PR.
+- **Dockerfile rebuilt** — repo layout preserved inside the image, a
+  two-pass `uv sync` around the source copy, a healthcheck on
+  `/api/v1/version`, and the `[project.scripts]` console script as CMD.
+  A `.dockerignore` keeps the context to what the build needs.
+- **Tailnet-only stack.** `docker/docker-compose.yml` runs a
+  `tailscale/tailscale` sidecar with the app on
+  `network_mode: service:tailscale`; `tailscale serve` terminates TLS.
+  Nothing is published to the host, so the app is unreachable from the
+  LAN, and Tailscale does not need to be on the Docker host.
+- **Bind-mounted data directory** holding the database, both cache trees
+  and the Tailscale node state.
+
+Traefik was considered and not used: it would have needed a tailnet-bound
+entrypoint on the shared homelab stack, a DNS record, and Tailscale on
+the Traefik host. Revisit only if the homelab standardises on one proxy —
+it would mean dropping `network_mode: service:tailscale` so the app can
+rejoin a Docker network.
+
+Not addressed, and still true: **there is no authentication in the app**.
+The tailnet is the entire access boundary. Narrowing to specific devices
+is a Tailscale ACL question. In-app auth remains a Phase 8 item.
+
 ## Phase 6 — Perceptual Dedup
 - Perceptual hashing at scan time (pHash/dHash)
 - Near-duplicate detection (configurable distance threshold)

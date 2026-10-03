@@ -36,6 +36,14 @@ make dev          # Run backend dev server
 - All dates stored as ISO 8601 text in SQLite
 - TDD: tests first, then implementation
 
+## Deployment
+
+- `docker/` — Dockerfile, the Portainer-ready compose sample (Tailscale
+  sidecar + app), `serve.json`, `.env.example`
+- `.github/workflows/docker.yml` — builds and publishes
+  `ghcr.io/rki027/thalimage`; `ci.yml` runs `check.sh`
+- See the Deployment section of `README.md` for the operational details
+
 ## Documentation
 
 - `docs/agent/phases.md` — **current** roadmap and backlog

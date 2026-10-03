@@ -1,0 +1,28 @@
+# The build context is the repo root; keep it to the sources the image
+# actually needs. frontend/build in particular must be excluded, or a
+# stale local bundle overwrites the one the builder stage produces.
+#
+# Patterns are matched from the context root and "*" does not cross "/",
+# so the top-level entries below leave backend/src/thalimage/docs/*.md
+# (served by the in-app /docs route) in place.
+.git
+.github
+docs
+*.md
+*.el
+.dir-locals.el
+.claude
+
+**/node_modules
+frontend/build
+frontend/.svelte-kit
+frontend/.vscode
+
+backend/.venv
+**/__pycache__
+**/*.pyc
+**/.mypy_cache
+**/.ruff_cache
+**/.pytest_cache
+
+**/.DS_Store
