@@ -6,6 +6,7 @@ FROM node:24-slim AS frontend-build
 ARG THALIMAGE_COMMIT=""
 ENV THALIMAGE_COMMIT=$THALIMAGE_COMMIT
 
+# Installs the pnpm version pinned by packageManager in package.json.
 RUN corepack enable pnpm
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
@@ -27,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && command -v groupadd && command -v useradd
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.12.22 /uv /usr/local/bin/uv
 
 # The repo layout is preserved on purpose: app.py derives the SPA
 # directory, and version.py its repo root, from four parents above
