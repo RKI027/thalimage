@@ -5,15 +5,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 
-def _seed_images(client: TestClient, image_dir: Path) -> list[str]:
-    resp = client.post("/api/v1/sources", json={"path": str(image_dir)})
-    source_id = resp.json()["id"]
-    client.post(f"/api/v1/sources/{source_id}/scan")
-    # The status stream closes once the scan reaches its terminal phase.
-    client.get(f"/api/v1/sources/{source_id}/scan/status")
-
-    resp = client.get("/api/v1/images")
-    return [img["content_hash"] for img in resp.json()["items"]]
+from tests.helpers import scan_source
 
 
 def test_list_collections_empty(client: TestClient) -> None:
@@ -70,7 +62,7 @@ def test_delete_collection_not_found(client: TestClient) -> None:
 
 
 def test_add_images_to_collection(client: TestClient, image_dir: Path) -> None:
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
     resp = client.post("/api/v1/collections", json={"name": "Album"})
     cid = resp.json()["id"]
 
@@ -83,7 +75,7 @@ def test_add_images_to_collection(client: TestClient, image_dir: Path) -> None:
 
 
 def test_add_images_count_excludes_duplicates(client: TestClient, image_dir: Path) -> None:
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
     cid = client.post("/api/v1/collections", json={"name": "Album"}).json()["id"]
 
     client.post(f"/api/v1/collections/{cid}/images", json={"hashes": hashes[:2]})
@@ -96,7 +88,7 @@ def test_add_images_count_excludes_duplicates(client: TestClient, image_dir: Pat
 
 
 def test_remove_images_from_collection(client: TestClient, image_dir: Path) -> None:
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
     resp = client.post("/api/v1/collections", json={"name": "Album"})
     cid = resp.json()["id"]
 
@@ -132,7 +124,7 @@ def test_update_collection_sort_persists(client: TestClient) -> None:
 
 
 def test_filter_images_by_collection(client: TestClient, image_dir: Path) -> None:
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
     resp = client.post("/api/v1/collections", json={"name": "Subset"})
     cid = resp.json()["id"]
     client.post(f"/api/v1/collections/{cid}/images", json={"hashes": [hashes[0]]})

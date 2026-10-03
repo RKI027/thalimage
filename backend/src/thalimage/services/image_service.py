@@ -6,6 +6,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from thalimage.services.locations import in_source_sql, resolve_paths
+
 
 class ImageSummary(BaseModel):
     content_hash: str
@@ -135,7 +137,7 @@ def list_images(
     def _apply_filters(q: str, p: list[object]) -> tuple[str, list[object]]:
         """Append WHERE clauses for optional filters."""
         if source_id is not None:
-            q += " AND source_id = ?"
+            q += f" AND {in_source_sql()}"
             p.append(source_id)
         if collection_id is not None:
             q += " AND content_hash IN (SELECT content_hash FROM collection_images WHERE collection_id = ?)"
@@ -163,11 +165,12 @@ def list_images(
                 " AND content_hash NOT IN ("
                 "SELECT ci.content_hash FROM collection_images ci"
                 " JOIN collections c ON c.id = ci.collection_id WHERE c.nsfw = 1)"
-                # ...or if the image's source has an NSFW source-preset collection
+                # ...or if it lies in a source whose preset collection is NSFW
                 # (presets have no collection_images rows; they match by source).
-                " AND source_id NOT IN ("
-                "SELECT source_id FROM collections"
-                " WHERE type = 'source_preset' AND nsfw = 1 AND source_id IS NOT NULL)"
+                " AND content_hash NOT IN ("
+                "SELECT l.content_hash FROM image_locations l"
+                " JOIN collections c ON c.source_id = l.source_id"
+                " WHERE c.type = 'source_preset' AND c.nsfw = 1)"
             )
         return q, p
 
@@ -263,15 +266,10 @@ def set_archived(
 def resolve_file_path(
     conn: sqlite3.Connection, content_hash: str
 ) -> Optional[str]:
-    """Resolve the full file path for an image."""
-    row = conn.execute(
-        """SELECT s.path, i.relative_path
-           FROM images i JOIN sources s ON i.source_id = s.id
-           WHERE i.content_hash = ? AND i.deleted = 0""",
-        (content_hash,),
-    ).fetchone()
-
-    if row is None:
+    """Resolve the full file path for an image: its primary location, or
+    another copy if that file has gone missing since the last scan.
+    None if the image is unknown or deleted."""
+    paths = resolve_paths(conn, content_hash)
+    if not paths:
         return None
-
-    return str(Path(row["path"]) / row["relative_path"])
+    return next((p for p in paths if Path(p).is_file()), paths[0])
