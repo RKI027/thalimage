@@ -1,20 +1,16 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
-	import { goto, beforeNavigate } from '$app/navigation';
-	import { listImages, getCollection as fetchCollection, updateCollection } from '$lib/api';
+	import { beforeNavigate } from '$app/navigation';
+	import { getCollection as fetchCollection, updateCollection } from '$lib/api';
 	import { setBrowsingContext, saveScrollPosition, getScrollPosition } from '$lib/browsingContext';
+	import { Gallery, collectionFiltersKey } from '$lib/gallery.svelte';
+	import { readStored, writeStored } from '$lib/storage';
 	import { settingsStore } from '$lib/stores';
-	import type { ImageSummary, Collection } from '$lib/types';
-	import { responsiveThumbSize } from '$lib/mobileStore.svelte';
-	import { slideshowStore } from '$lib/slideshowStore.svelte';
+	import type { Collection, FilterState, SortField, SortDirection } from '$lib/types';
 	import ImageGrid from '$lib/components/ImageGrid.svelte';
 	import GridToolbar from '$lib/components/GridToolbar.svelte';
-	import type { FilterState, SortField, SortDirection } from '$lib/types';
 
-	let images: ImageSummary[] = $state([]);
-	let totalCount = $state(0);
-	let nextCursor: string | null = $state(null);
 	let collection = $state<Collection | null>(null);
 
 	const backHref = $derived(collection !== null && collection.type === 'source_preset' ? '/' : '/collections');
@@ -22,11 +18,16 @@
 	let sort: SortField = $state('name');
 	let dir: SortDirection = $state('asc');
 	let filters: FilterState = $state({});
-	let thumbSize = $state(Number(localStorage.getItem('thumbSize')) || 200);
-	let loading = $state(false);
 	let currentScrollTop = $state(0);
 	let restoredScrollTop = $state(0);
-	$effect(() => { localStorage.setItem('thumbSize', String(thumbSize)); });
+
+	const gallery = new Gallery(() => ({
+		sort,
+		dir,
+		collection_id: collectionId(),
+		filters,
+		show_nsfw: $settingsStore.show_nsfw
+	}));
 
 	beforeNavigate(() => {
 		saveScrollPosition(currentScrollTop);
@@ -36,67 +37,39 @@
 		return Number($page.params.id);
 	}
 
-	async function fetchImages(reset = false) {
-		if (loading) return;
-		loading = true;
-		try {
-			const pg = await listImages({
-				cursor: reset ? undefined : (nextCursor ?? undefined),
-				limit: 500,
-				sort,
-				dir,
-				collection_id: collectionId(),
-				filters,
-				show_nsfw: $settingsStore.show_nsfw
-			});
-			images = reset ? pg.items : [...images, ...pg.items];
-			totalCount = pg.total_count;
-			nextCursor = pg.next_cursor;
-		} finally {
-			loading = false;
-		}
+	// The viewer walks prev/next through exactly this listing.
+	function rememberContext() {
+		if (!collection) return;
+		setBrowsingContext({
+			type: 'collection',
+			collectionId: collection.id,
+			name: collection.name,
+			filters,
+			sort,
+			dir
+		});
 	}
 
 	async function loadCollectionAndImages() {
+		const id = collectionId();
 		restoredScrollTop = getScrollPosition();
-		collection = await fetchCollection(collectionId());
-		filters = JSON.parse(localStorage.getItem(`collection:${collectionId()}:filters`) ?? '{}');
-		if (collection) {
-			sort = collection.sort_by as SortField;
-			dir = collection.sort_dir as SortDirection;
-			setBrowsingContext({
-				type: 'collection',
-				collectionId: collection.id,
-				name: collection.name,
-				filters,
-				sort,
-				dir
-			});
-		}
-		await fetchImages(true);
-	}
-
-	function startSlideshow() {
-		if (images.length === 0) return;
-		slideshowStore.scheduleStart();
-		goto(`/image/${images[0].content_hash}`);
+		const loaded = await fetchCollection(id);
+		if (id !== collectionId()) return; // navigated on meanwhile
+		collection = loaded;
+		filters = readStored<FilterState>(collectionFiltersKey(id), {});
+		sort = loaded.sort_by as SortField;
+		dir = loaded.sort_dir as SortDirection;
+		rememberContext();
+		// Supersedes anything the previous collection still has in flight.
+		await gallery.reset();
 	}
 
 	function onSortChange(newSort: SortField, newDir: SortDirection) {
 		sort = newSort;
 		dir = newDir;
-		fetchImages(true);
-		if (collection) {
-			setBrowsingContext({
-				type: 'collection',
-				collectionId: collection.id,
-				name: collection.name,
-				filters,
-				sort,
-				dir
-			});
-			updateCollection(collection.id, { sort_by: newSort, sort_dir: newDir });
-		}
+		gallery.reset();
+		rememberContext();
+		if (collection) updateCollection(collection.id, { sort_by: newSort, sort_dir: newDir });
 	}
 
 	async function toggleNsfw() {
@@ -107,18 +80,9 @@
 
 	function onFilterChange(newFilters: FilterState) {
 		filters = newFilters;
-		localStorage.setItem(`collection:${collectionId()}:filters`, JSON.stringify(newFilters));
-		if (collection) {
-			setBrowsingContext({
-				type: 'collection',
-				collectionId: collection.id,
-				name: collection.name,
-				filters: newFilters,
-				sort,
-				dir
-			});
-		}
-		fetchImages(true);
+		writeStored(collectionFiltersKey(collectionId()), newFilters);
+		rememberContext();
+		gallery.reset();
 	}
 
 	$effect(() => {
@@ -131,20 +95,10 @@
 	// Re-fetch when show_nsfw setting changes (skip before collection is loaded)
 	$effect(() => {
 		const _ = $settingsStore.show_nsfw;
-		untrack(() => { if (collection !== null) fetchImages(true); });
+		untrack(() => { if (collection !== null) gallery.reset(); });
 	});
 
-	// Responsive thumb size on mobile
-	$effect(() => {
-		function updateThumbSize() {
-			if (window.innerWidth <= 768) {
-				thumbSize = responsiveThumbSize();
-			}
-		}
-		updateThumbSize();
-		window.addEventListener('resize', updateThumbSize);
-		return () => window.removeEventListener('resize', updateThumbSize);
-	});
+	$effect(() => gallery.followViewport());
 
 </script>
 
@@ -152,17 +106,17 @@
 	{sort}
 	{dir}
 	{filters}
-	bind:thumbSize
-	count={totalCount}
-	{loading}
-	disabled={images.length === 0}
+	bind:thumbSize={gallery.thumbSize}
+	count={gallery.totalCount}
+	loading={gallery.loading}
+	disabled={gallery.images.length === 0}
 	allowElo
 	title={collection?.name ?? ''}
 	leftType="back"
 	{backHref}
 	{onSortChange}
 	{onFilterChange}
-	onStartSlideshow={startSlideshow}
+	onStartSlideshow={() => gallery.startSlideshow()}
 >
 	{#snippet desktopLeading()}
 		<div class="left">
@@ -196,16 +150,26 @@
 	{/snippet}
 </GridToolbar>
 
+{#if gallery.error}
+	<div class="status error">{gallery.error}</div>
+{/if}
+
 <ImageGrid
-	{images}
-	{totalCount}
-	thumbSize={thumbSize}
+	images={gallery.images}
+	totalCount={gallery.totalCount}
+	thumbSize={gallery.thumbSize}
 	initialScrollTop={restoredScrollTop}
-	onLoadMore={() => nextCursor && fetchImages()}
+	onLoadMore={() => gallery.loadMore()}
 	onScroll={(s) => { currentScrollTop = s; }}
 />
 
 <style>
+	.status.error {
+		padding: 24px;
+		text-align: center;
+		color: #f66;
+	}
+
 	.left {
 		display: flex;
 		align-items: center;
