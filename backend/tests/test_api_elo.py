@@ -4,28 +4,15 @@ import sqlite3
 
 from fastapi.testclient import TestClient
 
+from tests.helpers import insert_image
+
 
 def _seed_collection(client: TestClient, db: sqlite3.Connection) -> tuple[int, list[str]]:
     """Create a collection with images directly in DB (no async scan needed)."""
-    db.execute(
-        "INSERT INTO sources (path, label, recursive) VALUES (?, ?, ?)",
-        ("/test", "test", True),
-    )
-
-    hashes = []
-    for i in range(5):
-        h = f"elohash_{i:04d}"
-        db.execute(
-            """INSERT INTO images
-               (content_hash, filename, source_id, relative_path,
-                file_size, width, height, aspect_ratio, format,
-                file_modified, thumb_generated)
-               VALUES (?, ?, 1, ?, 1000, 100, 100, 1.0, 'PNG', '2024-01-01T00:00:00', 1)
-            """,
-            (h, f"img_{i}.png", f"img_{i}.png"),
-        )
-        hashes.append(h)
-    db.commit()
+    hashes = [
+        insert_image(db, f"elohash_{i:04d}", filename=f"img_{i}.png", thumb_generated=True)
+        for i in range(5)
+    ]
 
     resp = client.post("/api/v1/collections", json={"name": "ELO Test"})
     cid = resp.json()["id"]
@@ -210,16 +197,7 @@ def test_concurrent_votes_match_a_serial_replay(tmp_path) -> None:
     path = tmp_path / "race.db"
     setup = connect(path)
     migrate(setup)
-    setup.execute("INSERT INTO sources (path) VALUES ('/x')")
-    hashes = [c * 64 for c in "abc"]
-    for h in hashes:
-        setup.execute(
-            """INSERT INTO images (content_hash, filename, source_id, relative_path,
-                   file_size, width, height, aspect_ratio, format, file_modified,
-                   thumb_generated)
-               VALUES (?, ?, 1, ?, 1, 1, 1, 1.0, 'PNG', '2024-01-01', 0)""",
-            (h, h, h),
-        )
+    hashes = [insert_image(setup, c * 64) for c in "abc"]
     setup.execute("INSERT INTO collections (name) VALUES ('c')")
     setup.executemany(
         "INSERT INTO collection_images (collection_id, content_hash) VALUES (1, ?)",

@@ -7,12 +7,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 
-def _scan_new_source(client: TestClient, folder: Path) -> tuple[int, list[str]]:
-    source_id = client.post("/api/v1/sources", json={"path": str(folder)}).json()["id"]
-    client.post(f"/api/v1/sources/{source_id}/scan")
-    client.get(f"/api/v1/sources/{source_id}/scan/status")  # closes when done
-    items = client.get("/api/v1/images", params={"source_id": source_id}).json()["items"]
-    return source_id, sorted(i["content_hash"] for i in items)
+from tests.helpers import scan_source
 
 
 def _preset_id(client: TestClient, source_id: int) -> int:
@@ -33,7 +28,7 @@ def _count(db: sqlite3.Connection, sql: str, *params: object) -> int:
 
 
 def test_delete_collection_with_votes(client: TestClient, image_dir: Path) -> None:
-    _, hashes = _scan_new_source(client, image_dir)
+    _, hashes = scan_source(client, image_dir)
     coll = client.post("/api/v1/collections", json={"name": "ranked"}).json()["id"]
     client.post(f"/api/v1/collections/{coll}/images", json={"hashes": hashes})
     _vote(client, coll, hashes[0], hashes[1])
@@ -45,7 +40,7 @@ def test_delete_collection_with_votes(client: TestClient, image_dir: Path) -> No
 def test_delete_collection_removes_only_its_elo_rows(
     client: TestClient, db: sqlite3.Connection, image_dir: Path
 ) -> None:
-    _, hashes = _scan_new_source(client, image_dir)
+    _, hashes = scan_source(client, image_dir)
     gone = client.post("/api/v1/collections", json={"name": "gone"}).json()["id"]
     kept = client.post("/api/v1/collections", json={"name": "kept"}).json()["id"]
     for c in (gone, kept):
@@ -81,8 +76,8 @@ def test_delete_source_removes_its_data_and_nothing_else(
         Image.new("RGB", (10 + i, 10), color).save(dir_a / f"a{i}.png")
     for i, color in enumerate(("blue", "yellow", "purple")):
         Image.new("RGB", (10 + i, 12), color).save(dir_b / f"b{i}.png")
-    src_a, a = _scan_new_source(client, dir_a)
-    src_b, b = _scan_new_source(client, dir_b)
+    src_a, a = scan_source(client, dir_a)
+    src_b, b = scan_source(client, dir_b)
     preset_a, preset_b = _preset_id(client, src_a), _preset_id(client, src_b)
 
     # A manual collection spanning both sources, with votes inside each

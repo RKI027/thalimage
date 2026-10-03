@@ -16,22 +16,7 @@ from thalimage.services.tag_service import (
 )
 
 
-def _seed_image(conn: sqlite3.Connection, hash_: str = "abc123") -> str:
-    conn.execute(
-        "INSERT OR IGNORE INTO sources (path, label, recursive) VALUES (?, ?, ?)",
-        ("/test", "test", True),
-    )
-    conn.execute(
-        """INSERT INTO images
-           (content_hash, filename, source_id, relative_path,
-            file_size, width, height, aspect_ratio, format,
-            file_modified, thumb_generated)
-           VALUES (?, ?, 1, ?, 1000, 100, 100, 1.0, 'PNG', '2024-01-01T00:00:00', 0)
-        """,
-        (hash_, f"{hash_}.png", f"{hash_}.png"),
-    )
-    conn.commit()
-    return hash_
+from tests.helpers import insert_image
 
 
 # --- Tag CRUD ---
@@ -114,7 +99,7 @@ def test_delete_tag_missing_returns_false(db: sqlite3.Connection) -> None:
 
 
 def test_add_and_get_image_tags(db: sqlite3.Connection) -> None:
-    hash_ = _seed_image(db)
+    hash_ = insert_image(db, "abc123")
     tag = create_tag(db, "nature")
     add_image_tag(db, hash_, tag.id)
     tags = get_image_tags(db, hash_)
@@ -123,12 +108,12 @@ def test_add_and_get_image_tags(db: sqlite3.Connection) -> None:
 
 
 def test_get_image_tags_empty(db: sqlite3.Connection) -> None:
-    hash_ = _seed_image(db)
+    hash_ = insert_image(db, "abc123")
     assert get_image_tags(db, hash_) == []
 
 
 def test_add_image_tag_duplicate_is_idempotent(db: sqlite3.Connection) -> None:
-    hash_ = _seed_image(db)
+    hash_ = insert_image(db, "abc123")
     tag = create_tag(db, "nature")
     add_image_tag(db, hash_, tag.id)
     add_image_tag(db, hash_, tag.id)  # second add must not raise
@@ -136,7 +121,7 @@ def test_add_image_tag_duplicate_is_idempotent(db: sqlite3.Connection) -> None:
 
 
 def test_remove_image_tag(db: sqlite3.Connection) -> None:
-    hash_ = _seed_image(db)
+    hash_ = insert_image(db, "abc123")
     tag = create_tag(db, "nature")
     add_image_tag(db, hash_, tag.id)
     assert remove_image_tag(db, hash_, tag.id) is True
@@ -144,12 +129,12 @@ def test_remove_image_tag(db: sqlite3.Connection) -> None:
 
 
 def test_remove_image_tag_missing_returns_false(db: sqlite3.Connection) -> None:
-    hash_ = _seed_image(db)
+    hash_ = insert_image(db, "abc123")
     assert remove_image_tag(db, hash_, 9999) is False
 
 
 def test_delete_tag_cascades_to_image_tags(db: sqlite3.Connection) -> None:
-    hash_ = _seed_image(db)
+    hash_ = insert_image(db, "abc123")
     tag = create_tag(db, "nature")
     add_image_tag(db, hash_, tag.id)
     delete_tag(db, tag.id)
@@ -157,7 +142,7 @@ def test_delete_tag_cascades_to_image_tags(db: sqlite3.Connection) -> None:
 
 
 def test_delete_image_cascades_to_image_tags(db: sqlite3.Connection) -> None:
-    hash_ = _seed_image(db)
+    hash_ = insert_image(db, "abc123")
     tag = create_tag(db, "nature")
     add_image_tag(db, hash_, tag.id)
     db.execute("DELETE FROM images WHERE content_hash = ?", (hash_,))
@@ -175,9 +160,9 @@ def test_list_images_tag_filter(db: sqlite3.Connection) -> None:
     """list_images with tags= returns only images carrying all specified tags."""
     from thalimage.services.image_service import list_images
 
-    h1 = _seed_image(db, "h001")
-    h2 = _seed_image(db, "h002")
-    _seed_image(db, "h003")
+    h1 = insert_image(db, "h001")
+    h2 = insert_image(db, "h002")
+    insert_image(db, "h003")
 
     t1 = create_tag(db, "nature")
     t2 = create_tag(db, "portrait")
@@ -201,7 +186,7 @@ def test_list_images_tag_filter(db: sqlite3.Connection) -> None:
 def test_list_images_no_tag_filter_returns_all(db: sqlite3.Connection) -> None:
     from thalimage.services.image_service import list_images
 
-    _seed_image(db, "x001")
-    _seed_image(db, "x002")
+    insert_image(db, "x001")
+    insert_image(db, "x002")
     page = list_images(db)
     assert page.total_count == 2
