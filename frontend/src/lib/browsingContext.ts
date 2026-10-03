@@ -54,12 +54,6 @@ export function getScrollPosition(): number {
 	return scrollPositions[key] ?? 0;
 }
 
-export function clearScrollPosition(): void {
-	const ctx = get(browsingContext);
-	const key = contextKey(ctx);
-	delete scrollPositions[key];
-	writeStored(SCROLL_KEY, scrollPositions, 'session');
-}
 
 export function backDestination(ctx: BrowsingContext | null): string {
 	if (!ctx) return '/';
