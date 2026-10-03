@@ -1,8 +1,8 @@
 <script lang="ts">
+	import { isVideoFilename } from '$lib/media';
 	import { imageFileUrl, previewUrl, thumbUrl } from '$lib/api';
 	import { readStored, writeStored } from '$lib/storage';
 
-	const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.avi']);
 
 	let {
 		hash,
@@ -22,9 +22,7 @@
 		videoEl?: HTMLVideoElement | null;
 	} = $props();
 
-	const isVideo = $derived(
-		VIDEO_EXTENSIONS.has(filename.slice(filename.lastIndexOf('.')).toLowerCase())
-	);
+	const isVideo = $derived(isVideoFilename(filename));
 
 	let loaded = $state(false);
 	// Reset the loading state whenever the source changes.

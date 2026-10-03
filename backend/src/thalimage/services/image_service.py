@@ -7,6 +7,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from thalimage.core.video import VIDEO_EXTENSIONS
 from thalimage.services.locations import in_source_sql, resolve_paths
 
 
@@ -88,7 +89,7 @@ SORT_COLUMNS = {
 }
 
 # Video formats as stored in the format column (file extension, uppercase)
-VIDEO_FORMATS = {"MP4", "MOV", "WEBM", "AVI"}
+VIDEO_FORMATS = {ext.lstrip(".").upper() for ext in VIDEO_EXTENSIONS}
 
 ASPECT_RATIO_FILTERS: dict[str, str] = {
     "portrait": "aspect_ratio < 0.9",
