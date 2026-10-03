@@ -19,11 +19,12 @@ def spa_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     # A file that lives outside the build dir and must never be served.
     (tmp_path / "secret.txt").write_text("SECRET")
 
-    monkeypatch.setattr(app_module, "FRONTEND_DIR", build)
     # Pin settings so the Host allowlist is deterministic regardless of any
     # local config.toml. init kwargs take precedence over env/toml sources.
     monkeypatch.setattr(
-        app_module, "get_settings", lambda: Settings(allowed_hosts=[], cors_origins=[])
+        app_module,
+        "get_settings",
+        lambda: Settings(allowed_hosts=[], cors_origins=[], frontend_dir=build),
     )
     # Construct without the context manager so lifespan (which opens the real
     # DB) does not run; the static fallback does not need app state.
@@ -91,3 +92,22 @@ def test_openapi_explorer_lives_under_the_api_prefix(spa_client: TestClient) -> 
 def test_docs_url_is_left_to_the_frontend(spa_client: TestClient) -> None:
     resp = spa_client.get("/docs")
     assert resp.text == "INDEX"
+
+
+def test_missing_frontend_build_is_logged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """PKG-001: an install without the SPA used to serve the API silently."""
+    missing = tmp_path / "nowhere"
+    monkeypatch.setattr(app_module, "get_settings", lambda: Settings(frontend_dir=missing))
+    with caplog.at_level("WARNING", logger="thalimage.app"):
+        client = TestClient(app_module.create_app(), base_url="http://127.0.0.1")
+    assert any(str(missing) in r.getMessage() for r in caplog.records)
+    assert client.get("/").status_code == 404
+
+
+def test_frontend_dir_defaults_to_the_checkout_build() -> None:
+    from thalimage.paths import REPO_ROOT
+
+    assert Settings().resolved_frontend_dir == REPO_ROOT / "frontend" / "build"
+    assert (REPO_ROOT / "backend" / "pyproject.toml").is_file()

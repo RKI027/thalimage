@@ -30,10 +30,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=ghcr.io/astral-sh/uv:0.12.22 /uv /usr/local/bin/uv
 
-# The repo layout is preserved on purpose: app.py derives the SPA
-# directory, and version.py its repo root, from four parents above
-# backend/src/thalimage/. Flattening away the backend/ level makes the
-# app serve the API only.
+# The app finds the SPA through THALIMAGE_FRONTEND_DIR (set below), so
+# it serves the UI whether the project is installed editable (uv sync's
+# default) or not. Without it, the default is frontend/build in a source
+# checkout, which an installed package does not have.
 WORKDIR /app/backend
 
 # Dependencies first, without the project itself — its source has not
@@ -49,6 +49,7 @@ COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENV THALIMAGE_DATA_DIR=/data
+ENV THALIMAGE_FRONTEND_DIR=/app/frontend/build
 ENV THALIMAGE_HOST=0.0.0.0
 ENV THALIMAGE_PORT=8000
 
