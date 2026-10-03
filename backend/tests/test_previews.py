@@ -80,3 +80,38 @@ def test_generate_preview_flattens_transparency(tmp_path: Path) -> None:
     path = generate_preview(src, tmp_path / "previews", "abcd", 1280)
 
     assert path.exists()
+
+
+def test_concurrent_generation_of_one_preview_all_succeed(tmp_path: Path) -> None:
+    """GEN-017: the viewer and a prefetch can ask for the same preview at
+    once; each request must succeed and leave a complete file behind."""
+    import threading
+
+    src = tmp_path / "big.png"
+    Image.new("RGB", (3000, 2000), "purple").save(src)
+    preview_dir = tmp_path / "previews"
+    n = 8
+    barrier = threading.Barrier(n)
+    errors: list[BaseException] = []
+
+    def worker() -> None:
+        barrier.wait()
+        try:
+            generate_preview(src, preview_dir, "h" * 64, 1280)
+        except BaseException as exc:  # noqa: BLE001 - collected for the assert
+            errors.append(exc)
+
+    for _ in range(3):
+        for p in preview_dir.rglob("*"):
+            if p.is_file():
+                p.unlink()
+        threads = [threading.Thread(target=worker) for _ in range(n)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert errors == []
+        with Image.open(preview_path(preview_dir, "h" * 64, 1280)) as out:
+            out.load()
+            assert out.size == (1280, 853)
+        assert [p.name for p in preview_dir.rglob("*.tmp")] == []

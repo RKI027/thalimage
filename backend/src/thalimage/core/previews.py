@@ -5,11 +5,12 @@ enough to fill a screen, small enough to send over a slow link. They are
 generated on first request and cached on disk, one file per size bucket.
 """
 
-import os
 from bisect import bisect_left
 from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
+
+from thalimage.core.webp import write_webp
 
 PREVIEW_SIZES: tuple[int, ...] = (1280, 1920, 2560)
 
@@ -51,24 +52,8 @@ def generate_preview(
     try:
         with Image.open(image_path) as opened:
             opened.load()
-            # WebP encodes RGB/RGBA only; P and LA sources must be converted.
-            if opened.mode in ("RGB", "RGBA"):
-                img = opened.copy()
-            else:
-                img = opened.convert("RGBA" if "A" in opened.mode else "RGB")
+            img = opened.copy()
     except (UnidentifiedImageError, OSError) as exc:
         raise ValueError(f"Cannot generate a preview for {image_path}") from exc
 
-    img.thumbnail((size, size), Image.Resampling.LANCZOS)
-
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    # Write via a temp file so a concurrent request never reads a
-    # half-written preview.
-    tmp = dest.with_suffix(f".{os.getpid()}.tmp")
-    try:
-        img.save(tmp, format="WEBP", quality=quality, method=4)
-        tmp.replace(dest)
-    finally:
-        tmp.unlink(missing_ok=True)
-
-    return dest
+    return write_webp(img, dest, max_size=size, quality=quality)

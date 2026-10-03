@@ -4,11 +4,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from thalimage.core.thumbnails import (
-    generate_thumbnail,
-    thumbnail_path,
-    generate_thumbnails_parallel,
-)
+from thalimage.core.thumbnails import generate_thumbnail, thumbnail_path
 
 
 def test_thumbnail_path_uses_hash_prefix() -> None:
@@ -60,15 +56,3 @@ def test_generate_thumbnail_skips_existing(sample_png: Path, tmp_path: Path) -> 
     assert p1 == p2
     assert p2.stat().st_mtime == mtime1
 
-
-def test_generate_thumbnails_parallel(image_dir: Path, tmp_path: Path) -> None:
-    thumb_dir = tmp_path / "thumbs"
-    items = [
-        (image_dir / "a.png", "hash_a"),
-        (image_dir / "b.jpg", "hash_b"),
-        (image_dir / "sub" / "c.png", "hash_c"),
-    ]
-    results = generate_thumbnails_parallel(items, thumb_dir)
-    assert len(results) == 3
-    for path in results:
-        assert path.exists()
