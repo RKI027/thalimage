@@ -10,7 +10,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from thalimage.api import collections, docs, elo, images, settings, sources, tags, version
+from thalimage.api import collections, docs, elo, images, sources, tags, version
+from thalimage.api import settings as user_settings
 from thalimage.config import get_settings
 from thalimage.db.engine import connect, migrate
 from thalimage.services.scan_manager import ScanManager
@@ -70,7 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(collections.router, prefix="/api/v1")
     app.include_router(elo.router, prefix="/api/v1")
     app.include_router(tags.router, prefix="/api/v1")
-    app.include_router(settings.router, prefix="/api/v1")
+    app.include_router(user_settings.router, prefix="/api/v1")
     app.include_router(docs.router, prefix="/api/v1")
     app.include_router(version.router, prefix="/api/v1")
 
