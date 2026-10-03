@@ -75,35 +75,41 @@ docker compose up -d
 
 ### Storage
 
-Everything the app owns lives under one host directory (`THALIMAGE_DATA`,
-`/srv/thalimage` by default), mounted at `/data`:
+Everything the stack owns lives under one host directory
+(`THALIMAGE_DATA`, `/srv/thalimage` by default), split in two siblings:
 
 ```
-thalimage.db  (+ -wal, -shm)   SQLite, WAL mode
-cache/thumbs/                  400px WebP thumbnails
-cache/previews/{size}/         long-edge-capped WebP, generated on demand
-tailscale/                     Tailscale node state
+app/                           mounted at /data in the app container
+  thalimage.db  (+ -wal, -shm) SQLite, WAL mode
+  cache/thumbs/                400px WebP thumbnails
+  cache/previews/{size}/       long-edge-capped WebP, generated on demand
+tailscale/                     Tailscale node state, sidecar only
 ```
+
+They are siblings on purpose: the app's entrypoint hands `/data` to the
+app user on every start, and the Tailscale node keys must stay root-owned
+and out of the app container.
 
 This is what to back up. Because the database is in WAL mode, copying
 `thalimage.db` alone is not enough — either stop the container first, or
-use `sqlite3 /srv/thalimage/thalimage.db ".backup /tmp/snapshot.db"`,
+use `sqlite3 /srv/thalimage/app/thalimage.db ".backup /tmp/snapshot.db"`,
 which takes a consistent snapshot of a live database. It should be a
 real local filesystem, not a network share.
 
 **Image folders** are mounted read-only; nothing is ever written back
-into them. Mount each one separately and register it in Settings by its
-container path:
+into them. `THALIMAGE_IMAGES` is required: it names the host folder the
+compose file mounts at `/images`. Register `/images`, or folders under
+it, as sources in Settings. Further trees go on extra lines, as the
+commented example in the compose file shows:
 
 ```yaml
 volumes:
-  - /photos/ai:/images/ai:ro
+  - ${THALIMAGE_IMAGES:?...}:/images:ro
   - /photos/comfy:/images/comfy:ro
 ```
 
-Then add `/images/ai` and `/images/comfy` as sources. Those container
-paths are stored absolutely in the database (per-file paths are stored
-relative to them), so a mount point has to stay stable across
+Source paths are stored absolutely in the database (per-file paths are
+stored relative to them), so a mount point has to stay stable across
 redeploys — moving a library later means updating `sources.path` by
 hand.
 
@@ -114,6 +120,18 @@ on the host (`id -u` / `id -g`) so the container can read them.
 
 ```bash
 docker compose pull && docker compose up -d
+```
+
+The Tailscale sidecar is pinned (`TS_VERSION`), so `pull` does not
+upgrade it; bump the variable to do that.
+
+**Upgrading from the single-directory layout** (database at the top of
+`THALIMAGE_DATA`, before `app/` existed): stop the stack, then move the
+app's files down one level before starting it again:
+
+```bash
+cd /srv/thalimage && mkdir app && mv thalimage.db* cache app/
+chown -R root:root tailscale
 ```
 
 The app reports the commit it was built from at `/api/v1/version`, and
