@@ -281,3 +281,14 @@ def test_immutable_cache_headers_on_served_files(
         resp = client.get(f"/api/v1/images/{hashes[0]}/{route}")
         assert resp.status_code == 200, route
         assert "immutable" in resp.headers["cache-control"], route
+
+
+def test_malformed_cursor_is_400(client: TestClient, db: sqlite3.Connection) -> None:
+    insert_image(db, "a" * 64)
+    assert client.get("/api/v1/images", params={"cursor": "garbage"}).status_code == 400
+    coll = client.post("/api/v1/collections", json={"name": "c"}).json()["id"]
+    resp = client.get(
+        "/api/v1/images",
+        params={"cursor": "nan-ish|x", "sort": "elo", "collection_id": coll},
+    )
+    assert resp.status_code == 400
