@@ -2,7 +2,15 @@
 
 from pathlib import Path
 
+from importlib import resources
+
 from thalimage.db.engine import connect, current_version, migrate
+
+LATEST = max(
+    int(p.name.split("_")[0])
+    for p in (resources.files("thalimage.db") / "migrations").iterdir()
+    if p.name.endswith(".sql")
+)
 
 
 def test_connect_enables_wal(tmp_path: Path) -> None:
@@ -64,7 +72,7 @@ def test_migrate_idempotent(tmp_path: Path) -> None:
 def test_current_version_after_migrate(tmp_path: Path) -> None:
     conn = connect(tmp_path / "test.db")
     migrate(conn)
-    assert current_version(conn) == 9
+    assert current_version(conn) == LATEST
     conn.close()
 
 
@@ -72,7 +80,7 @@ def test_migrate_recovers_from_partial_alter_table(tmp_path: Path) -> None:
     """A migration that already added columns but didn't record its version
     completes cleanly on the next run (columns are skipped, not re-added)."""
     conn = connect(tmp_path / "test.db")
-    # Get to fully migrated state (version 9)
+    # Get to the fully migrated state
     migrate(conn)
     # Simulate broken state: version reset to 6 but nsfw columns already exist
     conn.execute("DELETE FROM schema_version WHERE version > 6")
@@ -81,7 +89,7 @@ def test_migrate_recovers_from_partial_alter_table(tmp_path: Path) -> None:
 
     # Re-running migrate() must succeed despite nsfw columns already existing
     version = migrate(conn)
-    assert version == 9
+    assert version == LATEST
     # settings table must exist
     row = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'"
