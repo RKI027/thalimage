@@ -29,7 +29,6 @@
 	let error: string | null = $state(null);
 	let pageEl: HTMLElement | null = $state(null);
 	let bodyEl: HTMLElement | null = $state(null);
-	let sheetEl: HTMLElement | null = $state(null);
 	let sheetHandleEl: HTMLElement | null = $state(null);
 
 	let videoEl = $state<HTMLVideoElement | null>(null);
@@ -390,10 +389,7 @@
 			<ImageViewer
 				hash={image.content_hash}
 				filename={image.filename}
-				width={image.width}
-				height={image.height}
 				loop={false}
-				nativeControls={false}
 				bind:videoEl
 			/>
 			<SlideshowOverlay
@@ -500,10 +496,7 @@
 				<ImageViewer
 					hash={image.content_hash}
 					filename={image.filename}
-					width={image.width}
-					height={image.height}
 					loop={videoLoop}
-					nativeControls={false}
 					bind:videoEl
 				/>
 				<!-- Desktop: metadata side panel. Hidden on mobile via CSS. -->
@@ -532,7 +525,7 @@
 			<!-- Mobile bottom sheet -->
 			{#if bottomSheetOpen}
 				<button class="sheet-backdrop" onclick={() => (bottomSheetOpen = false)} aria-label="Close metadata"></button>
-				<div class="bottom-sheet" bind:this={sheetEl}>
+				<div class="bottom-sheet">
 					<div class="sheet-handle-area" bind:this={sheetHandleEl}>
 						<div class="sheet-handle"></div>
 					</div>

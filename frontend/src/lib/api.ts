@@ -191,28 +191,6 @@ export async function deleteCollection(id: number): Promise<void> {
 	if (!resp.ok) throw new Error(`Delete failed: ${resp.status}`);
 }
 
-export function addImagesToCollection(
-	collectionId: number,
-	hashes: string[]
-): Promise<{ added: number }> {
-	return fetchJSON(`${BASE}/collections/${collectionId}/images`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ hashes })
-	});
-}
-
-export function removeImagesFromCollection(
-	collectionId: number,
-	hashes: string[]
-): Promise<{ removed: number }> {
-	return fetchJSON(`${BASE}/collections/${collectionId}/images`, {
-		method: 'DELETE',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ hashes })
-	});
-}
-
 // ELO Voting
 
 export function getEloPair(collectionId: number, filters: FilterState = {}, showNsfw = false): Promise<EloPair> {
@@ -255,19 +233,6 @@ export function createTag(name: string): Promise<Tag> {
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ name })
 	});
-}
-
-export function updateTag(id: number, patch: { name?: string }): Promise<Tag> {
-	return fetchJSON(`${BASE}/tags/${id}`, {
-		method: 'PATCH',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(patch)
-	});
-}
-
-export async function deleteTag(id: number): Promise<void> {
-	const resp = await fetch(`${BASE}/tags/${id}`, { method: 'DELETE' });
-	if (!resp.ok) throw new Error(`Delete failed: ${resp.status}`);
 }
 
 export function getImageTags(hash: string): Promise<Tag[]> {

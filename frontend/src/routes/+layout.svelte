@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
+	import { settingsHref } from '$lib/settingsLink';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import { mobileStore } from '$lib/mobileStore.svelte';
@@ -13,11 +14,7 @@
 	const isSlideshow = $derived(slideshowStore.status !== 'idle');
 	const routeGroup = $derived($page.url.pathname.split('/')[1] || 'home');
 
-	const settingsHref = $derived(
-		$page.url.pathname === '/settings'
-			? '/settings'
-			: `/settings?returnTo=${encodeURIComponent($page.url.pathname + $page.url.search)}`
-	);
+	const settingsLink = $derived(settingsHref($page.url));
 </script>
 
 <svelte:head>
@@ -30,7 +27,7 @@
 			<a href="/" class="logo">Thalimage</a>
 			<nav>
 				<a href="/">Gallery</a>
-				<a href={settingsHref}>Settings</a>
+				<a href={settingsLink}>Settings</a>
 			</nav>
 		</header>
 	{/if}

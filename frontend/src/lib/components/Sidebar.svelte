@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { settingsHref } from '$lib/settingsLink';
 	import { onMount } from 'svelte';
 	import { collectionsStore, settingsStore } from '$lib/stores';
 	import { readStored, writeStored } from '$lib/storage';
@@ -27,11 +28,7 @@
 		)
 	);
 
-	const settingsHref = $derived(
-		$page.url.pathname === '/settings'
-			? '/settings'
-			: `/settings?returnTo=${encodeURIComponent($page.url.pathname + $page.url.search)}`
-	);
+	const settingsLink = $derived(settingsHref($page.url));
 
 	onMount(() => {
 		collectionsStore.refresh();
@@ -106,7 +103,7 @@
 
 			<section>
 				<a href="/docs" class="settings-link" onclick={onMobileClose}>Documentation</a>
-				<a href={settingsHref} class="settings-link" onclick={onMobileClose}>Settings</a>
+				<a href={settingsLink} class="settings-link" onclick={onMobileClose}>Settings</a>
 			</section>
 		</nav>
 	{/if}
