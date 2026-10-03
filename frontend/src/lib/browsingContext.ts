@@ -1,8 +1,16 @@
 import { writable, get } from 'svelte/store';
 import type { FilterState, SortField, SortDirection } from './types';
+import { readStored, writeStored } from './storage';
 
 export type BrowsingContext =
-	| { type: 'all'; sort?: SortField; dir?: SortDirection }
+	| {
+			type: 'all';
+			sort?: SortField;
+			dir?: SortDirection;
+			/** Set when the grid is narrowed to one source (?source_id=). */
+			sourceId?: number;
+			filters?: FilterState;
+	  }
 	| {
 			type: 'collection';
 			collectionId: number;
@@ -15,36 +23,20 @@ export type BrowsingContext =
 const STORAGE_KEY = 'browsingContext';
 const SCROLL_KEY = 'scrollPositions';
 
-function hydrate(): BrowsingContext | null {
-	try {
-		const raw = sessionStorage.getItem(STORAGE_KEY);
-		return raw ? JSON.parse(raw) : null;
-	} catch {
-		return null;
-	}
-}
+export const browsingContext = writable<BrowsingContext | null>(
+	readStored<BrowsingContext | null>(STORAGE_KEY, null, 'session')
+);
 
-function hydrateScrollPositions(): Record<string, number> {
-	try {
-		const raw = sessionStorage.getItem(SCROLL_KEY);
-		return raw ? JSON.parse(raw) : {};
-	} catch {
-		return {};
-	}
-}
-
-export const browsingContext = writable<BrowsingContext | null>(hydrate());
-
-let scrollPositions = hydrateScrollPositions();
+const scrollPositions = readStored<Record<string, number>>(SCROLL_KEY, {}, 'session');
 
 export function setBrowsingContext(ctx: BrowsingContext): void {
 	browsingContext.set(ctx);
-	sessionStorage.setItem(STORAGE_KEY, JSON.stringify(ctx));
+	writeStored(STORAGE_KEY, ctx, 'session');
 }
 
 export function contextKey(ctx: BrowsingContext | null): string {
 	if (!ctx) return 'none';
-	if (ctx.type === 'all') return 'all';
+	if (ctx.type === 'all') return ctx.sourceId ? `source:${ctx.sourceId}` : 'all';
 	return `collection:${ctx.collectionId}`;
 }
 
@@ -52,7 +44,7 @@ export function saveScrollPosition(scrollTop: number): void {
 	const ctx = get(browsingContext);
 	const key = contextKey(ctx);
 	scrollPositions[key] = scrollTop;
-	sessionStorage.setItem(SCROLL_KEY, JSON.stringify(scrollPositions));
+	writeStored(SCROLL_KEY, scrollPositions, 'session');
 }
 
 export function getScrollPosition(): number {
@@ -65,12 +57,12 @@ export function clearScrollPosition(): void {
 	const ctx = get(browsingContext);
 	const key = contextKey(ctx);
 	delete scrollPositions[key];
-	sessionStorage.setItem(SCROLL_KEY, JSON.stringify(scrollPositions));
+	writeStored(SCROLL_KEY, scrollPositions, 'session');
 }
 
 export function backDestination(ctx: BrowsingContext | null): string {
 	if (!ctx) return '/';
-	if (ctx.type === 'all') return '/';
+	if (ctx.type === 'all') return ctx.sourceId ? `/?source_id=${ctx.sourceId}` : '/';
 	return `/collections/${ctx.collectionId}`;
 }
 
