@@ -51,4 +51,27 @@ describe('browsingContext', () => {
 		expect(m.backLabel({ type: 'collection', collectionId: 4, name: 'Cats' })).toBe('← Cats');
 		expect(m.backLabel({ type: 'all' })).toBe('← All Images');
 	});
+
+	it('turns a context into the listing it shows (GEN-013)', async () => {
+		const m = await load();
+		const filters = { media_type: 'video' };
+		expect(
+			m.contextListing({ type: 'all', sort: 'size', sourceId: 3, filters }, true)
+		).toEqual({ sort: 'size', dir: undefined, filters, show_nsfw: true, source_id: 3 });
+		expect(
+			m.contextListing({ type: 'collection', collectionId: 9, name: 'c', dir: 'desc' }, false)
+		).toEqual({
+			sort: undefined,
+			dir: 'desc',
+			filters: undefined,
+			show_nsfw: false,
+			collection_id: 9
+		});
+	});
+
+	it('gives a source-filtered grid its own Back target and scroll slot', async () => {
+		const m = await load();
+		expect(m.backDestination({ type: 'all', sourceId: 2 })).toBe('/?source_id=2');
+		expect(m.contextKey({ type: 'all', sourceId: 2 })).toBe('source:2');
+	});
 });
