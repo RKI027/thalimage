@@ -15,20 +15,85 @@ Self-hosted image browser and manager for AI-generated images. Privacy-first, lo
 
 ## Deployment
 
-### Docker (recommended)
+Thalimage runs as a single container. The image is published to GitHub
+Container Registry by CI, so a deployment is a pull rather than a build.
+
+```
+docker pull ghcr.io/rki027/thalimage:latest
+```
+
+### Security
+
+**There is no authentication of any kind.** Every endpoint is open:
+anything that can reach the port with an accepted `Host` header can add
+and delete sources, trigger scans, archive images, edit tags and delete
+collections, and `GET /api/v1/images/{hash}/file` streams originals
+straight off the filesystem. Network-level access control is the only
+control there is. Do not expose it to the internet.
+
+The stack below answers that by never publishing a port at all.
+
+### The stack
+
+`docker/docker-compose.yml` is a ready-to-use sample — copy it into
+wherever your stack definitions live, or paste it into Portainer. It
+runs two services:
+
+- **`tailscale`** — a `tailscale/tailscale` sidecar that joins the
+  tailnet as its own node and runs `tailscale serve` (config in
+  `docker/serve.json`), terminating TLS with a Tailscale-issued
+  certificate. Tailscale does **not** need to be installed on the Docker
+  host.
+- **`thalimage`** — the app, with `network_mode: service:tailscale`, so
+  it lives inside the sidecar's network namespace and has no network
+  identity of its own. Nothing is published to the host, so the app is
+  unreachable from the LAN.
+
+The app ends up at `https://<TS_HOSTNAME>.<your-tailnet>.ts.net`.
+
+Before deploying, in the Tailscale admin console:
+
+- enable **MagicDNS** and **HTTPS certificates** for the tailnet, or
+  `serve` cannot obtain a certificate;
+- define the tag named in `TS_TAG` and grant your account permission to
+  apply it. Tagged nodes never expire; an untagged one drops off the
+  tailnet at node-key expiry and has to be re-authenticated by hand;
+- to narrow access to particular devices, write a Tailscale ACL grant
+  against that tag. Without one, every device on the tailnet can reach
+  it.
+
+`TS_AUTHKEY` (an auth key, or an OAuth client secret) is needed only for
+the node's first authentication — after that the node identity lives in
+the state directory on the bind mount.
+
+Copy `docker/.env.example` to `.env` and fill it in, then:
 
 ```bash
 cd docker
-
-# Edit docker-compose.yml to set your image paths and PUID/PGID
-vim docker-compose.yml
-
 docker compose up -d
 ```
 
-The compose file mounts image folders read-only at `/images`. The app stores its database and thumbnail cache in a named volume at `/data`.
+### Storage
 
-**Multiple source directories**: mount each one separately and add them as sources in the Settings UI:
+Everything the app owns lives under one host directory (`THALIMAGE_DATA`,
+`/srv/thalimage` by default), mounted at `/data`:
+
+```
+thalimage.db  (+ -wal, -shm)   SQLite, WAL mode
+cache/thumbs/                  400px WebP thumbnails
+cache/previews/{size}/         long-edge-capped WebP, generated on demand
+tailscale/                     Tailscale node state
+```
+
+This is what to back up. Because the database is in WAL mode, copying
+`thalimage.db` alone is not enough — either stop the container first, or
+use `sqlite3 /srv/thalimage/thalimage.db ".backup /tmp/snapshot.db"`,
+which takes a consistent snapshot of a live database. It should be a
+real local filesystem, not a network share.
+
+**Image folders** are mounted read-only; nothing is ever written back
+into them. Mount each one separately and register it in Settings by its
+container path:
 
 ```yaml
 volumes:
@@ -36,33 +101,55 @@ volumes:
   - /photos/comfy:/images/comfy:ro
 ```
 
-Then in Settings, add `/images/ai` and `/images/comfy` as sources.
+Then add `/images/ai` and `/images/comfy` as sources. Those container
+paths are stored absolutely in the database (per-file paths are stored
+relative to them), so a mount point has to stay stable across
+redeploys — moving a library later means updating `sources.path` by
+hand.
 
-**File permissions**: set `PUID` and `PGID` to match the owner of your image files on the host so the container can read them:
+**File permissions**: set `PUID`/`PGID` to the owner of the image files
+on the host (`id -u` / `id -g`) so the container can read them.
+
+### Updating
 
 ```bash
-# Find your UID/GID
-id -u  # PUID
-id -g  # PGID
+docker compose pull && docker compose up -d
 ```
+
+The app reports the commit it was built from at `/api/v1/version`, and
+the frontend bundle carries the same stamp, so a half-updated deployment
+is visible rather than mysterious.
 
 ### Configuration
 
-All settings can be set via environment variables with the `THALIMAGE_` prefix, or in a TOML file at `~/.thalimage/config.toml`.
+All settings can be set via environment variables with the `THALIMAGE_`
+prefix. A TOML file at `~/.thalimage/config.toml` also works, but note
+that the lookup is always relative to the home directory and does not
+follow `THALIMAGE_DATA_DIR` — in a container, use the environment
+variables.
 
 | Variable | Default | Description |
 |---|---|---|
 | `THALIMAGE_DATA_DIR` | `~/.thalimage` | Database and cache directory |
 | `THALIMAGE_DB_PATH` | `{data_dir}/thalimage.db` | SQLite database path |
 | `THALIMAGE_THUMB_DIR` | `{data_dir}/cache/thumbs` | Thumbnail storage path |
+| `THALIMAGE_PREVIEW_DIR` | `{data_dir}/cache/previews` | Preview storage path |
 | `THALIMAGE_HOST` | `127.0.0.1` | Server bind address (the Docker image sets `0.0.0.0`) |
 | `THALIMAGE_PORT` | `8000` | Server port |
 | `THALIMAGE_DEBUG` | `false` | Debug mode |
 | `THALIMAGE_CONCURRENT_SCANS` | `true` | Allow source scans to run concurrently |
 | `THALIMAGE_CORS_ORIGINS` | `[]` | Allowed CORS origins (JSON list); empty since the frontend is served same-origin |
-| `THALIMAGE_ALLOWED_HOSTS` | `[]` | Permitted `Host` header values (JSON list); empty accepts all. Set the hostnames clients use (e.g. behind a reverse proxy or on a tailnet) |
+| `THALIMAGE_ALLOWED_HOSTS` | `[]` | Additional permitted `Host` header values (JSON list) |
 
-The host binds to loopback by default. To expose Thalimage on a LAN, reverse proxy, or tailnet, set `THALIMAGE_HOST` explicitly and list the public hostnames in `THALIMAGE_ALLOWED_HOSTS`.
+`THALIMAGE_ALLOWED_HOSTS` is a DNS-rebinding defense, not
+authentication. `localhost` and `127.0.0.1` are always accepted; an
+empty list therefore means loopback only, and any request arriving under
+another name gets a 400. Add the hostnames clients actually use — e.g.
+`["thalimage.tail1234.ts.net"]`, or the wildcard `["*.ts.net"]`. Set it
+to `["*"]` to disable the check.
+
+The app runs as a **single process**: it keeps one SQLite connection on
+the application state, so do not add `uvicorn --workers`.
 
 ## Development
 
