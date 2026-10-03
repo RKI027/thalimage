@@ -77,14 +77,19 @@ export function thumbUrl(hash: string): string {
 	return `${BASE}/images/${hash}/thumb`;
 }
 
+/** The largest preview the server makes (PREVIEW_SIZES in core/previews.py). */
+const LARGEST_PREVIEW = 2560;
+
 /**
  * Long edge, in device pixels, needed to fill this screen. The server snaps it
- * up to its nearest size bucket, so an exact value is not required.
+ * up to its nearest size bucket, so an exact value is not required. Capped at
+ * the largest bucket: asking for more gets the same file under another URL.
  */
 export function displaySize(): number {
 	if (typeof window === 'undefined') return 1920;
 	const dpr = Math.min(window.devicePixelRatio || 1, 2);
-	return Math.round(Math.max(window.innerWidth, window.innerHeight) * dpr);
+	const wanted = Math.round(Math.max(window.innerWidth, window.innerHeight) * dpr);
+	return Math.min(wanted, LARGEST_PREVIEW);
 }
 
 /**
