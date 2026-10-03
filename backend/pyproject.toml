@@ -10,7 +10,10 @@ requires-python = ">=3.11"
 authors = [
     {name = "Arkhelyi", email = "arkhelyi@151e.ai"},
 ]
-license = {text = "Proprietary"}
+# Proprietary: see LICENSE at the repository root (linked here so the
+# build can include it).
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
 
 dependencies = [
     "fastapi>=0.115.0",
