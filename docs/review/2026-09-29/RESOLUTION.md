@@ -10,7 +10,7 @@ finding's fix), **won't fix** (with the reason), or **open**.
 | ID | Sev | Finding | Status | Notes |
 |---|---|---|---|---|
 | [GEN-001](general.md#gen-001-scan-holds-one-write-transaction-for-its-whole-run-locking-out-api-writes) | high | Scan holds one write transaction for its whole run, locking out API writes | open | |
-| [GEN-002](general.md#gen-002-failed-writes-are-never-rolled-back-on-the-shared-request-connection) | high | Failed writes are never rolled back on the shared request connection | open | |
+| [GEN-002](general.md#gen-002-failed-writes-are-never-rolled-back-on-the-shared-request-connection) | high | Failed writes are never rolled back on the shared request connection | fixed | transactions PR: one connection per request; `open_db` rolls back whatever a request leaves open, then closes. Unknown hashes in a collection add are filtered instead of failing the FK; preset collections reject adds with 400 |
 | [GEN-003](general.md#gen-003-deleting-a-collection-or-source-with-elo-data-fails-with-500) | high | Deleting a collection or source with ELO data fails with 500 | open | |
 | [GEN-004](general.md#gen-004-previews-requested-above-2560px-get-422-so-the-viewer-breaks-on-hi-dpi-screens) | high | Previews requested above 2560px get 422, so the viewer breaks on hi-DPI screens | open | |
 | [GEN-005](general.md#gen-005-created-sort-stops-after-one-page-when-file_created-is-null-always-on-linuxdocker) | high | "Created" sort stops after one page when `file_created` is NULL | fixed | deploy PR: Created sorts on `COALESCE(file_created, file_modified)` and the cursor carries that key. Pulled forward because the existing pagination test fails on Linux CI |

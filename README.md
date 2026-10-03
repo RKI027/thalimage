@@ -166,8 +166,9 @@ another name gets a 400. Add the hostnames clients actually use — e.g.
 `["thalimage.tail1234.ts.net"]`, or the wildcard `["*.ts.net"]`. Set it
 to `["*"]` to disable the check.
 
-The app runs as a **single process**: it keeps one SQLite connection on
-the application state, so do not add `uvicorn --workers`.
+The app runs as a **single process**: scan progress and the
+one-scan-per-source guard live in its memory, so do not add
+`uvicorn --workers`.
 
 ## Development
 
