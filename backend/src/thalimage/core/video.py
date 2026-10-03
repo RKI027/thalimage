@@ -1,15 +1,18 @@
 """Video file handling: thumbnail extraction and metadata via ffmpeg."""
 
 import json
+import os
 import shutil
 import subprocess
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from PIL import Image
 
-from thalimage.core.thumbnails import thumbnail_path
+from thalimage.core.thumbnails import THUMB_QUALITY, THUMB_SIZE, thumbnail_path
+from thalimage.core.webp import write_webp
 
 VIDEO_EXTENSIONS: set[str] = {".mp4", ".mov", ".webm", ".avi"}
 
@@ -60,7 +63,7 @@ def extract_video_thumbnail(
     thumb_dir: Path,
     content_hash: str,
     *,
-    max_size: int = 400,
+    max_size: int = THUMB_SIZE,
 ) -> Path:
     """Extract a representative frame from a video and save as WebP thumbnail."""
     out_path = thumbnail_path(thumb_dir, content_hash)
@@ -70,7 +73,9 @@ def extract_video_thumbnail(
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Extract a frame at 10% into the video (avoids black intro frames)
-    tmp_frame = out_path.with_suffix(".tmp.png")
+    fd, tmp_name = tempfile.mkstemp(dir=out_path.parent, suffix=".frame.png")
+    os.close(fd)
+    tmp_frame = Path(tmp_name)
     try:
         info = extract_video_info(file_path)
         duration = info.get("duration", 0)
@@ -89,13 +94,12 @@ def extract_video_thumbnail(
             timeout=30,
         )
 
-        if not tmp_frame.exists():
+        if tmp_frame.stat().st_size == 0:
             raise RuntimeError(f"ffmpeg failed to extract frame from {file_path}")
 
-        # Convert to WebP thumbnail using PIL for consistency with image thumbnails
         with Image.open(tmp_frame) as img:
-            img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-            img.save(out_path, format="WEBP", quality=80, method=4)
+            img.load()
+            write_webp(img, out_path, max_size=max_size, quality=THUMB_QUALITY)
     finally:
         tmp_frame.unlink(missing_ok=True)
 
