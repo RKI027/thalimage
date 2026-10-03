@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { imageFileUrl, previewUrl, thumbUrl } from '$lib/api';
+	import { readStored, writeStored } from '$lib/storage';
 
 	const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.avi']);
 
@@ -34,12 +35,12 @@
 
 	$effect(() => {
 		if (!videoEl) return;
-		videoEl.volume = parseFloat(localStorage.getItem('video:volume') ?? '1');
-		videoEl.muted = localStorage.getItem('video:muted') === 'true';
+		videoEl.volume = readStored('video:volume', 1);
+		videoEl.muted = readStored('video:muted', false);
 
 		function onVolumeChange() {
-			localStorage.setItem('video:volume', String(videoEl!.volume));
-			localStorage.setItem('video:muted', String(videoEl!.muted));
+			writeStored('video:volume', videoEl!.volume);
+			writeStored('video:muted', videoEl!.muted);
 		}
 		videoEl.addEventListener('volumechange', onVolumeChange);
 		return () => videoEl?.removeEventListener('volumechange', onVolumeChange);
