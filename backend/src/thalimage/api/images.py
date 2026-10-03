@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from thalimage.core.previews import PREVIEW_SIZES, generate_preview, nearest_size
 from thalimage.core.thumbnails import thumbnail_path
 from thalimage.deps import ContentHash, get_db, get_preview_dir, get_thumb_dir
-from thalimage.services.collection_service import get_collection
+from thalimage.services.collection_service import resolve_scope
 from thalimage.services.image_service import (
     ImageDetail,
     ImagePage,
@@ -55,12 +55,12 @@ def get_images(
     # source-preset rewrite below nulls collection_id.
     elo_collection_id = collection_id if sort == "elo" else None
 
-    # Source preset collections are served dynamically: rewrite to a source filter.
+    # A collection becomes the filter that selects its images.
     if collection_id is not None:
-        coll = get_collection(db, collection_id)
-        if coll is not None and coll.type == "source_preset":
-            source_id = coll.source_id
-            collection_id = None
+        scope = resolve_scope(db, collection_id)
+        if scope is not None:
+            source_id = scope.source_id or source_id
+            collection_id = scope.collection_id
 
     try:
         return list_images(
