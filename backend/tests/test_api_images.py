@@ -292,3 +292,26 @@ def test_malformed_cursor_is_400(client: TestClient, db: sqlite3.Connection) -> 
         params={"cursor": "nan-ish|x", "sort": "elo", "collection_id": coll},
     )
     assert resp.status_code == 400
+
+
+def test_neighbors_endpoint(client: TestClient, db: sqlite3.Connection) -> None:
+    hashes = [insert_image(db, f"{i:064d}", filename=f"n{i}.png") for i in range(5)]
+    resp = client.get(f"/api/v1/images/{hashes[2]}/neighbors", params={"window": 1})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [i["content_hash"] for i in data["before"]] == [hashes[1]]
+    assert [i["content_hash"] for i in data["after"]] == [hashes[3]]
+    assert (data["position"], data["total_count"]) == (2, 5)
+
+    preset = client.get("/api/v1/collections", params={"type": "source_preset"}).json()
+    if not preset:  # insert_image does not create the preset; make it
+        from thalimage.services.collection_service import get_or_create_source_preset
+
+        get_or_create_source_preset(db, 1, "test")
+        preset = client.get("/api/v1/collections", params={"type": "source_preset"}).json()
+    resp = client.get(
+        f"/api/v1/images/{hashes[0]}/neighbors", params={"collection_id": preset[0]["id"]}
+    )
+    assert resp.json()["total_count"] == 5
+
+    assert client.get(f"/api/v1/images/{'f' * 64}/neighbors").status_code == 404

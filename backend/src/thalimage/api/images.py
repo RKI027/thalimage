@@ -16,8 +16,11 @@ from thalimage.services.image_service import (
     ImageDetail,
     ImagePage,
     InvalidCursor,
+    ListingFilters,
+    Neighbors,
     get_image,
     list_images,
+    neighbors,
     resolve_file_path,
     set_archived,
 )
@@ -81,6 +84,54 @@ def get_images(
         )
     except InvalidCursor as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@router.get("/{content_hash}/neighbors", response_model=Neighbors)
+def get_image_neighbors(
+    content_hash: ContentHash,
+    window: int = Query(50, ge=1, le=500),
+    sort: str = Query("name"),
+    dir: str = Query("asc"),
+    source_id: Optional[int] = Query(None),
+    collection_id: Optional[int] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    aspect_ratio_filter: Optional[str] = Query(None),
+    media_type: Optional[str] = Query(None),
+    tags: Optional[list[str]] = Query(None),
+    show_nsfw: bool = Query(False),
+    db: sqlite3.Connection = Depends(get_db),
+) -> Neighbors:
+    """The images around one image in a listing, for the viewer's prev/next:
+    takes the listing's own sort and filters, and works wherever the image
+    falls in it."""
+    elo_collection_id = collection_id if sort == "elo" else None
+    if collection_id is not None:
+        scope = resolve_scope(db, collection_id)
+        if scope is not None:
+            source_id = scope.source_id or source_id
+            collection_id = scope.collection_id
+    result = neighbors(
+        db,
+        content_hash,
+        window=window,
+        sort=sort,
+        direction=dir,
+        elo_collection_id=elo_collection_id,
+        filters=ListingFilters(
+            source_id=source_id,
+            collection_id=collection_id,
+            date_from=date_from,
+            date_to=date_to,
+            aspect_ratio_filter=aspect_ratio_filter,
+            media_type=media_type,
+            tags=tags,
+            show_nsfw=show_nsfw,
+        ),
+    )
+    if result is None:
+        raise HTTPException(404, "Image not found")
+    return result
 
 
 @router.get("/{content_hash}", response_model=ImageDetail)
