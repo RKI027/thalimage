@@ -12,7 +12,10 @@ from sse_starlette.sse import EventSourceResponse  # type: ignore[import-untyped
 
 from thalimage.db.engine import connect
 from thalimage.deps import get_db, get_scan_manager, get_thumb_dir
-from thalimage.services.collection_service import get_or_create_source_preset
+from thalimage.services.collection_service import (
+    get_or_create_source_preset,
+    purge_collection,
+)
 from thalimage.services.scan_manager import ScanManager
 from thalimage.services.scan_service import run_scan
 
@@ -81,11 +84,12 @@ def delete_source(
     source = db.execute("SELECT id FROM sources WHERE id = ?", (source_id,)).fetchone()
     if source is None:
         raise HTTPException(404, "Source not found")
-    # Remove preset collection for this source
-    db.execute(
-        "DELETE FROM collections WHERE source_id = ? AND type = 'source_preset'",
+    # Remove the source's preset collection, with its votes and scores.
+    for preset in db.execute(
+        "SELECT id FROM collections WHERE source_id = ? AND type = 'source_preset'",
         (source_id,),
-    )
+    ).fetchall():
+        purge_collection(db, preset["id"])
     # Remove dependent rows before deleting the source
     hashes = [
         r["content_hash"]
