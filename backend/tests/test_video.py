@@ -83,3 +83,16 @@ def test_extract_video_info_invalid_file(tmp_path: Path):
     bad_file.write_text("not a video")
     with pytest.raises(RuntimeError):
         extract_video_info(bad_file)
+
+
+def test_frontend_knows_the_same_video_extensions() -> None:
+    """The viewer decides "video or still" from the filename; its list in
+    frontend/src/lib/media.ts must match the scanner's."""
+    import re
+
+    media_ts = Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "media.ts"
+    if not media_ts.exists():
+        pytest.skip("backend-only checkout")
+    listed = re.search(r"VIDEO_EXTENSIONS = new Set\(\[([^\]]*)\]\)", media_ts.read_text())
+    assert listed is not None
+    assert set(re.findall(r"'([^']+)'", listed.group(1))) == VIDEO_EXTENSIONS

@@ -5,12 +5,11 @@
 	import { getEloRankings, getCollection, previewUrl, thumbUrl } from '$lib/api';
 	import { EloRound } from '$lib/eloRound.svelte';
 	import { collectionFiltersKey } from '$lib/gallery.svelte';
+	import { isVideoFilename } from '$lib/media';
 	import { readStored } from '$lib/storage';
 	import { settingsStore } from '$lib/stores';
 	import type { ImageSummary, EloRanking, Collection, FilterState } from '$lib/types';
 	import SideBySideView from '$lib/components/views/SideBySideView.svelte';
-
-	const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.avi']);
 
 	let collection: Collection | null = $state(null);
 	let showRankings = $state(false);
@@ -23,11 +22,10 @@
 	}
 
 	function preload(item: ImageSummary) {
-		const ext = item.filename.slice(item.filename.lastIndexOf('.')).toLowerCase();
 		const img = new Image();
 		// Videos render from their thumbnail poster; warm that rather than fetching
 		// the full video file through an <img>.
-		img.src = VIDEO_EXTENSIONS.has(ext) ? thumbUrl(item.content_hash) : previewUrl(item.content_hash);
+		img.src = isVideoFilename(item.filename) ? thumbUrl(item.content_hash) : previewUrl(item.content_hash);
 	}
 
 	async function loadRankings() {

@@ -8,6 +8,7 @@
 	import type { ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import { attachSwipe } from '$lib/swipe';
+	import { isVideoFilename } from '$lib/media';
 	import { readStored, writeStored } from '$lib/storage';
 	import Icon from '$lib/components/Icon.svelte';
 	import ImageViewer from '$lib/components/ImageViewer.svelte';
@@ -47,11 +48,7 @@
 	// ELO scores fetched for weighting the slideshow: enough for a whole window.
 	const NEIGHBOR_LIMIT = 2 * WINDOW + 1;
 
-	const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.avi']);
-	const isVideo = $derived(
-		image !== null &&
-		VIDEO_EXTENSIONS.has(image.filename.slice(image.filename.lastIndexOf('.')).toLowerCase())
-	);
+	const isVideo = $derived(image !== null && isVideoFilename(image.filename));
 
 	$effect(() => { writeStored('video:loop', videoLoop); });
 
@@ -348,8 +345,7 @@
 		for (const offset of [1, 2, -1]) {
 			const n = neighbors[idx + offset];
 			if (!n) continue;
-			const ext = n.filename.slice(n.filename.lastIndexOf('.')).toLowerCase();
-			if (VIDEO_EXTENSIONS.has(ext)) continue;
+			if (isVideoFilename(n.filename)) continue;
 			const img = new Image();
 			img.src = previewUrl(n.content_hash);
 		}
