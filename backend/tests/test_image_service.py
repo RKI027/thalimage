@@ -51,3 +51,37 @@ def test_grid_queries_use_an_index_for_every_sort(db: sqlite3.Connection) -> Non
         plan = " / ".join(r[3] for r in db.execute("EXPLAIN QUERY PLAN " + sql, params))
         assert "USING INDEX idx_images_live_" in plan, (sort, plan)
         assert "TEMP B-TREE" not in plan, (sort, plan)
+
+
+def test_name_pagination_with_pipes_in_filenames(db: sqlite3.Connection) -> None:
+    """GEN-018: the cursor is "sort_value|hash"; a | in the value must not
+    move the split."""
+    names = ["a|b.png", "a|c.png", "a.png", "b||.png", "z|.png"]
+    for i, name in enumerate(names):
+        insert_image(db, f"{i:064d}", filename=name)
+
+    seen: list[str] = []
+    cursor = None
+    for _ in range(10):
+        page = list_images(db, sort="name", limit=1, cursor=cursor)
+        seen.extend(i.filename for i in page.items)
+        cursor = page.next_cursor
+        if cursor is None:
+            break
+    assert seen == sorted(names)
+
+
+def test_malformed_cursor_is_rejected(db: sqlite3.Connection) -> None:
+    import pytest
+
+    from thalimage.services.image_service import InvalidCursor
+
+    insert_image(db, "a" * 64)
+    db.execute("INSERT INTO collections (id, name) VALUES (1, 'c')")
+    for kwargs in (
+        {"cursor": "no-separator"},
+        {"cursor": "x|"},
+        {"cursor": "not-a-number|abc", "sort": "elo", "elo_collection_id": 1},
+    ):
+        with pytest.raises(InvalidCursor):
+            list_images(db, **kwargs)  # type: ignore[arg-type]

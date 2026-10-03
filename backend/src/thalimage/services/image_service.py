@@ -35,6 +35,24 @@ class ImageDetail(ImageSummary):
     png_text: Optional[str] = None
 
 
+class InvalidCursor(ValueError):
+    """A pagination cursor that this listing could not have produced."""
+
+
+def _parse_cursor(cursor: str, *, numeric: bool) -> tuple[object, str]:
+    """Split a "sort_value|hash" cursor. The hash never contains "|" but the
+    sort value (a filename) may, so split on the last one."""
+    sort_val, sep, hash_val = cursor.rpartition("|")
+    if not sep or not hash_val:
+        raise InvalidCursor(f"Malformed cursor: {cursor!r}")
+    if not numeric:
+        return sort_val, hash_val
+    try:
+        return float(sort_val), hash_val
+    except ValueError as exc:
+        raise InvalidCursor(f"Malformed cursor: {cursor!r}") from exc
+
+
 class ImagePage(BaseModel):
     items: list[ImageSummary]
     next_cursor: Optional[str] = None
@@ -205,17 +223,12 @@ def list_images(
 
     if cursor is not None:
         op = ">" if direction == "asc" else "<"
-        # cursor encodes "sort_value|hash"
-        parts = cursor.split("|", 1)
-        raw_sort_val = parts[0]
-        hash_val = parts[1] if len(parts) > 1 else ""
+        # ELO cursors compare numerically against the REAL score, not as text.
+        sort_val, hash_val = _parse_cursor(cursor, numeric=elo_sort)
         sql += f" AND ({sort_expr}, content_hash) {op} (?, ?)"
         if elo_sort:
             params.append(elo_collection_id)  # for sort_expr's placeholder
-            # numeric comparison against the REAL score, not text
-            params.extend([float(raw_sort_val), hash_val])
-        else:
-            params.extend([raw_sort_val, hash_val])
+        params.extend([sort_val, hash_val])
 
     sql += f" ORDER BY {order_col} {direction}, content_hash {direction}"
     sql += " LIMIT ?"

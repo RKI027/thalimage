@@ -15,6 +15,7 @@ from thalimage.services.collection_service import get_collection
 from thalimage.services.image_service import (
     ImageDetail,
     ImagePage,
+    InvalidCursor,
     get_image,
     list_images,
     resolve_file_path,
@@ -61,22 +62,25 @@ def get_images(
             source_id = coll.source_id
             collection_id = None
 
-    return list_images(
-        db,
-        cursor=cursor,
-        limit=limit,
-        sort=sort,
-        direction=dir,
-        source_id=source_id,
-        collection_id=collection_id,
-        date_from=date_from,
-        date_to=date_to,
-        aspect_ratio_filter=aspect_ratio_filter,
-        media_type=media_type,
-        tags=tags,
-        show_nsfw=show_nsfw,
-        elo_collection_id=elo_collection_id,
-    )
+    try:
+        return list_images(
+            db,
+            cursor=cursor,
+            limit=limit,
+            sort=sort,
+            direction=dir,
+            source_id=source_id,
+            collection_id=collection_id,
+            date_from=date_from,
+            date_to=date_to,
+            aspect_ratio_filter=aspect_ratio_filter,
+            media_type=media_type,
+            tags=tags,
+            show_nsfw=show_nsfw,
+            elo_collection_id=elo_collection_id,
+        )
+    except InvalidCursor as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.get("/{content_hash}", response_model=ImageDetail)
