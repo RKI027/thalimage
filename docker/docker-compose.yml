@@ -1,25 +1,83 @@
+# Thalimage stack — the app reachable only over a tailnet.
+#
+# The Tailscale sidecar joins the tailnet as its own node, so Tailscale
+# does not need to be installed on the Docker host. `tailscale serve`
+# terminates TLS with a Tailscale-issued certificate and proxies to the
+# app, which shares the sidecar's network namespace.
+#
+# Nothing is published to the host. There is no authentication in the
+# app itself: whatever can reach it has full write access, so the tailnet
+# boundary is the access control. Narrow it further with a Tailscale ACL
+# grant against the node's tag.
+#
+# Prerequisites in the Tailscale admin console:
+#   - MagicDNS and HTTPS certificates enabled for the tailnet
+#   - the tag in TS_TAG defined, with an owner that may apply it
+#
+# Copy .env.example to .env (or paste the variables into Portainer's
+# stack editor) before deploying.
+
 services:
-  thalimage:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    ports:
-      - "8000:8000"
-    volumes:
-      - thalimage-data:/data
-      # Mount image folders read-only. The app only reads originals;
-      # thumbnails and DB are stored in /data.
-      # You can mount multiple source directories:
-      #   - /photos/ai:/images/ai:ro
-      #   - /photos/comfy:/images/comfy:ro
-      # Then add each as a source in Settings (e.g. /images/ai).
-      - /path/to/your/images:/images:ro
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: thalimage-tailscale
+    hostname: ${TS_HOSTNAME:-thalimage} # -> ${TS_HOSTNAME}.<tailnet>.ts.net
     environment:
-      - THALIMAGE_DATA_DIR=/data
-      # Match these to your host user so the container can read your images
-      - PUID=1000
-      - PGID=1000
+      # An auth key, or an OAuth client secret. Only needed for the first
+      # authentication — after that the state directory carries the node
+      # identity, which is why it lives on the bind mount.
+      - TS_AUTHKEY=${TS_AUTHKEY:?set TS_AUTHKEY to a Tailscale auth key or OAuth client secret}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/serve.json
+      # Tagged nodes do not expire; untagged ones drop off the tailnet at
+      # node-key expiry and need re-authenticating by hand.
+      - TS_EXTRA_ARGS=--advertise-tags=${TS_TAG:-tag:homelab}
+    volumes:
+      - ${THALIMAGE_DATA:-/srv/thalimage}/tailscale:/var/lib/tailscale
+      - ./serve.json:/config/serve.json:ro
+    # Userspace networking (the image default) carries inbound `serve`
+    # traffic, which is all this stack needs. For a container that must
+    # also originate tailnet traffic, set TS_USERSPACE=false and add:
+    #   devices: ["/dev/net/tun:/dev/net/tun"]
+    #   cap_add: ["NET_ADMIN"]
     restart: unless-stopped
 
-volumes:
-  thalimage-data:
+  thalimage:
+    image: ghcr.io/rki027/thalimage:${THALIMAGE_TAG:-latest}
+    container_name: thalimage
+    # Build locally instead of pulling:
+    # build:
+    #   context: ..
+    #   dockerfile: docker/Dockerfile
+
+    # The app has no network identity of its own; it lives inside the
+    # sidecar's namespace, which is what keeps it off the LAN. Adding a
+    # `ports:` or `networks:` key here would undo that.
+    network_mode: service:tailscale
+    depends_on:
+      - tailscale
+
+    volumes:
+      # Database, thumbnails and previews. A real directory, not a named
+      # volume: the SQLite file is in WAL mode and wants a plain local
+      # filesystem, and a path you can back up and inspect.
+      - ${THALIMAGE_DATA:-/srv/thalimage}:/data
+
+      # Image roots, read-only — nothing is ever written back into them.
+      # Mount each one separately and register it in Settings by its
+      # container path. These paths are stored absolutely in the database,
+      # so they must stay stable across redeploys.
+      - ${THALIMAGE_IMAGES:?set THALIMAGE_IMAGES to the host image folder}:/images:ro
+      # - /photos/comfy:/images/comfy:ro
+
+    environment:
+      - THALIMAGE_DATA_DIR=/data
+      # Host-header allowlist. Requests arriving under any other name get
+      # a 400. The wildcard covers the MagicDNS name without pinning the
+      # tailnet: ["thalimage.tail1234.ts.net"] is the exact form.
+      - THALIMAGE_ALLOWED_HOSTS=${THALIMAGE_ALLOWED_HOSTS:-["*.ts.net"]}
+      # Match the owner of the image files on the host.
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+
+    restart: unless-stopped
