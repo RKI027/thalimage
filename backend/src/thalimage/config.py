@@ -6,6 +6,8 @@ from typing import Any, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from thalimage.paths import CHECKOUT_FRONTEND_DIR
+
 try:
     from pydantic_settings import TomlConfigSettingsSource
 except ImportError:
@@ -69,6 +71,10 @@ class Settings(BaseSettings):
     db_path: Optional[Path] = None
     thumb_dir: Optional[Path] = None
     preview_dir: Optional[Path] = None
+    # The built SPA. Defaults to frontend/build in a source checkout; an
+    # installed wheel has no checkout around it, so set this there (the
+    # Docker image does).
+    frontend_dir: Optional[Path] = None
 
     @property
     def resolved_db_path(self) -> Path:
@@ -77,6 +83,10 @@ class Settings(BaseSettings):
     @property
     def resolved_thumb_dir(self) -> Path:
         return self.thumb_dir or (self.data_dir / "cache" / "thumbs")
+
+    @property
+    def resolved_frontend_dir(self) -> Path:
+        return self.frontend_dir or CHECKOUT_FRONTEND_DIR
 
     @property
     def resolved_preview_dir(self) -> Path:
