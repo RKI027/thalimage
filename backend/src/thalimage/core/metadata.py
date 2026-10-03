@@ -37,6 +37,11 @@ class ImageMetadata(BaseModel):
 
 _parser_manager = ParserManager()
 
+# Bump when extraction changes in a way existing rows should pick up: a
+# scan re-reads files whose metadata row has an older version.
+# 1: AI parameters read from sd-parsers' actual PromptInfo attributes.
+EXTRACTOR_VERSION = 1
+
 
 def extract_metadata(image_path: Path) -> ImageMetadata:
     """Extract all available metadata from an image file."""
@@ -73,13 +78,16 @@ def _extract_ai_params(image_path: Path) -> Optional[AIParameters]:
         with Image.open(image_path) as img:
             prompt_info = _parser_manager.parse(img)
             if prompt_info:
-                raw = getattr(prompt_info, "raw_params", None)
-                raw_str = json.dumps(raw) if raw and not isinstance(raw, str) else raw
+                # sd-parsers' PromptInfo: generator is an enum, prompts are
+                # joined into full_prompt / full_negative_prompt, and the
+                # chunks it parsed are in raw_parameters (a dict).
+                generator = prompt_info.generator
+                raw = prompt_info.raw_parameters
                 return AIParameters(
-                    tool=getattr(prompt_info, "tool", None),
-                    prompt=getattr(prompt_info, "positive_prompt", None),
-                    negative_prompt=getattr(prompt_info, "negative_prompt", None),
-                    raw_params=raw_str,
+                    tool=str(getattr(generator, "value", generator)) if generator else None,
+                    prompt=prompt_info.full_prompt or None,
+                    negative_prompt=prompt_info.full_negative_prompt or None,
+                    raw_params=raw if isinstance(raw, str) or raw is None else json.dumps(raw),
                 )
     except Exception:
         pass
