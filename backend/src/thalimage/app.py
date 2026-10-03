@@ -23,13 +23,16 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent.parent / "frontend"
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings = get_settings()
     settings.ensure_dirs()
-    conn = connect(settings.resolved_db_path, check_same_thread=False)
-    migrate(conn)
-    app.state.db = conn
+    conn = connect(settings.resolved_db_path)
+    try:
+        migrate(conn)
+    finally:
+        conn.close()
+    # Requests open their own connections (deps.get_db).
+    app.state.db_path = settings.resolved_db_path
     app.state.settings = settings
     app.state.scan_manager = ScanManager(concurrent=settings.concurrent_scans)
     yield
-    conn.close()
 
 
 def create_app() -> FastAPI:

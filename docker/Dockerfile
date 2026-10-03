@@ -61,7 +61,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 ENTRYPOINT ["/entrypoint.sh"]
 
 # The console script from [project.scripts]; it reads host, port and
-# debug from the settings. Single process by design — app.py keeps one
-# sqlite3.Connection on app.state with check_same_thread=False, so do
-# not add uvicorn --workers.
+# debug from the settings. Single process by design — scan progress and
+# the one-scan-per-source guard live in memory (ScanManager), so do not
+# add uvicorn --workers.
 CMD ["/app/backend/.venv/bin/thalimage"]

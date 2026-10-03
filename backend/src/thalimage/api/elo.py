@@ -8,7 +8,13 @@ from pydantic import BaseModel
 
 from thalimage.deps import get_db
 from thalimage.services.collection_service import get_collection
-from thalimage.services.elo_service import get_pair, get_rankings, record_vote
+from thalimage.services.elo_service import (
+    CollectionNotFound,
+    InvalidVote,
+    get_pair,
+    get_rankings,
+    record_vote,
+)
 from thalimage.services.image_service import ImageSummary
 
 router = APIRouter(prefix="/collections/{collection_id}/elo", tags=["elo"])
@@ -68,7 +74,9 @@ def post_vote(
             winner_hash=body.winner_hash,
             loser_hash=body.loser_hash,
         )
-    except Exception as exc:
+    except CollectionNotFound as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except InvalidVote as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"status": "recorded"}
 
