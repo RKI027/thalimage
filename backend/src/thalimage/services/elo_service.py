@@ -77,6 +77,14 @@ def get_pair(
     )
 
 
+class CollectionNotFound(LookupError):
+    """The vote names a collection that does not exist."""
+
+
+class InvalidVote(ValueError):
+    """The vote cannot be recorded as given."""
+
+
 def record_vote(
     conn: sqlite3.Connection,
     collection_id: int,
@@ -84,30 +92,67 @@ def record_vote(
     winner_hash: str,
     loser_hash: str,
 ) -> None:
-    """Record a vote and update ELO scores."""
-    # Get current scores (or default 1500)
-    winner_score = _get_score(conn, collection_id, winner_hash)
-    loser_score = _get_score(conn, collection_id, loser_hash)
+    """Record a vote and update both ELO scores.
 
-    # Calculate expected scores
-    e_winner = 1.0 / (1.0 + 10.0 ** ((loser_score - winner_score) / 400.0))
-    e_loser = 1.0 - e_winner
+    The reads and writes run in one BEGIN IMMEDIATE transaction, so two votes
+    touching the same image cannot both start from the old score.
+    """
+    if winner_hash == loser_hash:
+        raise InvalidVote("An image cannot be voted against itself")
 
-    # Update scores
-    new_winner = winner_score + K_FACTOR * (1.0 - e_winner)
-    new_loser = loser_score + K_FACTOR * (0.0 - e_loser)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        coll = conn.execute(
+            "SELECT type, source_id FROM collections WHERE id = ?", (collection_id,)
+        ).fetchone()
+        if coll is None:
+            raise CollectionNotFound(f"Collection {collection_id} not found")
+        for h in (winner_hash, loser_hash):
+            if not _in_collection(conn, collection_id, coll["type"], coll["source_id"], h):
+                raise InvalidVote(f"Image {h} is not in collection {collection_id}")
 
-    # Record the vote
-    conn.execute(
-        "INSERT INTO votes (collection_id, winner_hash, loser_hash) VALUES (?, ?, ?)",
-        (collection_id, winner_hash, loser_hash),
-    )
+        winner_score = _get_score(conn, collection_id, winner_hash)
+        loser_score = _get_score(conn, collection_id, loser_hash)
 
-    # Upsert ELO scores
-    _upsert_score(conn, collection_id, winner_hash, new_winner)
-    _upsert_score(conn, collection_id, loser_hash, new_loser)
+        e_winner = 1.0 / (1.0 + 10.0 ** ((loser_score - winner_score) / 400.0))
+        e_loser = 1.0 - e_winner
+        new_winner = winner_score + K_FACTOR * (1.0 - e_winner)
+        new_loser = loser_score + K_FACTOR * (0.0 - e_loser)
 
+        conn.execute(
+            "INSERT INTO votes (collection_id, winner_hash, loser_hash) VALUES (?, ?, ?)",
+            (collection_id, winner_hash, loser_hash),
+        )
+        _upsert_score(conn, collection_id, winner_hash, new_winner)
+        _upsert_score(conn, collection_id, loser_hash, new_loser)
+    except BaseException:
+        conn.rollback()
+        raise
     conn.commit()
+
+
+def _in_collection(
+    conn: sqlite3.Connection,
+    collection_id: int,
+    coll_type: str,
+    source_id: Optional[int],
+    content_hash: str,
+) -> bool:
+    """Whether a live image belongs to the collection. Source presets hold no
+    collection_images rows; their members are the source's images."""
+    if coll_type == "source_preset":
+        row = conn.execute(
+            "SELECT 1 FROM images WHERE content_hash = ? AND source_id = ? AND deleted = 0",
+            (content_hash, source_id),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT 1 FROM collection_images ci"
+            " JOIN images i ON i.content_hash = ci.content_hash"
+            " WHERE ci.collection_id = ? AND ci.content_hash = ? AND i.deleted = 0",
+            (collection_id, content_hash),
+        ).fetchone()
+    return row is not None
 
 
 def get_rankings(
