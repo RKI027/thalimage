@@ -56,7 +56,7 @@ finding's fix), **won't fix** (with the reason), or **open**.
 | [ORG-010](organization.md#org-010-resolve-source-preset-collections-in-one-place) | low | Resolve source-preset collections in one place | open | |
 | [ORG-011](organization.md#org-011-share-the-webp-thumbnail-encoder-between-image-and-video) | low | Share the WebP thumbnail encoder between image and video | open | |
 | [ORG-012](organization.md#org-012-define-the-check-pipeline-once) | low | Define the check pipeline once | open | |
-| [ORG-013](organization.md#org-013-move-the-duplicated-test-seed-helpers-into-conftest) | low | Move the duplicated test seed helpers into conftest | open | |
+| [ORG-013](organization.md#org-013-move-the-duplicated-test-seed-helpers-into-conftest) | low | Move the duplicated test seed helpers into conftest | fixed | scanner PR: `tests/helpers.py` has `scan_source`, `ensure_source` and `insert_image`; every test file uses them except `test_migrations.py`, which writes rows in each old schema's shape on purpose |
 | [ORG-014](organization.md#org-014-deduplicate-settingshref-in-the-layout-and-sidebar) | low | Deduplicate `settingsHref` in the layout and sidebar | open | |
 | [ORG-015](organization.md#org-015-derive-the-repository-root-once) | low | Derive the repository root once | open | |
 | [ORG-016](organization.md#org-016-simplify-the-settings-router-and-give-it-a-service-like-the-other-routers) | low | Simplify the settings router and give it a service like the other routers | open | |

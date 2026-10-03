@@ -4,21 +4,10 @@ import sqlite3
 
 from fastapi.testclient import TestClient
 
+from tests.helpers import insert_image
+
+
 UNKNOWN = "f" * 64
-
-
-def _image(db: sqlite3.Connection, h: str = "a" * 64) -> str:
-    if db.execute("SELECT 1 FROM sources WHERE id = 1").fetchone() is None:
-        db.execute("INSERT INTO sources (id, path) VALUES (1, '/x')")
-    db.execute(
-        """INSERT INTO images (content_hash, filename, source_id, relative_path,
-               file_size, width, height, aspect_ratio, format, file_modified,
-               thumb_generated)
-           VALUES (?, 'x.png', 1, ?, 1, 1, 1, 1.0, 'PNG', '2024-01-01', 0)""",
-        (h, h),
-    )
-    db.commit()
-    return h
 
 
 def _tag(client: TestClient, name: str) -> int:
@@ -71,7 +60,7 @@ def test_delete(client: TestClient) -> None:
 
 
 def test_tag_and_untag_image(client: TestClient, db: sqlite3.Connection) -> None:
-    h = _image(db)
+    h = insert_image(db, "a" * 64)
     tid = _tag(client, "red")
     assert client.post(f"/api/v1/images/{h}/tags", json={"tag_id": tid}).status_code == 204
     # Tagging twice is idempotent.
@@ -90,7 +79,7 @@ def test_tag_unknown_image_is_404(client: TestClient) -> None:
 
 
 def test_tag_image_with_unknown_tag_is_404(client: TestClient, db: sqlite3.Connection) -> None:
-    h = _image(db)
+    h = insert_image(db, "a" * 64)
     assert client.post(f"/api/v1/images/{h}/tags", json={"tag_id": 999}).status_code == 404
 
 

@@ -4,30 +4,16 @@ import sqlite3
 
 import pytest
 
+from tests.helpers import ensure_source, insert_image
 from thalimage.services.elo_service import get_pair, get_rankings, record_vote
 
 
 def _seed_collection_with_images(conn: sqlite3.Connection, n: int = 5) -> tuple[int, list[str]]:
     """Create a source, images, a manual collection, and add images to it."""
-    conn.execute(
-        "INSERT INTO sources (path, label, recursive) VALUES (?, ?, ?)",
-        ("/test", "test", True),
-    )
-    conn.commit()
-
-    hashes = []
-    for i in range(n):
-        h = f"hash_{i:04d}"
-        conn.execute(
-            """INSERT INTO images
-               (content_hash, filename, source_id, relative_path,
-                file_size, width, height, aspect_ratio, format,
-                file_modified, thumb_generated)
-               VALUES (?, ?, 1, ?, 1000, 100, 100, 1.0, 'PNG', '2024-01-01T00:00:00', 1)
-            """,
-            (h, f"img_{i}.png", f"img_{i}.png"),
-        )
-        hashes.append(h)
+    hashes = [
+        insert_image(conn, f"hash_{i:04d}", filename=f"img_{i}.png", thumb_generated=True)
+        for i in range(n)
+    ]
 
     conn.execute("INSERT INTO collections (name) VALUES (?)", ("Test Collection",))
     conn.commit()
@@ -47,28 +33,18 @@ def _seed_source_preset(
     conn: sqlite3.Connection, n: int = 5, *, dates: list[str] | None = None
 ) -> tuple[int, int, list[str]]:
     """Create a source, images, and a source_preset collection (no collection_images rows)."""
-    conn.execute(
-        "INSERT INTO sources (path, label, recursive) VALUES (?, ?, ?)",
-        ("/src", "src", True),
-    )
-    conn.commit()
-    sid = conn.execute("SELECT id FROM sources ORDER BY id DESC LIMIT 1").fetchone()[0]
-
-    hashes = []
-    for i in range(n):
-        h = f"src_hash_{i:04d}"
-        date = dates[i] if dates else "2024-06-01T00:00:00"
-        conn.execute(
-            """INSERT INTO images
-               (content_hash, filename, source_id, relative_path,
-                file_size, width, height, aspect_ratio, format,
-                file_modified, thumb_generated)
-               VALUES (?, ?, ?, ?, 1000, 100, 100, 1.0, 'PNG', ?, 1)
-            """,
-            (h, f"src_{i}.png", sid, f"src_{i}.png", date),
+    sid = ensure_source(conn, "/src")
+    hashes = [
+        insert_image(
+            conn,
+            f"src_hash_{i:04d}",
+            source_id=sid,
+            filename=f"src_{i}.png",
+            file_modified=dates[i] if dates else "2024-06-01T00:00:00",
+            thumb_generated=True,
         )
-        hashes.append(h)
-    conn.commit()
+        for i in range(n)
+    ]
 
     conn.execute(
         "INSERT INTO collections (name, type, source_id) VALUES (?, 'source_preset', ?)",
