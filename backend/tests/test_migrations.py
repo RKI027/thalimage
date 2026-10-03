@@ -120,3 +120,20 @@ def test_011_drops_the_tag_nsfw_column_and_keeps_the_tags(tmp_path: Path) -> Non
         (2, "spicy"),
     ]
     conn.close()
+
+
+def test_013_records_one_location_per_live_image(tmp_path: Path) -> None:
+    conn = _db_at(tmp_path, 12)
+    conn.execute("INSERT INTO sources (id, path) VALUES (1, '/a')")
+    for h in ("live", "gone"):
+        _image(conn, h)
+    conn.execute("UPDATE images SET deleted = 1 WHERE content_hash = 'gone'")
+    conn.commit()
+
+    migrate(conn, target=13)
+
+    rows = [tuple(r) for r in conn.execute(
+        "SELECT source_id, relative_path, content_hash, filename FROM image_locations"
+    )]
+    assert rows == [(1, "live", "live", "live")]
+    conn.close()

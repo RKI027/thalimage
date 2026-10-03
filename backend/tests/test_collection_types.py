@@ -6,18 +6,12 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 
+from tests.helpers import scan_source
+
+
 def _create_source(client: TestClient, image_dir: Path) -> int:
     resp = client.post("/api/v1/sources", json={"path": str(image_dir)})
     return resp.json()["id"]
-
-
-def _seed_images(client: TestClient, image_dir: Path) -> tuple[int, list[str]]:
-    source_id = _create_source(client, image_dir)
-    client.post(f"/api/v1/sources/{source_id}/scan")
-    # The status stream closes once the scan reaches its terminal phase.
-    client.get(f"/api/v1/sources/{source_id}/scan/status")
-    resp = client.get("/api/v1/images")
-    return source_id, [img["content_hash"] for img in resp.json()["items"]]
 
 
 # --- Service-level tests via API ---
@@ -50,7 +44,7 @@ def test_delete_preset_forbidden(
     client: TestClient, db: sqlite3.Connection, image_dir: Path
 ) -> None:
     """Deleting a source preset collection should be forbidden."""
-    source_id, _ = _seed_images(client, image_dir)
+    source_id, _ = scan_source(client, image_dir)
 
     # Find the auto-created preset
     resp = client.get("/api/v1/collections?type=source_preset")
@@ -66,7 +60,7 @@ def test_rename_preset_forbidden(
     client: TestClient, image_dir: Path
 ) -> None:
     """Renaming a source preset collection should be forbidden."""
-    _seed_images(client, image_dir)
+    scan_source(client, image_dir)
 
     resp = client.get("/api/v1/collections?type=source_preset")
     preset_id = resp.json()[0]["id"]
@@ -81,7 +75,7 @@ def test_preset_sort_change_allowed(
     client: TestClient, image_dir: Path
 ) -> None:
     """Changing sort on a preset should be allowed."""
-    _seed_images(client, image_dir)
+    scan_source(client, image_dir)
 
     resp = client.get("/api/v1/collections?type=source_preset")
     preset_id = resp.json()[0]["id"]
@@ -98,7 +92,7 @@ def test_source_preset_has_images_after_scan(
     client: TestClient, image_dir: Path
 ) -> None:
     """After scanning, the source preset should contain all scanned images."""
-    source_id, hashes = _seed_images(client, image_dir)
+    source_id, hashes = scan_source(client, image_dir)
 
     resp = client.get("/api/v1/collections?type=source_preset")
     presets = [p for p in resp.json() if p["source_id"] == source_id]
@@ -122,7 +116,7 @@ def test_source_deletion_removes_preset(
     client: TestClient, image_dir: Path
 ) -> None:
     """Deleting a source should also delete its preset collection."""
-    source_id, _ = _seed_images(client, image_dir)
+    source_id, _ = scan_source(client, image_dir)
 
     resp = client.get("/api/v1/collections?type=source_preset")
     assert any(p["source_id"] == source_id for p in resp.json())
@@ -137,7 +131,7 @@ def test_source_preset_images_served_dynamically(
     client: TestClient, db: sqlite3.Connection, image_dir: Path
 ) -> None:
     """Source preset images come from a live query, not collection_images rows."""
-    source_id, hashes = _seed_images(client, image_dir)
+    source_id, hashes = scan_source(client, image_dir)
 
     # No collection_images rows should exist for the source preset
     preset_resp = client.get("/api/v1/collections?type=source_preset")

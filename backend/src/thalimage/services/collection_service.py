@@ -23,7 +23,8 @@ class Collection(BaseModel):
 _COUNT_SQL = """
     SELECT c.*,
         CASE WHEN c.type = 'source_preset'
-            THEN (SELECT COUNT(*) FROM images WHERE source_id = c.source_id AND deleted = 0)
+            THEN (SELECT COUNT(*) FROM images i WHERE i.deleted = 0 AND i.content_hash IN
+                  (SELECT content_hash FROM image_locations WHERE source_id = c.source_id))
             ELSE COUNT(ci.content_hash)
         END AS image_count
     FROM collections c

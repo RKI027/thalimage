@@ -12,35 +12,15 @@ from thalimage.services.tag_service import (
 from thalimage.services.image_service import list_images
 
 
-def _seed_source(conn: sqlite3.Connection) -> int:
-    conn.execute(
-        "INSERT OR IGNORE INTO sources (path, label, recursive) VALUES (?, ?, ?)",
-        ("/test", "test", True),
-    )
-    conn.commit()
-    return conn.execute("SELECT id FROM sources WHERE path = '/test'").fetchone()[0]
-
-
-def _seed_image(conn: sqlite3.Connection, hash_: str, *, source_id: int = 1) -> str:
-    conn.execute(
-        """INSERT INTO images
-           (content_hash, filename, source_id, relative_path,
-            file_size, width, height, aspect_ratio, format,
-            file_modified, thumb_generated)
-           VALUES (?, ?, ?, ?, 1000, 100, 100, 1.0, 'PNG', '2024-01-01T00:00:00', 0)
-        """,
-        (hash_, f"{hash_}.png", source_id, f"{hash_}.png"),
-    )
-    conn.commit()
-    return hash_
+from tests.helpers import ensure_source, insert_image
 
 
 # --- NSFW trigger: tag named "nsfw" drives the flag ---
 
 
 def test_adding_nsfw_tag_sets_image_nsfw(db: sqlite3.Connection) -> None:
-    sid = _seed_source(db)
-    h = _seed_image(db, "img001", source_id=sid)
+    sid = ensure_source(db)
+    h = insert_image(db, "img001", source_id=sid)
     tag = create_tag(db, "nsfw")
     add_image_tag(db, h, tag.id)
 
@@ -51,8 +31,8 @@ def test_adding_nsfw_tag_sets_image_nsfw(db: sqlite3.Connection) -> None:
 
 
 def test_nsfw_tag_match_is_case_insensitive(db: sqlite3.Connection) -> None:
-    sid = _seed_source(db)
-    h = _seed_image(db, "img002", source_id=sid)
+    sid = ensure_source(db)
+    h = insert_image(db, "img002", source_id=sid)
     tag = create_tag(db, "NSFW")
     add_image_tag(db, h, tag.id)
 
@@ -63,8 +43,8 @@ def test_nsfw_tag_match_is_case_insensitive(db: sqlite3.Connection) -> None:
 
 
 def test_adding_unrelated_tag_does_not_set_image_nsfw(db: sqlite3.Connection) -> None:
-    sid = _seed_source(db)
-    h = _seed_image(db, "img003", source_id=sid)
+    sid = ensure_source(db)
+    h = insert_image(db, "img003", source_id=sid)
     tag = create_tag(db, "nature")
     add_image_tag(db, h, tag.id)
 
@@ -75,8 +55,8 @@ def test_adding_unrelated_tag_does_not_set_image_nsfw(db: sqlite3.Connection) ->
 
 
 def test_removing_nsfw_tag_resets_image_nsfw(db: sqlite3.Connection) -> None:
-    sid = _seed_source(db)
-    h = _seed_image(db, "img004", source_id=sid)
+    sid = ensure_source(db)
+    h = insert_image(db, "img004", source_id=sid)
     tag = create_tag(db, "nsfw")
     add_image_tag(db, h, tag.id)
     remove_image_tag(db, h, tag.id)
@@ -88,8 +68,8 @@ def test_removing_nsfw_tag_resets_image_nsfw(db: sqlite3.Connection) -> None:
 
 
 def test_removing_unrelated_tag_does_not_clear_nsfw(db: sqlite3.Connection) -> None:
-    sid = _seed_source(db)
-    h = _seed_image(db, "img005", source_id=sid)
+    sid = ensure_source(db)
+    h = insert_image(db, "img005", source_id=sid)
     nsfw_tag = create_tag(db, "nsfw")
     other_tag = create_tag(db, "nature")
     add_image_tag(db, h, nsfw_tag.id)
@@ -110,8 +90,8 @@ def _nsfw(conn: sqlite3.Connection, h: str) -> int:
 
 
 def test_deleting_the_nsfw_tag_clears_the_flag(db: sqlite3.Connection) -> None:
-    sid = _seed_source(db)
-    h = _seed_image(db, "img001", source_id=sid)
+    sid = ensure_source(db)
+    h = insert_image(db, "img001", source_id=sid)
     tag = create_tag(db, "nsfw")
     add_image_tag(db, h, tag.id)
 
@@ -121,8 +101,8 @@ def test_deleting_the_nsfw_tag_clears_the_flag(db: sqlite3.Connection) -> None:
 
 
 def test_deleting_one_nsfw_spelling_keeps_the_flag_from_another(db: sqlite3.Connection) -> None:
-    sid = _seed_source(db)
-    h = _seed_image(db, "img001", source_id=sid)
+    sid = ensure_source(db)
+    h = insert_image(db, "img001", source_id=sid)
     lower, upper = create_tag(db, "nsfw"), create_tag(db, "NSFW")
     add_image_tag(db, h, lower.id)
     add_image_tag(db, h, upper.id)
@@ -133,8 +113,8 @@ def test_deleting_one_nsfw_spelling_keeps_the_flag_from_another(db: sqlite3.Conn
 
 
 def test_renaming_a_tag_to_nsfw_sets_the_flag(db: sqlite3.Connection) -> None:
-    sid = _seed_source(db)
-    h = _seed_image(db, "img001", source_id=sid)
+    sid = ensure_source(db)
+    h = insert_image(db, "img001", source_id=sid)
     tag = create_tag(db, "spicy")
     add_image_tag(db, h, tag.id)
 
@@ -144,9 +124,9 @@ def test_renaming_a_tag_to_nsfw_sets_the_flag(db: sqlite3.Connection) -> None:
 
 
 def test_renaming_the_nsfw_tag_away_clears_the_flag(db: sqlite3.Connection) -> None:
-    sid = _seed_source(db)
-    h = _seed_image(db, "img001", source_id=sid)
-    other = _seed_image(db, "img002", source_id=sid)
+    sid = ensure_source(db)
+    h = insert_image(db, "img001", source_id=sid)
+    other = insert_image(db, "img002", source_id=sid)
     tag = create_tag(db, "nsfw")
     add_image_tag(db, h, tag.id)
     add_image_tag(db, other, tag.id)
@@ -157,8 +137,8 @@ def test_renaming_the_nsfw_tag_away_clears_the_flag(db: sqlite3.Connection) -> N
 
 
 def test_renaming_within_nsfw_spellings_keeps_the_flag(db: sqlite3.Connection) -> None:
-    sid = _seed_source(db)
-    h = _seed_image(db, "img001", source_id=sid)
+    sid = ensure_source(db)
+    h = insert_image(db, "img001", source_id=sid)
     tag = create_tag(db, "nsfw")
     add_image_tag(db, h, tag.id)
 
@@ -168,9 +148,9 @@ def test_renaming_within_nsfw_spellings_keeps_the_flag(db: sqlite3.Connection) -
 
 
 def test_list_images_hides_nsfw_by_default(db: sqlite3.Connection) -> None:
-    sid = _seed_source(db)
-    safe_hash = _seed_image(db, "safe01", source_id=sid)
-    nsfw_hash = _seed_image(db, "nsfw01", source_id=sid)
+    sid = ensure_source(db)
+    safe_hash = insert_image(db, "safe01", source_id=sid)
+    nsfw_hash = insert_image(db, "nsfw01", source_id=sid)
     tag = create_tag(db, "nsfw")
     add_image_tag(db, nsfw_hash, tag.id)
 
@@ -181,9 +161,9 @@ def test_list_images_hides_nsfw_by_default(db: sqlite3.Connection) -> None:
 
 
 def test_list_images_shows_nsfw_when_requested(db: sqlite3.Connection) -> None:
-    sid = _seed_source(db)
-    safe_hash = _seed_image(db, "safe02", source_id=sid)
-    nsfw_hash = _seed_image(db, "nsfw02", source_id=sid)
+    sid = ensure_source(db)
+    safe_hash = insert_image(db, "safe02", source_id=sid)
+    nsfw_hash = insert_image(db, "nsfw02", source_id=sid)
     tag = create_tag(db, "nsfw")
     add_image_tag(db, nsfw_hash, tag.id)
 
@@ -207,9 +187,9 @@ def _add_to_collection(conn: sqlite3.Connection, collection_id: int, hash_: str)
 def test_list_images_hides_images_in_nsfw_collection(db: sqlite3.Connection) -> None:
     from thalimage.services.collection_service import create_collection, update_collection
 
-    sid = _seed_source(db)
-    safe_hash = _seed_image(db, "csafe1", source_id=sid)
-    in_nsfw_coll = _seed_image(db, "cnsfw1", source_id=sid)
+    sid = ensure_source(db)
+    safe_hash = insert_image(db, "csafe1", source_id=sid)
+    in_nsfw_coll = insert_image(db, "cnsfw1", source_id=sid)
     coll = create_collection(db, "Adult")
     update_collection(db, coll.id, nsfw=True)
     _add_to_collection(db, coll.id, in_nsfw_coll)
@@ -225,8 +205,8 @@ def test_list_images_shows_nsfw_collection_images_when_requested(
 ) -> None:
     from thalimage.services.collection_service import create_collection, update_collection
 
-    sid = _seed_source(db)
-    in_nsfw_coll = _seed_image(db, "cnsfw2", source_id=sid)
+    sid = ensure_source(db)
+    in_nsfw_coll = insert_image(db, "cnsfw2", source_id=sid)
     coll = create_collection(db, "Adult")
     update_collection(db, coll.id, nsfw=True)
     _add_to_collection(db, coll.id, in_nsfw_coll)
@@ -242,8 +222,8 @@ def test_list_images_hides_images_in_nsfw_source_preset(db: sqlite3.Connection) 
         update_collection,
     )
 
-    sid = _seed_source(db)
-    h = _seed_image(db, "ps_nsfw1", source_id=sid)
+    sid = ensure_source(db)
+    h = insert_image(db, "ps_nsfw1", source_id=sid)
     preset = get_or_create_source_preset(db, sid, "test")
     update_collection(db, preset.id, nsfw=True)
 
@@ -259,8 +239,8 @@ def test_list_images_shows_nsfw_source_preset_when_requested(
         update_collection,
     )
 
-    sid = _seed_source(db)
-    h = _seed_image(db, "ps_nsfw2", source_id=sid)
+    sid = ensure_source(db)
+    h = insert_image(db, "ps_nsfw2", source_id=sid)
     preset = get_or_create_source_preset(db, sid, "test")
     update_collection(db, preset.id, nsfw=True)
 
@@ -271,8 +251,8 @@ def test_list_images_shows_nsfw_source_preset_when_requested(
 def test_image_in_safe_collection_not_hidden(db: sqlite3.Connection) -> None:
     from thalimage.services.collection_service import create_collection
 
-    sid = _seed_source(db)
-    h = _seed_image(db, "csafe3", source_id=sid)
+    sid = ensure_source(db)
+    h = insert_image(db, "csafe3", source_id=sid)
     coll = create_collection(db, "Safe")
     _add_to_collection(db, coll.id, h)
 

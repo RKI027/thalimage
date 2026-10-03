@@ -2,6 +2,7 @@
 
 import sqlite3
 
+from tests.helpers import insert_image
 from thalimage.services.image_service import list_images
 
 
@@ -9,7 +10,6 @@ def test_date_created_sort_pages_through_null_birthtimes(db: sqlite3.Connection)
     """Linux has no st_birthtime, so file_created is NULL there. The Created
     sort falls back to file_modified and must still page through every row,
     in both directions, mixed with rows that do have a birthtime."""
-    db.execute("INSERT INTO sources (path) VALUES ('/x')")
     rows = [
         ("a" * 64, "2024-01-03T00:00:00+00:00", None),
         ("b" * 64, "2024-01-01T00:00:00+00:00", None),
@@ -17,14 +17,7 @@ def test_date_created_sort_pages_through_null_birthtimes(db: sqlite3.Connection)
         ("d" * 64, "2024-01-04T00:00:00+00:00", None),
     ]
     for h, modified, created in rows:
-        db.execute(
-            """INSERT INTO images (content_hash, filename, source_id, relative_path,
-                   file_size, width, height, aspect_ratio, format,
-                   file_modified, file_created, thumb_generated)
-               VALUES (?, ?, 1, ?, 1, 1, 1, 1.0, 'PNG', ?, ?, 0)""",
-            (h, f"{h}.png", f"{h}.png", modified, created),
-        )
-    db.commit()
+        insert_image(db, h, file_modified=modified, file_created=created)
 
     expected_asc = ["b" * 64, "c" * 64, "a" * 64, "d" * 64]
     for direction, expected in (("asc", expected_asc), ("desc", expected_asc[::-1])):
