@@ -19,7 +19,9 @@
 
 services:
   tailscale:
-    image: tailscale/tailscale:latest
+    # Pinned: this container holds the tailnet credentials, so it is
+    # upgraded deliberately rather than by `docker compose pull`.
+    image: tailscale/tailscale:${TS_VERSION:-v1.102.5}
     container_name: thalimage-tailscale
     hostname: ${TS_HOSTNAME:-thalimage} # -> ${TS_HOSTNAME}.<tailnet>.ts.net
     environment:
@@ -60,12 +62,15 @@ services:
     volumes:
       # Database, thumbnails and previews. A real directory, not a named
       # volume: the SQLite file is in WAL mode and wants a plain local
-      # filesystem, and a path you can back up and inspect.
-      - ${THALIMAGE_DATA:-/srv/thalimage}:/data
+      # filesystem, and a path you can back up and inspect. A sibling of
+      # tailscale/, not its parent: the entrypoint chowns /data to the app
+      # user, and the node keys must stay out of the app's reach.
+      - ${THALIMAGE_DATA:-/srv/thalimage}/app:/data
 
       # Image roots, read-only — nothing is ever written back into them.
-      # Mount each one separately and register it in Settings by its
-      # container path. These paths are stored absolutely in the database,
+      # THALIMAGE_IMAGES is mounted at /images; register it (or folders
+      # under it) in Settings by container path. Further trees go on lines
+      # of their own. These paths are stored absolutely in the database,
       # so they must stay stable across redeploys.
       - ${THALIMAGE_IMAGES:?set THALIMAGE_IMAGES to the host image folder}:/images:ro
       # - /photos/comfy:/images/comfy:ro
