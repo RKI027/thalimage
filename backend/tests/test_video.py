@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.helpers import requires_ffmpeg
 from thalimage.core.video import (
     VIDEO_EXTENSIONS,
     extract_video_info,
@@ -39,35 +40,6 @@ def test_ffmpeg_available_without_ffmpeg():
         ffmpeg_available.cache_clear()
         assert ffmpeg_available() is False
     ffmpeg_available.cache_clear()
-
-
-# Integration tests that require ffmpeg
-requires_ffmpeg = pytest.mark.skipif(
-    not ffmpeg_available(), reason="ffmpeg not available"
-)
-
-
-@pytest.fixture
-def sample_mp4(tmp_path: Path) -> Path:
-    """Create a tiny MP4 video using ffmpeg."""
-    out = tmp_path / "test.mp4"
-    import subprocess
-
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-f", "lavfi",
-            "-i", "color=c=red:s=64x48:d=1",
-            "-c:v", "libx264",
-            "-pix_fmt", "yuv420p",
-            "-y",
-            str(out),
-        ],
-        capture_output=True,
-        timeout=30,
-    )
-    assert out.exists(), "Failed to create test MP4"
-    return out
 
 
 @requires_ffmpeg

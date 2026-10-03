@@ -84,3 +84,27 @@ def image_dir(tmp_path: Path) -> Path:
     (root / "readme.txt").write_text("not an image")
 
     return root
+
+
+@pytest.fixture
+def sample_mp4(tmp_path: Path) -> Path:
+    """A one-second 64x48 MP4 made with ffmpeg (pair with requires_ffmpeg)."""
+    import subprocess
+
+    out = tmp_path / "test.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-f", "lavfi",
+            "-i", "color=c=red:s=64x48:d=1",
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-y",
+            str(out),
+        ],
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    assert out.exists(), "Failed to create test MP4"
+    return out
