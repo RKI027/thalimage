@@ -24,3 +24,16 @@ def test_openapi_version_matches_the_package(client: TestClient) -> None:
 
     schema = client.get("/api/openapi.json").json()
     assert schema["info"]["version"] == version_info().version
+
+
+def test_the_frontend_carries_no_second_version() -> None:
+    """pyproject.toml is the one place the version is written (PKG-005)."""
+    import json
+    from pathlib import Path
+
+    import pytest
+
+    package_json = Path(__file__).resolve().parents[2] / "frontend" / "package.json"
+    if not package_json.exists():
+        pytest.skip("backend-only checkout")
+    assert "version" not in json.loads(package_json.read_text())
