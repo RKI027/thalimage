@@ -23,6 +23,7 @@ from thalimage.core.video import (
     ffmpeg_available,
     is_video,
 )
+from thalimage.services.locations import sync_images
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,8 @@ def run_scan(
     2. Skip unchanged files (same relative path + mtime + size)
     3. Hash, extract metadata and thumbnail new or changed files
     4. Write them to the DB in short batches
-    5. Mark images whose files are gone as deleted
+    5. Drop the locations of files that are gone; an image with no location
+       left anywhere is marked deleted
     """
     source = conn.execute(
         "SELECT * FROM sources WHERE id = ?", (source_id,)
@@ -89,11 +91,12 @@ def run_scan(
     # Step 1: list files
     listing = scan_directory(source_path, recursive=bool(source["recursive"]))
 
+    # What the last scan found here, by relative path.
     known = {
         row["relative_path"]: row
         for row in conn.execute(
             "SELECT content_hash, relative_path, file_modified, file_size "
-            "FROM images WHERE source_id = ? AND deleted = 0",
+            "FROM image_locations WHERE source_id = ?",
             (source_id,),
         )
     }
@@ -107,9 +110,9 @@ def run_scan(
     if progress_callback:
         progress_callback(phase="processing", total=len(listing.files), current=0)
 
-    # Content still present in the source, by hash. A file that cannot be
-    # read keeps its previous content here rather than reading as deleted.
-    present: set[str] = set()
+    # Paths whose location row stays. A file that cannot be read keeps its
+    # previous row rather than reading as deleted.
+    kept: set[str] = set()
     pending: list[_Indexed] = []
     last_write = time.monotonic()
 
@@ -125,12 +128,12 @@ def run_scan(
                 and previous["file_modified"] == modified
                 and previous["file_size"] == stat.st_size
             ):
-                present.add(previous["content_hash"])
+                kept.add(relative)
                 result.skipped += 1
             else:
                 # Step 3: read the file
                 item = _index_file(file_path, relative, stat, thumb_dir)
-                present.add(item.content_hash)
+                kept.add(relative)
                 pending.append(item)
                 result.added += 1
         except _SkipFile as exc:
@@ -139,14 +142,13 @@ def run_scan(
         except Exception:
             logger.exception("Failed to process %s during scan", file_path)
             result.errors += 1
-            if previous is not None:
-                present.add(previous["content_hash"])
+            kept.add(relative)
 
         # Step 4: write in batches
         if pending and (
             len(pending) >= BATCH_FILES or time.monotonic() - last_write >= BATCH_SECONDS
         ):
-            _write_batch(conn, source_id, pending)
+            _write_batch(conn, source_id, pending, known)
             pending = []
             last_write = time.monotonic()
 
@@ -158,22 +160,22 @@ def run_scan(
                 errors=result.errors,
             )
 
-    _write_batch(conn, source_id, pending)
+    _write_batch(conn, source_id, pending, known)
 
-    # Step 5: mark deleted files. Nothing under a folder that could not be
-    # listed counts as gone: its contents are unknown.
+    # Step 5: drop the locations of files that are gone. Nothing under a
+    # folder that could not be listed counts as gone: its contents are unknown.
     unreadable = [str(d.relative_to(source_path)) + os.sep for d in listing.unreadable]
-    gone = {
-        row["content_hash"]
-        for relative, row in known.items()
-        if row["content_hash"] not in present
-        and not any(relative.startswith(prefix) for prefix in unreadable)
-    }
+    gone = [
+        relative
+        for relative in known
+        if relative not in kept and not any(relative.startswith(p) for p in unreadable)
+    ]
     with conn:
         conn.executemany(
-            "UPDATE images SET deleted = 1 WHERE content_hash = ?",
-            [(h,) for h in gone],
+            "DELETE FROM image_locations WHERE source_id = ? AND relative_path = ?",
+            [(source_id, relative) for relative in gone],
         )
+        sync_images(conn, (known[relative]["content_hash"] for relative in gone))
         conn.execute(
             "UPDATE sources SET last_scan = datetime('now') WHERE id = ?",
             (source_id,),
@@ -231,17 +233,33 @@ def _index_file(
     )
 
 
-def _write_batch(conn: sqlite3.Connection, source_id: int, items: list[_Indexed]) -> None:
+def _write_batch(
+    conn: sqlite3.Connection,
+    source_id: int,
+    items: list[_Indexed],
+    known: dict[str, sqlite3.Row],
+) -> None:
     """Write indexed files in one short transaction."""
     if not items:
         return
     with conn:
+        touched: set[str] = set()
         for item in items:
             _upsert_image(conn, source_id, item)
             _upsert_metadata(conn, item.content_hash, item.meta)
+            _upsert_location(conn, source_id, item)
+            touched.add(item.content_hash)
+            previous = known.get(item.relative_path)
+            if previous is not None:
+                # The path may have held other content until now.
+                touched.add(previous["content_hash"])
+        sync_images(conn, touched)
 
 
 def _upsert_image(conn: sqlite3.Connection, source_id: int, item: _Indexed) -> None:
+    """Insert new content with this file as its primary location. Content
+    already known keeps its primary location; sync_images moves it only if
+    that location is gone."""
     conn.execute(
         """INSERT INTO images
            (content_hash, filename, source_id, relative_path,
@@ -249,16 +267,33 @@ def _upsert_image(conn: sqlite3.Connection, source_id: int, item: _Indexed) -> N
             file_modified, file_created, thumb_generated)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
            ON CONFLICT(content_hash) DO UPDATE SET
-            filename=excluded.filename,
-            relative_path=excluded.relative_path,
-            file_size=excluded.file_size,
-            file_modified=excluded.file_modified,
-            thumb_generated=1,
-            deleted=0
+            width=excluded.width,
+            height=excluded.height,
+            aspect_ratio=excluded.aspect_ratio,
+            format=excluded.format,
+            thumb_generated=1
         """,
         (item.content_hash, item.filename, source_id, item.relative_path,
          item.file_size, item.width, item.height, item.aspect_ratio, item.format,
          item.file_modified, item.file_created),
+    )
+
+
+def _upsert_location(conn: sqlite3.Connection, source_id: int, item: _Indexed) -> None:
+    conn.execute(
+        """INSERT INTO image_locations
+           (source_id, relative_path, content_hash, filename,
+            file_size, file_modified, file_created)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(source_id, relative_path) DO UPDATE SET
+            content_hash=excluded.content_hash,
+            filename=excluded.filename,
+            file_size=excluded.file_size,
+            file_modified=excluded.file_modified,
+            file_created=excluded.file_created
+        """,
+        (source_id, item.relative_path, item.content_hash, item.filename,
+         item.file_size, item.file_modified, item.file_created),
     )
 
 
