@@ -126,8 +126,26 @@ def delete_collection(conn: sqlite3.Connection, collection_id: int) -> bool | st
         return False
     if coll.type != "manual":
         return "preset_delete_forbidden"
-    cursor = conn.execute("DELETE FROM collections WHERE id = ?", (collection_id,))
+    deleted = purge_collection(conn, collection_id)
     conn.commit()
+    return deleted
+
+
+def purge_collection(conn: sqlite3.Connection, collection_id: int) -> bool:
+    """Delete a collection and the rows that reference it, without committing.
+
+    votes and elo_scores reference collections with no ON DELETE action, so
+    they go first; child collections move up to the deleted one's parent.
+    collection_images cascades. Returns False if there was no such row.
+    """
+    conn.execute("DELETE FROM votes WHERE collection_id = ?", (collection_id,))
+    conn.execute("DELETE FROM elo_scores WHERE collection_id = ?", (collection_id,))
+    conn.execute(
+        "UPDATE collections SET parent_id ="
+        " (SELECT parent_id FROM collections WHERE id = ?) WHERE parent_id = ?",
+        (collection_id, collection_id),
+    )
+    cursor = conn.execute("DELETE FROM collections WHERE id = ?", (collection_id,))
     return cursor.rowcount > 0
 
 
@@ -137,10 +155,12 @@ def add_images(
     hashes: list[str],
 ) -> int:
     """Add images to a collection. Returns the number of rows actually inserted
-    (duplicates and unknown hashes don't count)."""
+    (duplicates and unknown hashes don't count). OR IGNORE does not cover
+    foreign-key failures, so unknown hashes are filtered out by the SELECT."""
     before = conn.total_changes
     conn.executemany(
-        "INSERT OR IGNORE INTO collection_images (collection_id, content_hash) VALUES (?, ?)",
+        "INSERT OR IGNORE INTO collection_images (collection_id, content_hash)"
+        " SELECT ?, content_hash FROM images WHERE content_hash = ?",
         [(collection_id, h) for h in hashes],
     )
     conn.commit()
