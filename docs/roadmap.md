@@ -232,6 +232,11 @@ The changes that alter behaviour:
   sort) at any depth, through `GET /images/{hash}/neighbors`.
 - **Cross-site writes are refused** (`csrf.py`); there is still no
   authentication.
+- **AI parameters are extracted at last.** The extractor read attribute
+  names sd-parsers does not have, so no prompt, negative prompt, tool or
+  raw parameters had ever been stored. Fixed, with an
+  `extractor_version` on each metadata row: the first scan after
+  upgrading re-reads every still image once to fill them in.
 - Frontend unit tests (vitest), migration tests on populated databases,
   and `make cov`.
 

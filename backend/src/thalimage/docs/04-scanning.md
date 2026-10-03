@@ -3,7 +3,8 @@
 A scan walks a source folder, finds images and videos, and records what
 it finds. Re-scanning is safe and cheap: a file whose path, size and
 modification time are unchanged since the last scan is skipped without
-being read.
+being read — unless metadata extraction has improved since it was read,
+in which case it is read once more to pick that up.
 
 ## What happens to each new or changed file
 
