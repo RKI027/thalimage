@@ -222,15 +222,15 @@ export function listTags(search?: string): Promise<Tag[]> {
 	return fetchJSON(`${BASE}/tags${q}`);
 }
 
-export function createTag(name: string, nsfw = false): Promise<Tag> {
+export function createTag(name: string): Promise<Tag> {
 	return fetchJSON(`${BASE}/tags`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ name, nsfw })
+		body: JSON.stringify({ name })
 	});
 }
 
-export function updateTag(id: number, patch: { name?: string; nsfw?: boolean }): Promise<Tag> {
+export function updateTag(id: number, patch: { name?: string }): Promise<Tag> {
 	return fetchJSON(`${BASE}/tags/${id}`, {
 		method: 'PATCH',
 		headers: { 'Content-Type': 'application/json' },

@@ -104,3 +104,19 @@ def test_010_unsticks_images_flagged_by_a_deleted_nsfw_tag(tmp_path: Path) -> No
 
     assert _hashes(conn, "SELECT content_hash FROM images WHERE nsfw = 1") == {"tagged"}
     conn.close()
+
+
+def test_011_drops_the_tag_nsfw_column_and_keeps_the_tags(tmp_path: Path) -> None:
+    conn = _db_at(tmp_path, 10)
+    conn.execute("INSERT INTO tags (id, name, nsfw) VALUES (1, 'nsfw', 0), (2, 'spicy', 1)")
+    conn.commit()
+
+    migrate(conn, target=11)
+
+    columns = {r["name"] for r in conn.execute("PRAGMA table_info(tags)")}
+    assert "nsfw" not in columns
+    assert [tuple(r) for r in conn.execute("SELECT id, name FROM tags ORDER BY id")] == [
+        (1, "nsfw"),
+        (2, "spicy"),
+    ]
+    conn.close()
