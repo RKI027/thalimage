@@ -12,12 +12,10 @@ from sse_starlette.sse import EventSourceResponse  # type: ignore[import-untyped
 
 from thalimage.db.engine import connect
 from thalimage.deps import get_db, get_scan_manager, get_thumb_dir
-from thalimage.services.collection_service import (
-    get_or_create_source_preset,
-    purge_collection,
-)
+from thalimage.services.collection_service import get_or_create_source_preset
 from thalimage.services.scan_manager import ScanManager
 from thalimage.services.scan_service import run_scan
+from thalimage.services.source_service import delete_source
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 
@@ -77,47 +75,12 @@ def create_source(
 
 
 @router.delete("/{source_id}", status_code=204)
-def delete_source(
+def del_source(
     source_id: int,
     db: sqlite3.Connection = Depends(get_db),
 ) -> None:
-    source = db.execute("SELECT id FROM sources WHERE id = ?", (source_id,)).fetchone()
-    if source is None:
+    if not delete_source(db, source_id):
         raise HTTPException(404, "Source not found")
-    # Remove the source's preset collection, with its votes and scores.
-    for preset in db.execute(
-        "SELECT id FROM collections WHERE source_id = ? AND type = 'source_preset'",
-        (source_id,),
-    ).fetchall():
-        purge_collection(db, preset["id"])
-    # Remove dependent rows before deleting the source
-    hashes = [
-        r["content_hash"]
-        for r in db.execute(
-            "SELECT content_hash FROM images WHERE source_id = ?", (source_id,)
-        ).fetchall()
-    ]
-    if hashes:
-        placeholders = ",".join("?" * len(hashes))
-        db.execute(
-            f"DELETE FROM image_metadata WHERE content_hash IN ({placeholders})",
-            hashes,
-        )
-        db.execute(
-            f"DELETE FROM collection_images WHERE content_hash IN ({placeholders})",
-            hashes,
-        )
-        db.execute(
-            f"DELETE FROM elo_scores WHERE content_hash IN ({placeholders})",
-            hashes,
-        )
-        db.execute(
-            f"DELETE FROM votes WHERE winner_hash IN ({placeholders}) OR loser_hash IN ({placeholders})",
-            hashes + hashes,
-        )
-        db.execute("DELETE FROM images WHERE source_id = ?", (source_id,))
-    db.execute("DELETE FROM sources WHERE id = ?", (source_id,))
-    db.commit()
 
 
 @router.post("/{source_id}/scan", status_code=202)

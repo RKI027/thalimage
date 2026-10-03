@@ -45,7 +45,7 @@ def insert_image(
     file_created: str | None = None,
     thumb_generated: bool = False,
 ) -> str:
-    """Insert an image row as a scan would have, and commit."""
+    """Insert an image and its location as a scan would have, and commit."""
     if source_id is None:
         source_id = ensure_source(conn)
     filename = filename or f"{content_hash}.png"
@@ -57,6 +57,13 @@ def insert_image(
            VALUES (?, ?, ?, ?, 1000, 100, 100, 1.0, 'PNG', ?, ?, ?)""",
         (content_hash, filename, source_id, filename, file_modified, file_created,
          int(thumb_generated)),
+    )
+    conn.execute(
+        """INSERT INTO image_locations
+           (source_id, relative_path, content_hash, filename, file_size,
+            file_modified, file_created)
+           VALUES (?, ?, ?, ?, 1000, ?, ?)""",
+        (source_id, filename, content_hash, filename, file_modified, file_created),
     )
     conn.commit()
     return content_hash
