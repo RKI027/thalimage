@@ -5,6 +5,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from tests.helpers import requires_ffmpeg
 from thalimage.db.engine import connect, migrate
 from thalimage.services.scan_service import run_scan
 
@@ -125,4 +126,89 @@ def test_scan_extracts_metadata(tmp_path: Path) -> None:
     assert meta is not None
     assert meta["content_hash"] is not None
 
+    conn.close()
+
+
+# --- TST-002: changed files, bad files, videos ---
+
+
+def _scan_setup(tmp_path: Path) -> tuple[sqlite3.Connection, Path, int, Path]:
+    img_dir = tmp_path / "photos"
+    img_dir.mkdir()
+    conn = connect(tmp_path / "test.db")
+    migrate(conn)
+    return conn, img_dir, _setup_source(conn, img_dir), tmp_path / "thumbs"
+
+
+def _live(conn: sqlite3.Connection) -> dict[str, str]:
+    """relative_path -> content_hash of the live (not deleted) images."""
+    return {
+        r["relative_path"]: r["content_hash"]
+        for r in conn.execute("SELECT relative_path, content_hash FROM images WHERE deleted = 0")
+    }
+
+
+def test_modified_file_replaces_its_old_content(tmp_path: Path) -> None:
+    import os
+
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    path = img_dir / "edit.png"
+    Image.new("RGB", (10, 10), "red").save(path)
+    run_scan(conn, source_id, thumbs)
+    old_hash = _live(conn)["edit.png"]
+
+    Image.new("RGB", (12, 10), "blue").save(path)
+    st = path.stat()
+    os.utime(path, (st.st_atime, st.st_mtime + 10))
+    result = run_scan(conn, source_id, thumbs)
+
+    assert (result.added, result.skipped) == (1, 0)
+    new_hash = _live(conn)["edit.png"]
+    assert new_hash != old_hash
+    deleted = conn.execute(
+        "SELECT deleted FROM images WHERE content_hash = ?", (old_hash,)
+    ).fetchone()[0]
+    assert deleted == 1
+    width = conn.execute("SELECT width FROM images WHERE content_hash = ?", (new_hash,)).fetchone()[0]
+    assert width == 12
+    conn.close()
+
+
+def test_corrupt_file_counts_an_error_and_the_scan_goes_on(tmp_path: Path) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    Image.new("RGB", (10, 10), "red").save(img_dir / "good.png")
+    (img_dir / "broken.png").write_bytes(b"\x89PNG not really")
+
+    result = run_scan(conn, source_id, thumbs)
+
+    assert (result.scanned, result.added, result.errors) == (2, 1, 1)
+    assert set(_live(conn)) == {"good.png"}
+    conn.close()
+
+
+@requires_ffmpeg
+def test_video_is_indexed_with_a_thumbnail(tmp_path: Path, sample_mp4: Path) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    sample_mp4.rename(img_dir / "clip.mp4")
+
+    result = run_scan(conn, source_id, thumbs)
+
+    assert (result.added, result.errors) == (1, 0)
+    row = conn.execute("SELECT * FROM images").fetchone()
+    assert (row["width"], row["height"], row["format"]) == (64, 48, "MP4")
+    assert (thumbs / row["content_hash"][:2] / f"{row['content_hash']}.webp").exists()
+    assert conn.execute("SELECT COUNT(*) FROM image_metadata").fetchone()[0] == 1
+    conn.close()
+
+
+def test_video_without_ffmpeg_is_skipped_as_an_error(tmp_path: Path, monkeypatch) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    (img_dir / "clip.mp4").write_bytes(b"whatever")
+    Image.new("RGB", (10, 10), "red").save(img_dir / "pic.png")
+    monkeypatch.setattr("thalimage.services.scan_service.ffmpeg_available", lambda: False)
+
+    result = run_scan(conn, source_id, thumbs)
+
+    assert (result.added, result.errors) == (1, 1)
+    assert set(_live(conn)) == {"pic.png"}
     conn.close()
