@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { collectionsStore, settingsStore } from '$lib/stores';
+	import { readStored, writeStored } from '$lib/storage';
 
 	let {
 		mobileOpen = false,
@@ -34,18 +35,18 @@
 
 	onMount(() => {
 		collectionsStore.refresh();
-		presetsOpen = localStorage.getItem('sidebar:presets') !== 'false';
-		collectionsOpen = localStorage.getItem('sidebar:collections') !== 'false';
+		presetsOpen = readStored('sidebar:presets', true);
+		collectionsOpen = readStored('sidebar:collections', true);
 	});
 
 	function togglePresets() {
 		presetsOpen = !presetsOpen;
-		localStorage.setItem('sidebar:presets', String(presetsOpen));
+		writeStored('sidebar:presets', presetsOpen);
 	}
 
 	function toggleCollections() {
 		collectionsOpen = !collectionsOpen;
-		localStorage.setItem('sidebar:collections', String(collectionsOpen));
+		writeStored('sidebar:collections', collectionsOpen);
 	}
 </script>
 

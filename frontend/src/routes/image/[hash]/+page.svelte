@@ -8,6 +8,7 @@
 	import type { ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import { attachSwipe } from '$lib/swipe';
+	import { readStored, writeStored } from '$lib/storage';
 	import Icon from '$lib/components/Icon.svelte';
 	import ImageViewer from '$lib/components/ImageViewer.svelte';
 	import MetadataPanel from '$lib/components/MetadataPanel.svelte';
@@ -28,7 +29,7 @@
 	let bottomSheetOpen = $state(false);
 	let topBarVisible = $state(false);
 	let topBarTimer: ReturnType<typeof setTimeout> | null = null;
-	let videoLoop = $state(localStorage.getItem('video:loop') === 'true');
+	let videoLoop = $state(readStored('video:loop', false));
 
 	// Cap on how many neighbours the slideshow walks. The ELO rankings fetch
 	// uses the same cap so every neighbour that can appear has a score fetched;
@@ -41,7 +42,7 @@
 		VIDEO_EXTENSIONS.has(image.filename.slice(image.filename.lastIndexOf('.')).toLowerCase())
 	);
 
-	$effect(() => { localStorage.setItem('video:loop', String(videoLoop)); });
+	$effect(() => { writeStored('video:loop', videoLoop); });
 
 	const metadataModes: MetadataMode[] = ['hidden', 'compact', 'full'];
 	const overlayModes: OverlayMode[] = ['none', 'minimal', 'full'];
