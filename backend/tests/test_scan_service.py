@@ -92,6 +92,8 @@ def test_scan_marks_deleted_files(tmp_path: Path) -> None:
     img_dir.mkdir()
     img_path = img_dir / "temp.png"
     Image.new("RGB", (10, 10), "white").save(img_path)
+    # A second file stays: a scan that finds nothing at all is refused.
+    Image.new("RGB", (10, 10), "black").save(img_dir / "keep.png")
 
     conn = connect(tmp_path / "test.db")
     migrate(conn)
@@ -99,7 +101,7 @@ def test_scan_marks_deleted_files(tmp_path: Path) -> None:
     thumb_dir = tmp_path / "thumbs"
 
     run_scan(conn, source_id, thumb_dir)
-    assert conn.execute("SELECT COUNT(*) FROM images WHERE deleted=0").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM images WHERE deleted=0").fetchone()[0] == 2
 
     # Remove the file
     img_path.unlink()
@@ -211,4 +213,116 @@ def test_video_without_ffmpeg_is_skipped_as_an_error(tmp_path: Path, monkeypatch
 
     assert (result.added, result.errors) == (1, 1)
     assert set(_live(conn)) == {"pic.png"}
+    conn.close()
+
+
+# --- GEN-001: the scan never holds the write lock while it works ---
+
+
+def test_other_connections_can_write_while_a_scan_runs(tmp_path: Path, monkeypatch) -> None:
+    # Small batches, so writes happen mid-scan and are checked too.
+    monkeypatch.setattr("thalimage.services.scan_service.BATCH_FILES", 2)
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    for i in range(5):
+        Image.new("RGB", (10 + i, 10), "red").save(img_dir / f"{i}.png")
+    other = connect(tmp_path / "test.db")
+    other.execute("PRAGMA busy_timeout = 0")  # fail at once if locked
+    writes: list[int] = []
+
+    def on_progress(**kw: object) -> None:
+        if kw.get("current"):
+            other.execute(
+                "INSERT INTO settings (key, value) VALUES (?, 'x')", (f"k{kw['current']}",)
+            )
+            other.commit()
+            writes.append(int(kw["current"]))  # type: ignore[call-overload]
+
+    result = run_scan(conn, source_id, thumbs, progress_callback=on_progress)
+
+    assert result.added == 5
+    assert writes == [1, 2, 3, 4, 5]
+    other.close()
+    conn.close()
+
+
+# --- GEN-007: an unreachable source fails instead of deleting its images ---
+
+
+def test_missing_source_folder_fails_and_deletes_nothing(tmp_path: Path) -> None:
+    import shutil
+
+    import pytest
+
+    from thalimage.core.scanner import SourceUnavailable
+
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    Image.new("RGB", (10, 10), "red").save(img_dir / "a.png")
+    run_scan(conn, source_id, thumbs)
+    shutil.rmtree(img_dir)
+
+    with pytest.raises(SourceUnavailable):
+        run_scan(conn, source_id, thumbs)
+    assert conn.execute("SELECT COUNT(*) FROM images WHERE deleted = 1").fetchone()[0] == 0
+    conn.close()
+
+
+def test_emptied_source_folder_fails_and_deletes_nothing(tmp_path: Path) -> None:
+    """An unmounted share often leaves its mount point behind as an empty
+    directory: that must not read as "every file was deleted"."""
+    import pytest
+
+    from thalimage.core.scanner import SourceUnavailable
+
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    Image.new("RGB", (10, 10), "red").save(img_dir / "a.png")
+    run_scan(conn, source_id, thumbs)
+    (img_dir / "a.png").unlink()
+
+    with pytest.raises(SourceUnavailable, match="mounted"):
+        run_scan(conn, source_id, thumbs)
+    assert conn.execute("SELECT COUNT(*) FROM images WHERE deleted = 1").fetchone()[0] == 0
+    conn.close()
+
+
+def test_unreadable_subfolder_keeps_its_images(tmp_path: Path, monkeypatch) -> None:
+    import os
+
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    (img_dir / "sub").mkdir()
+    Image.new("RGB", (10, 10), "red").save(img_dir / "top.png")
+    Image.new("RGB", (11, 10), "blue").save(img_dir / "sub" / "deep.png")
+    run_scan(conn, source_id, thumbs)
+
+    real_scandir = os.scandir
+
+    def scandir(path: object = ".") -> object:
+        if Path(str(path)) == img_dir / "sub":
+            raise PermissionError(13, "Permission denied", str(path))
+        return real_scandir(path)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(os, "scandir", scandir)
+    run_scan(conn, source_id, thumbs)
+
+    assert set(_live(conn)) == {"top.png", str(Path("sub") / "deep.png")}
+    conn.close()
+
+
+def test_unreadable_file_keeps_its_image(tmp_path: Path, monkeypatch) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    Image.new("RGB", (10, 10), "red").save(img_dir / "a.png")
+    run_scan(conn, source_id, thumbs)
+    # Touch it so the scan re-reads it, then make reading fail.
+    import os
+
+    st = (img_dir / "a.png").stat()
+    os.utime(img_dir / "a.png", (st.st_atime, st.st_mtime + 5))
+
+    def boom(path: Path) -> str:
+        raise PermissionError(13, "Permission denied", str(path))
+
+    monkeypatch.setattr("thalimage.services.scan_service.content_hash", boom)
+    result = run_scan(conn, source_id, thumbs)
+
+    assert result.errors == 1
+    assert set(_live(conn)) == {"a.png"}
     conn.close()
