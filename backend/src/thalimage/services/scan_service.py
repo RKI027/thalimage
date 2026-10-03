@@ -14,7 +14,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from thalimage.core.hasher import content_hash
-from thalimage.core.metadata import ImageMetadata, extract_metadata
+from thalimage.core.metadata import EXTRACTOR_VERSION, ImageMetadata, extract_metadata
 from thalimage.core.scanner import SourceUnavailable, scan_directory
 from thalimage.core.thumbnails import generate_thumbnail
 from thalimage.core.video import (
@@ -91,12 +91,16 @@ def run_scan(
     # Step 1: list files
     listing = scan_directory(source_path, recursive=bool(source["recursive"]))
 
-    # What the last scan found here, by relative path.
+    # What the last scan found here, by relative path, with the extractor
+    # version its metadata came from.
     known = {
         row["relative_path"]: row
         for row in conn.execute(
-            "SELECT content_hash, relative_path, file_modified, file_size "
-            "FROM image_locations WHERE source_id = ?",
+            "SELECT l.content_hash, l.relative_path, l.file_modified, l.file_size,"
+            " COALESCE(m.extractor_version, 0) AS extractor_version"
+            " FROM image_locations l"
+            " LEFT JOIN image_metadata m ON m.content_hash = l.content_hash"
+            " WHERE l.source_id = ?",
             (source_id,),
         )
     }
@@ -122,11 +126,12 @@ def run_scan(
         try:
             stat = file_path.stat()
             modified = _iso(stat.st_mtime)
-            # Step 2: skip unchanged files
+            # Step 2: skip unchanged files whose metadata is current
             if (
                 previous is not None
                 and previous["file_modified"] == modified
                 and previous["file_size"] == stat.st_size
+                and previous["extractor_version"] >= EXTRACTOR_VERSION
             ):
                 kept.add(relative)
                 result.skipped += 1
@@ -303,18 +308,19 @@ def _upsert_metadata(
     if meta is None:
         # Videos carry no AI metadata; keep an empty row so joins line up.
         conn.execute(
-            "INSERT INTO image_metadata (content_hash) VALUES (?)"
-            " ON CONFLICT(content_hash) DO NOTHING",
-            (h,),
+            "INSERT INTO image_metadata (content_hash, extractor_version) VALUES (?, ?)"
+            " ON CONFLICT(content_hash) DO UPDATE SET extractor_version = excluded.extractor_version",
+            (h, EXTRACTOR_VERSION),
         )
         return
     ai = meta.ai_params
     conn.execute(
         """INSERT INTO image_metadata
            (content_hash, ai_tool, prompt, negative_prompt,
-            raw_params, exif_data, png_text)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
+            raw_params, exif_data, png_text, extractor_version)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(content_hash) DO UPDATE SET
+            extractor_version=excluded.extractor_version,
             ai_tool=excluded.ai_tool,
             prompt=excluded.prompt,
             negative_prompt=excluded.negative_prompt,
@@ -331,5 +337,6 @@ def _upsert_metadata(
             ai.raw_params if ai else None,
             json.dumps(meta.exif_data) if meta.exif_data else None,
             json.dumps(meta.png_text) if meta.png_text else None,
+            EXTRACTOR_VERSION,
         ),
     )
