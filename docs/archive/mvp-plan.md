@@ -2,7 +2,7 @@
 
 > **Archived.** The original MVP implementation plan (Sprints 1–5), now complete.
 > Kept for historical reference. For the current roadmap and backlog see
-> [`phases.md`](./phases.md).
+> [`docs/roadmap.md`](../roadmap.md).
 
 ## Context
 
