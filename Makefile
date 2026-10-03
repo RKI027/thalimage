@@ -1,11 +1,12 @@
-.PHONY: install test lint typecheck check dev clean
+.PHONY: install test cov lint lint-fix typecheck check dev clean \
+	fe-install fe-dev fe-build fe-preview fe-check fe-test
 
 # Backend
 install:
 	cd backend && uv sync
 
 test:
-	cd backend && uv run pytest
+	cd backend && uv run pytest -q
 
 # Line + branch coverage of the backend, with the lines missed.
 cov:
@@ -20,7 +21,9 @@ lint-fix:
 typecheck:
 	cd backend && uv run mypy src/
 
-check: lint typecheck test
+# Everything CI checks, backend and (when installed) frontend.
+check:
+	./check.sh
 
 # Development
 dev:
