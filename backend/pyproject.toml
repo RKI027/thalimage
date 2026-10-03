@@ -54,3 +54,7 @@ exclude = ["tests/"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.uv]
+# Resolve only releases at least a week old (recorded in uv.lock).
+exclude-newer = "7 days"
