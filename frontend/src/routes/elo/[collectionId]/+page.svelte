@@ -2,27 +2,21 @@
 	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { getEloPair, recordEloVote, getEloRankings, getCollection, previewUrl, thumbUrl } from '$lib/api';
+	import { getEloRankings, getCollection, previewUrl, thumbUrl } from '$lib/api';
+	import { EloRound } from '$lib/eloRound.svelte';
+	import { collectionFiltersKey } from '$lib/gallery.svelte';
+	import { readStored } from '$lib/storage';
 	import { settingsStore } from '$lib/stores';
-	import type { ImageSummary, EloRanking, Collection, FilterState, EloPair } from '$lib/types';
+	import type { ImageSummary, EloRanking, Collection, FilterState } from '$lib/types';
 	import SideBySideView from '$lib/components/views/SideBySideView.svelte';
 
 	const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.avi']);
 
 	let collection: Collection | null = $state(null);
-	let left: ImageSummary | null = $state(null);
-	let right: ImageSummary | null = $state(null);
-	let selectedSide: 'left' | 'right' | null = $state(null);
-	let voteCount = $state(0);
-	let error: string | null = $state(null);
 	let showRankings = $state(false);
 	let rankings: EloRanking[] = $state([]);
-	let loading = $state(false);
-	let filters: FilterState = $state({});
 
-	// A pair fetched ahead of time so the next round shows instantly. Its images
-	// are preloaded; it may reflect ratings from just before the last vote.
-	let nextPair: EloPair | null = null;
+	const round = new EloRound(preload);
 
 	function collectionId(): number {
 		return Number($page.params.collectionId);
@@ -34,59 +28,6 @@
 		// Videos render from their thumbnail poster; warm that rather than fetching
 		// the full video file through an <img>.
 		img.src = VIDEO_EXTENSIONS.has(ext) ? thumbUrl(item.content_hash) : previewUrl(item.content_hash);
-	}
-
-	async function prefetchNext() {
-		try {
-			const pair = await getEloPair(collectionId(), filters, $settingsStore.show_nsfw);
-			preload(pair.left);
-			preload(pair.right);
-			nextPair = pair;
-		} catch {
-			// Prefetch is best-effort; a failure just means the next load fetches live.
-			nextPair = null;
-		}
-	}
-
-	async function loadPair() {
-		error = null;
-		selectedSide = null;
-
-		if (nextPair) {
-			left = nextPair.left;
-			right = nextPair.right;
-			nextPair = null;
-			prefetchNext();
-			return;
-		}
-
-		loading = true;
-		try {
-			const pair = await getEloPair(collectionId(), filters, $settingsStore.show_nsfw);
-			left = pair.left;
-			right = pair.right;
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to load pair';
-		} finally {
-			loading = false;
-		}
-		prefetchNext();
-	}
-
-	async function vote(side: 'left' | 'right') {
-		if (!left || !right) return;
-		selectedSide = side;
-		const winner = side === 'left' ? left.content_hash : right.content_hash;
-		const loser = side === 'left' ? right.content_hash : left.content_hash;
-
-		try {
-			await recordEloVote(collectionId(), winner, loser);
-			voteCount++;
-			// Brief highlight before loading next pair
-			setTimeout(() => loadPair(), 300);
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to record vote';
-		}
 	}
 
 	async function loadRankings() {
@@ -104,13 +45,13 @@
 		}
 		if (e.key === 'ArrowLeft' || e.key === '1') {
 			e.preventDefault();
-			vote('left');
+			if (!e.repeat) round.vote('left');
 		} else if (e.key === 'ArrowRight' || e.key === '2') {
 			e.preventDefault();
-			vote('right');
+			if (!e.repeat) round.vote('right');
 		} else if (e.key === 's') {
 			e.preventDefault();
-			loadPair();
+			round.loadPair();
 		} else if (e.key === 'Escape') {
 			e.preventDefault();
 			goto(`/collections/${collectionId()}`);
@@ -119,12 +60,18 @@
 
 	$effect(() => {
 		const _id = $page.params.collectionId;
+		const showNsfw = $settingsStore.show_nsfw;
 		untrack(() => {
-			// A prefetched pair from another collection/filter set must not leak through.
-			nextPair = null;
-			filters = JSON.parse(localStorage.getItem(`collection:${collectionId()}:filters`) ?? '{}');
-			getCollection(collectionId()).then((c) => { collection = c; });
-			loadPair();
+			const id = collectionId();
+			round.setScope({
+				collectionId: id,
+				filters: readStored<FilterState>(collectionFiltersKey(id), {}),
+				showNsfw
+			});
+			getCollection(id).then((c) => {
+				if (id === collectionId()) collection = c;
+			});
+			round.loadPair();
 		});
 	});
 </script>
@@ -134,18 +81,18 @@
 <div class="elo-page">
 	<div class="top-bar">
 		<a href="/collections/{collectionId()}">← {collection?.name ?? 'Collection'}</a>
-		<span class="vote-count">{voteCount} votes this session</span>
+		<span class="vote-count">{round.voteCount} votes this session</span>
 		<div class="actions">
 			<button class="control" onclick={loadRankings}>Rankings</button>
-			<button class="control" onclick={() => loadPair()}>Skip</button>
+			<button class="control" onclick={() => round.loadPair()}>Skip</button>
 		</div>
 	</div>
 
-	{#if error}
-		<div class="error">{error}</div>
-	{:else if loading && !left}
+	{#if round.error}
+		<div class="error">{round.error}</div>
+	{:else if round.loading && !round.left}
 		<div class="status">Loading…</div>
-	{:else if left && right}
+	{:else if round.left && round.right}
 		{#if showRankings}
 			<div class="rankings">
 				<div class="rankings-header">
@@ -169,11 +116,11 @@
 			</div>
 		{:else}
 			<SideBySideView
-				{left}
-				{right}
-				{selectedSide}
-				onSelectLeft={() => vote('left')}
-				onSelectRight={() => vote('right')}
+				left={round.left}
+				right={round.right}
+				selectedSide={round.selectedSide}
+				onSelectLeft={() => round.vote('left')}
+				onSelectRight={() => round.vote('right')}
 			/>
 			<div class="controls">
 				<span class="hint desktop-hint">← or 1</span>
