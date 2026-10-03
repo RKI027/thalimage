@@ -226,6 +226,17 @@ def test_preview_size_snaps_to_a_bucket(client: TestClient, image_dir: Path) -> 
     assert resp.headers["x-preview-size"] == "1280"
 
 
+def test_preview_above_the_largest_bucket_gets_the_largest(
+    client: TestClient, image_dir: Path
+) -> None:
+    """GEN-004: a 1512px-wide window at dpr 2 asks for 3024."""
+    hashes = scan_source(client, image_dir)[1]
+    for size in (2561, 3024, 5000):
+        resp = client.get(f"/api/v1/images/{hashes[0]}/preview", params={"size": size})
+        assert resp.status_code == 200, size
+        assert resp.headers["x-preview-size"] == "2560"
+
+
 def test_preview_rejects_an_absurd_size(client: TestClient, image_dir: Path) -> None:
     hashes = scan_source(client, image_dir)[1]
     resp = client.get(f"/api/v1/images/{hashes[0]}/preview", params={"size": 99999})

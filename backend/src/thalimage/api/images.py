@@ -28,6 +28,11 @@ router = APIRouter(prefix="/images", tags=["images"])
 # tile, which dominates gallery load time on a slow link.
 IMMUTABLE = {"Cache-Control": "public, max-age=31536000, immutable"}
 
+# Hi-DPI screens ask for more than the largest bucket (a 1512px-wide window
+# at dpr 2 asks for 3024); those requests get the largest bucket. Only
+# values no screen could need are rejected.
+MAX_PREVIEW_REQUEST = 16384
+
 
 @router.get("", response_model=ImagePage)
 def get_images(
@@ -116,8 +121,13 @@ def get_image_preview(
     size: int = Query(
         PREVIEW_SIZES[0],
         ge=1,
-        le=PREVIEW_SIZES[-1],
-        description="Desired long edge in pixels; snapped up to the nearest bucket.",
+        # A sanity bound, not the largest bucket: anything up to it is
+        # served, and sizes above the largest bucket get that bucket.
+        le=MAX_PREVIEW_REQUEST,
+        description=(
+            "Desired long edge in pixels; snapped up to the nearest bucket,"
+            f" or down to {PREVIEW_SIZES[-1]} when larger than every bucket."
+        ),
     ),
     db: sqlite3.Connection = Depends(get_db),
     preview_dir: Path = Depends(get_preview_dir),
