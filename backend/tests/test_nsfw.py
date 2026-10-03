@@ -2,7 +2,13 @@
 
 import sqlite3
 
-from thalimage.services.tag_service import add_image_tag, create_tag, remove_image_tag
+from thalimage.services.tag_service import (
+    add_image_tag,
+    create_tag,
+    delete_tag,
+    remove_image_tag,
+    update_tag,
+)
 from thalimage.services.image_service import list_images
 
 
@@ -97,6 +103,68 @@ def test_removing_unrelated_tag_does_not_clear_nsfw(db: sqlite3.Connection) -> N
 
 
 # --- list_images NSFW filter ---
+
+
+def _nsfw(conn: sqlite3.Connection, h: str) -> int:
+    return int(conn.execute("SELECT nsfw FROM images WHERE content_hash = ?", (h,)).fetchone()[0])
+
+
+def test_deleting_the_nsfw_tag_clears_the_flag(db: sqlite3.Connection) -> None:
+    sid = _seed_source(db)
+    h = _seed_image(db, "img001", source_id=sid)
+    tag = create_tag(db, "nsfw")
+    add_image_tag(db, h, tag.id)
+
+    delete_tag(db, tag.id)
+
+    assert _nsfw(db, h) == 0
+
+
+def test_deleting_one_nsfw_spelling_keeps_the_flag_from_another(db: sqlite3.Connection) -> None:
+    sid = _seed_source(db)
+    h = _seed_image(db, "img001", source_id=sid)
+    lower, upper = create_tag(db, "nsfw"), create_tag(db, "NSFW")
+    add_image_tag(db, h, lower.id)
+    add_image_tag(db, h, upper.id)
+
+    delete_tag(db, lower.id)
+
+    assert _nsfw(db, h) == 1
+
+
+def test_renaming_a_tag_to_nsfw_sets_the_flag(db: sqlite3.Connection) -> None:
+    sid = _seed_source(db)
+    h = _seed_image(db, "img001", source_id=sid)
+    tag = create_tag(db, "spicy")
+    add_image_tag(db, h, tag.id)
+
+    update_tag(db, tag.id, name="Nsfw")
+
+    assert _nsfw(db, h) == 1
+
+
+def test_renaming_the_nsfw_tag_away_clears_the_flag(db: sqlite3.Connection) -> None:
+    sid = _seed_source(db)
+    h = _seed_image(db, "img001", source_id=sid)
+    other = _seed_image(db, "img002", source_id=sid)
+    tag = create_tag(db, "nsfw")
+    add_image_tag(db, h, tag.id)
+    add_image_tag(db, other, tag.id)
+
+    update_tag(db, tag.id, name="safe-now")
+
+    assert (_nsfw(db, h), _nsfw(db, other)) == (0, 0)
+
+
+def test_renaming_within_nsfw_spellings_keeps_the_flag(db: sqlite3.Connection) -> None:
+    sid = _seed_source(db)
+    h = _seed_image(db, "img001", source_id=sid)
+    tag = create_tag(db, "nsfw")
+    add_image_tag(db, h, tag.id)
+
+    update_tag(db, tag.id, name="NSFW")
+
+    assert _nsfw(db, h) == 1
 
 
 def test_list_images_hides_nsfw_by_default(db: sqlite3.Connection) -> None:

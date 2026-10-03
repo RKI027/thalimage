@@ -84,3 +84,23 @@ def test_009_flags_follow_the_nsfw_tag_name_not_the_column(tmp_path: Path) -> No
     conn.execute("DELETE FROM image_tags WHERE image_hash = 'lower'")
     assert _hashes(conn, "SELECT content_hash FROM images WHERE nsfw = 1") == {"upper", "later"}
     conn.close()
+
+
+def test_010_unsticks_images_flagged_by_a_deleted_nsfw_tag(tmp_path: Path) -> None:
+    conn = _db_at(tmp_path, 9)
+    conn.execute("INSERT INTO sources (id, path) VALUES (1, '/a')")
+    for h in ("stuck", "tagged"):
+        _image(conn, h)
+    conn.execute("INSERT INTO tags (id, name) VALUES (1, 'nsfw'), (2, 'NSFW')")
+    conn.execute(
+        "INSERT INTO image_tags (image_hash, tag_id) VALUES ('stuck', 1), ('tagged', 2)"
+    )
+    # Before 010, deleting the tag cascaded past the triggers: the flag stuck.
+    conn.execute("DELETE FROM tags WHERE id = 1")
+    conn.commit()
+    assert _hashes(conn, "SELECT content_hash FROM images WHERE nsfw = 1") == {"stuck", "tagged"}
+
+    migrate(conn, target=10)
+
+    assert _hashes(conn, "SELECT content_hash FROM images WHERE nsfw = 1") == {"tagged"}
+    conn.close()
