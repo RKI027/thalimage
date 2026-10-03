@@ -1,7 +1,7 @@
 <script lang="ts">
+	import { isVideoFilename } from '$lib/media';
 	import { imageFileUrl, previewUrl, thumbUrl } from '$lib/api';
 
-	const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.avi']);
 
 	let {
 		hash,
@@ -15,9 +15,7 @@
 		onclick?: () => void;
 	} = $props();
 
-	const isVideo = $derived(
-		VIDEO_EXTENSIONS.has(filename.slice(filename.lastIndexOf('.')).toLowerCase())
-	);
+	const isVideo = $derived(isVideoFilename(filename));
 
 	let loaded = $state(false);
 	let imgEl = $state<HTMLImageElement | null>(null);
