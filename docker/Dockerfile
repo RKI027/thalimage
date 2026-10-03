@@ -42,6 +42,9 @@ COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY backend/src/ ./src/
+# pyproject.toml names it in license-files (backend/LICENSE is a symlink
+# to it in the repository, which COPY does not follow out of backend/).
+COPY LICENSE ./LICENSE
 RUN uv sync --frozen --no-dev
 
 COPY --from=frontend-build /app/frontend/build /app/frontend/build
