@@ -105,6 +105,9 @@ def post_collection_images(
     coll = get_collection(db, collection_id)
     if coll is None:
         raise HTTPException(404, "Collection not found")
+    if coll.type != "manual":
+        # Presets are live views of their source; they hold no image rows.
+        raise HTTPException(400, "Images cannot be added to a preset collection")
     added = add_images(db, collection_id, body.hashes)
     return {"added": added}
 
