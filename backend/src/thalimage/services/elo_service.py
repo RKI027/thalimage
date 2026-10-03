@@ -51,7 +51,7 @@ def get_pair(
         )
         params.append(collection_id)
 
-    q, params = append_media_filters(
+    q = append_media_filters(
         q, params,
         prefix="i.",
         date_from=date_from,

@@ -89,11 +89,11 @@ SORT_COLUMNS = {
 # Video formats as stored in the format column (file extension, uppercase)
 VIDEO_FORMATS = {"MP4", "MOV", "WEBM", "AVI"}
 
-ASPECT_RATIO_FILTERS: dict[str, tuple[str, list[object]]] = {
-    "portrait": ("aspect_ratio < 0.9", []),
-    "square": ("aspect_ratio BETWEEN 0.9 AND 1.1", []),
-    "landscape": ("aspect_ratio BETWEEN 1.1 AND 2.0", []),
-    "wide": ("aspect_ratio > 2.0", []),
+ASPECT_RATIO_FILTERS: dict[str, str] = {
+    "portrait": "aspect_ratio < 0.9",
+    "square": "aspect_ratio BETWEEN 0.9 AND 1.1",
+    "landscape": "aspect_ratio BETWEEN 1.1 AND 2.0",
+    "wide": "aspect_ratio > 2.0",
 }
 
 
@@ -106,10 +106,11 @@ def append_media_filters(
     date_to: Optional[str] = None,
     aspect_ratio_filter: Optional[str] = None,
     media_type: Optional[str] = None,
-) -> tuple[str, list[object]]:
+) -> str:
     """Append the date / aspect-ratio / media-type WHERE clauses shared by the
-    image listing and ELO pair queries. `prefix` qualifies column references
-    (e.g. "i." when the images table is aliased)."""
+    image listing and ELO pair queries, adding their values to `params`.
+    `prefix` qualifies column references (e.g. "i." when the images table is
+    aliased)."""
     if date_from is not None:
         q += f" AND {prefix}file_modified >= ?"
         params.append(date_from)
@@ -122,14 +123,13 @@ def append_media_filters(
             q += f" AND {prefix}file_modified <= ?"
         params.append(date_to)
     if aspect_ratio_filter in ASPECT_RATIO_FILTERS:
-        clause, _ = ASPECT_RATIO_FILTERS[aspect_ratio_filter]
-        q += f" AND {prefix}{clause}"
+        q += f" AND {prefix}{ASPECT_RATIO_FILTERS[aspect_ratio_filter]}"
     if media_type in ("video", "image"):
         placeholders = ",".join("?" * len(VIDEO_FORMATS))
         op = "IN" if media_type == "video" else "NOT IN"
         q += f" AND {prefix}format {op} ({placeholders})"
         params.extend(VIDEO_FORMATS)
-    return q, params
+    return q
 
 
 def list_images(
@@ -180,7 +180,7 @@ def list_images(
         if collection_id is not None:
             q += " AND content_hash IN (SELECT content_hash FROM collection_images WHERE collection_id = ?)"
             p.append(collection_id)
-        q, _ = append_media_filters(
+        q = append_media_filters(
             q, p,
             date_from=date_from,
             date_to=date_to,
