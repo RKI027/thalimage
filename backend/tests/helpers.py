@@ -44,6 +44,7 @@ def insert_image(
     file_modified: str = "2024-01-01T00:00:00",
     file_created: str | None = None,
     thumb_generated: bool = False,
+    format: str = "PNG",
 ) -> str:
     """Insert an image and its location as a scan would have, and commit."""
     if source_id is None:
@@ -54,8 +55,8 @@ def insert_image(
            (content_hash, filename, source_id, relative_path,
             file_size, width, height, aspect_ratio, format,
             file_modified, file_created, thumb_generated)
-           VALUES (?, ?, ?, ?, 1000, 100, 100, 1.0, 'PNG', ?, ?, ?)""",
-        (content_hash, filename, source_id, filename, file_modified, file_created,
+           VALUES (?, ?, ?, ?, 1000, 100, 100, 1.0, ?, ?, ?, ?)""",
+        (content_hash, filename, source_id, filename, format, file_modified, file_created,
          int(thumb_generated)),
     )
     conn.execute(
