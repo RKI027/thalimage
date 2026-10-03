@@ -14,7 +14,7 @@ from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Optional
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+from thalimage.paths import REPO_ROOT
 
 
 @dataclass(frozen=True)

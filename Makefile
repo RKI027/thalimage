@@ -1,11 +1,16 @@
-.PHONY: install test lint typecheck check dev clean
+.PHONY: install test cov lint lint-fix typecheck lock-check check dev clean \
+	fe-install fe-dev fe-build fe-preview fe-check fe-test
 
 # Backend
 install:
 	cd backend && uv sync
 
 test:
-	cd backend && uv run pytest
+	cd backend && uv run pytest -q
+
+# Line + branch coverage of the backend, with the lines missed.
+cov:
+	cd backend && uv run pytest --cov=thalimage --cov-branch --cov-report=term-missing
 
 lint:
 	cd backend && uv run ruff check src/ tests/
@@ -16,7 +21,13 @@ lint-fix:
 typecheck:
 	cd backend && uv run mypy src/
 
-check: lint typecheck test
+# uv.lock matches pyproject.toml.
+lock-check:
+	cd backend && uv lock --check
+
+# Everything CI checks, backend and (when installed) frontend.
+check:
+	./check.sh
 
 # Development
 dev:

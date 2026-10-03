@@ -10,17 +10,19 @@ requires-python = ">=3.11"
 authors = [
     {name = "Arkhelyi", email = "arkhelyi@151e.ai"},
 ]
-license = {text = "Proprietary"}
+# Proprietary: see LICENSE at the repository root (linked here so the
+# build can include it).
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
 
 dependencies = [
-    "fastapi>=0.115.0",
+    "fastapi>=0.135.3",
     "uvicorn[standard]>=0.30.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "pillow>=10.0.0",
     "sd-parsers>=0.1.0",
     "piexif>=1.1.3",
-    "aiosqlite>=0.20.0",
     "sse-starlette>=2.0.0",
 ]
 
@@ -52,3 +54,7 @@ exclude = ["tests/"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.uv]
+# Resolve only releases at least a week old (recorded in uv.lock).
+exclude-newer = "7 days"
