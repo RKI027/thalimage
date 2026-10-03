@@ -7,7 +7,12 @@ writes a row directly, for tests that need exact values without files.
 import sqlite3
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
+
+from thalimage.core.video import ffmpeg_available
+
+requires_ffmpeg = pytest.mark.skipif(not ffmpeg_available(), reason="ffmpeg not available")
 
 
 def scan_source(client: TestClient, folder: Path) -> tuple[int, list[str]]:
