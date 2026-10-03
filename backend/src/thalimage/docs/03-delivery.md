@@ -25,7 +25,8 @@ A preview of that 36.6 MB PNG is 73 KB.
 Previews come in three sizes — 1280, 1920 and 2560 pixels on the long
 edge. The browser asks for the size it needs, based on the window and
 the device pixel ratio, and the server rounds up to the nearest of the
-three. Sources smaller than the bucket are never upscaled.
+three; a screen that needs more than 2560 pixels gets the 2560 preview.
+Sources smaller than the bucket are never upscaled.
 
 Generation happens on first request, not during a scan: resizing a large
 PNG takes roughly half a second, paid once, after which the result is
