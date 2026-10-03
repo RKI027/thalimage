@@ -65,8 +65,11 @@ def _split_statements(sql: str) -> list[str]:
     return statements
 
 
-def migrate(conn: sqlite3.Connection) -> int:
+def migrate(conn: sqlite3.Connection, *, target: int | None = None) -> int:
     """Run all pending migrations and return the new schema version.
+
+    `target` stops after that version (tests use it to seed data the way an
+    older release left it, then migrate the rest of the way).
 
     Migrations are SQL files in the migrations/ directory named NNN_description.sql.
     Each migration runs inside a transaction: either all statements succeed and the
@@ -90,6 +93,8 @@ def migrate(conn: sqlite3.Connection) -> int:
         migration_version = int(migration_path.name.split("_")[0])  # type: ignore[union-attr]
         if migration_version <= version:
             continue
+        if target is not None and migration_version > target:
+            break
 
         sql = migration_path.read_text()  # type: ignore[union-attr]
         statements = _split_statements(sql)
