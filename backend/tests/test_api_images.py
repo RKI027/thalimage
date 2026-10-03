@@ -5,17 +5,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 
-def _seed_images(client: TestClient, image_dir: Path) -> list[str]:
-    """Create source + scan, return list of content hashes."""
-    resp = client.post("/api/v1/sources", json={"path": str(image_dir)})
-    source_id = resp.json()["id"]
-    client.post(f"/api/v1/sources/{source_id}/scan")
-
-    # The status stream closes once the scan reaches its terminal phase.
-    client.get(f"/api/v1/sources/{source_id}/scan/status")
-
-    resp = client.get("/api/v1/images")
-    return [img["content_hash"] for img in resp.json()["items"]]
+from tests.helpers import scan_source
 
 
 def test_list_images_empty(client: TestClient) -> None:
@@ -28,7 +18,7 @@ def test_list_images_empty(client: TestClient) -> None:
 
 
 def test_list_images_after_scan(client: TestClient, image_dir: Path) -> None:
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
     assert len(hashes) == 3
 
     resp = client.get("/api/v1/images")
@@ -38,7 +28,7 @@ def test_list_images_after_scan(client: TestClient, image_dir: Path) -> None:
 
 
 def test_list_images_pagination(client: TestClient, image_dir: Path) -> None:
-    _seed_images(client, image_dir)
+    scan_source(client, image_dir)[1]
 
     resp = client.get("/api/v1/images?limit=2")
     data = resp.json()
@@ -55,7 +45,7 @@ def test_pagination_covers_all_items_for_each_sort(
     client: TestClient, image_dir: Path
 ) -> None:
     """Paging one item at a time must visit every image exactly once, for any sort."""
-    all_hashes = set(_seed_images(client, image_dir))
+    all_hashes = set(scan_source(client, image_dir)[1])
     assert len(all_hashes) == 3
 
     for sort in ("name", "date_modified", "date_created", "size", "aspect_ratio"):
@@ -75,7 +65,7 @@ def test_pagination_covers_all_items_for_each_sort(
 
 
 def test_list_images_sort_desc(client: TestClient, image_dir: Path) -> None:
-    _seed_images(client, image_dir)
+    scan_source(client, image_dir)[1]
 
     asc = client.get("/api/v1/images?sort=name&dir=asc").json()
     desc = client.get("/api/v1/images?sort=name&dir=desc").json()
@@ -85,7 +75,7 @@ def test_list_images_sort_desc(client: TestClient, image_dir: Path) -> None:
 
 
 def test_get_image_detail(client: TestClient, image_dir: Path) -> None:
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
 
     resp = client.get(f"/api/v1/images/{hashes[0]}")
     assert resp.status_code == 200
@@ -109,14 +99,14 @@ def test_get_image_malformed_hash_rejected(client: TestClient) -> None:
 
 
 def test_get_image_file(client: TestClient, image_dir: Path) -> None:
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
     resp = client.get(f"/api/v1/images/{hashes[0]}/file")
     assert resp.status_code == 200
     assert len(resp.content) > 0
 
 
 def test_get_image_thumb(client: TestClient, image_dir: Path) -> None:
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
     resp = client.get(f"/api/v1/images/{hashes[0]}/thumb")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "image/webp"
@@ -128,7 +118,7 @@ def test_get_thumb_not_found(client: TestClient) -> None:
 
 
 def test_archive_hides_from_gallery(client: TestClient, image_dir: Path) -> None:
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
     target = hashes[0]
 
     resp = client.patch(f"/api/v1/images/{target}/archive", json={"archived": True})
@@ -142,7 +132,7 @@ def test_archive_hides_from_gallery(client: TestClient, image_dir: Path) -> None
 
 
 def test_archive_still_accessible_by_hash(client: TestClient, image_dir: Path) -> None:
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
     target = hashes[0]
 
     client.patch(f"/api/v1/images/{target}/archive", json={"archived": True})
@@ -153,7 +143,7 @@ def test_archive_still_accessible_by_hash(client: TestClient, image_dir: Path) -
 
 
 def test_unarchive_restores_to_gallery(client: TestClient, image_dir: Path) -> None:
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
     target = hashes[0]
 
     client.patch(f"/api/v1/images/{target}/archive", json={"archived": True})
@@ -171,7 +161,7 @@ def test_archive_not_found(client: TestClient) -> None:
 
 
 def test_filter_by_aspect_ratio_square(client: TestClient, image_dir: Path) -> None:
-    _seed_images(client, image_dir)
+    scan_source(client, image_dir)[1]
     # a.png (10x10) and c.png (5x5) are square; b.jpg (20x15) is landscape
     resp = client.get("/api/v1/images?aspect_ratio_filter=square")
     assert resp.status_code == 200
@@ -181,7 +171,7 @@ def test_filter_by_aspect_ratio_square(client: TestClient, image_dir: Path) -> N
 
 
 def test_filter_by_aspect_ratio_landscape(client: TestClient, image_dir: Path) -> None:
-    _seed_images(client, image_dir)
+    scan_source(client, image_dir)[1]
     # b.jpg (20x15, aspect_ratio ~1.33) is landscape
     resp = client.get("/api/v1/images?aspect_ratio_filter=landscape")
     assert resp.status_code == 200
@@ -191,7 +181,7 @@ def test_filter_by_aspect_ratio_landscape(client: TestClient, image_dir: Path) -
 
 
 def test_filter_by_media_type_image(client: TestClient, image_dir: Path) -> None:
-    _seed_images(client, image_dir)
+    scan_source(client, image_dir)[1]
     resp = client.get("/api/v1/images?media_type=image")
     assert resp.status_code == 200
     # All test images are images (no videos in the fixture)
@@ -199,14 +189,14 @@ def test_filter_by_media_type_image(client: TestClient, image_dir: Path) -> None
 
 
 def test_filter_by_media_type_video(client: TestClient, image_dir: Path) -> None:
-    _seed_images(client, image_dir)
+    scan_source(client, image_dir)[1]
     resp = client.get("/api/v1/images?media_type=video")
     assert resp.status_code == 200
     assert resp.json()["total_count"] == 0
 
 
 def test_filter_by_date_from(client: TestClient, image_dir: Path) -> None:
-    _seed_images(client, image_dir)
+    scan_source(client, image_dir)[1]
     # A future date should return no images
     resp = client.get("/api/v1/images?date_from=2099-01-01T00:00:00")
     assert resp.status_code == 200
@@ -214,7 +204,7 @@ def test_filter_by_date_from(client: TestClient, image_dir: Path) -> None:
 
 
 def test_filter_by_date_to(client: TestClient, image_dir: Path) -> None:
-    _seed_images(client, image_dir)
+    scan_source(client, image_dir)[1]
     # A past date should return no images
     resp = client.get("/api/v1/images?date_to=1970-01-01T00:00:00")
     assert resp.status_code == 200
@@ -222,7 +212,7 @@ def test_filter_by_date_to(client: TestClient, image_dir: Path) -> None:
 
 
 def test_get_image_preview_returns_webp(client: TestClient, image_dir: Path) -> None:
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
     resp = client.get(f"/api/v1/images/{hashes[0]}/preview")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "image/webp"
@@ -230,14 +220,14 @@ def test_get_image_preview_returns_webp(client: TestClient, image_dir: Path) -> 
 
 
 def test_preview_size_snaps_to_a_bucket(client: TestClient, image_dir: Path) -> None:
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
     resp = client.get(f"/api/v1/images/{hashes[0]}/preview", params={"size": 1000})
     assert resp.status_code == 200
     assert resp.headers["x-preview-size"] == "1280"
 
 
 def test_preview_rejects_an_absurd_size(client: TestClient, image_dir: Path) -> None:
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
     resp = client.get(f"/api/v1/images/{hashes[0]}/preview", params={"size": 99999})
     assert resp.status_code == 422
 
@@ -251,7 +241,7 @@ def test_preview_rejects_a_video(client: TestClient, tmp_path: Path) -> None:
     root = tmp_path / "vids"
     root.mkdir()
     (root / "clip.mp4").write_bytes(b"not really a video")
-    hashes = _seed_images(client, root)
+    hashes = scan_source(client, root)[1]
     if not hashes:
         return
     resp = client.get(f"/api/v1/images/{hashes[0]}/preview")
@@ -262,7 +252,7 @@ def test_immutable_cache_headers_on_served_files(
     client: TestClient, image_dir: Path
 ) -> None:
     """Content is addressed by hash, so responses never need revalidating."""
-    hashes = _seed_images(client, image_dir)
+    hashes = scan_source(client, image_dir)[1]
     for route in ("file", "thumb", "preview"):
         resp = client.get(f"/api/v1/images/{hashes[0]}/{route}")
         assert resp.status_code == 200, route
