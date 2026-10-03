@@ -5,6 +5,9 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+echo "=== Lock ==="
+make -C "$repo_root" --no-print-directory lock-check
+
 echo "=== Lint ==="
 make -C "$repo_root" --no-print-directory lint
 
