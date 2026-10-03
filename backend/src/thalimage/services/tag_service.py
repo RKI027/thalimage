@@ -9,7 +9,6 @@ from pydantic import BaseModel
 class Tag(BaseModel):
     id: int
     name: str
-    nsfw: bool
     created_at: str
 
 
@@ -17,12 +16,12 @@ def list_tags(conn: sqlite3.Connection, *, search: Optional[str] = None) -> list
     """List all tags, optionally filtering by a case-insensitive name substring."""
     if search is not None:
         rows = conn.execute(
-            "SELECT id, name, nsfw, created_at FROM tags WHERE name LIKE ? ORDER BY name",
+            "SELECT id, name, created_at FROM tags WHERE name LIKE ? ORDER BY name",
             (f"%{search}%",),
         ).fetchall()
     else:
         rows = conn.execute(
-            "SELECT id, name, nsfw, created_at FROM tags ORDER BY name"
+            "SELECT id, name, created_at FROM tags ORDER BY name"
         ).fetchall()
     return [Tag(**dict(r)) for r in rows]
 
@@ -30,21 +29,21 @@ def list_tags(conn: sqlite3.Connection, *, search: Optional[str] = None) -> list
 def get_tag(conn: sqlite3.Connection, tag_id: int) -> Optional[Tag]:
     """Fetch a single tag by id. Returns None if not found."""
     row = conn.execute(
-        "SELECT id, name, nsfw, created_at FROM tags WHERE id = ?", (tag_id,)
+        "SELECT id, name, created_at FROM tags WHERE id = ?", (tag_id,)
     ).fetchone()
     return Tag(**dict(row)) if row else None
 
 
-def create_tag(
-    conn: sqlite3.Connection, name: str, *, nsfw: bool = False
-) -> Tag:
-    """Create a new tag. Raises on duplicate name."""
-    cursor = conn.execute(
-        "INSERT INTO tags (name, nsfw) VALUES (?, ?)", (name, 1 if nsfw else 0)
-    )
+def create_tag(conn: sqlite3.Connection, name: str) -> Tag:
+    """Create a new tag. Raises on duplicate name.
+
+    A tag named "nsfw" (any case) flags the images it is on; see the
+    triggers in migrations 009 and 010.
+    """
+    cursor = conn.execute("INSERT INTO tags (name) VALUES (?)", (name,))
     conn.commit()
     row = conn.execute(
-        "SELECT id, name, nsfw, created_at FROM tags WHERE id = ?", (cursor.lastrowid,)
+        "SELECT id, name, created_at FROM tags WHERE id = ?", (cursor.lastrowid,)
     ).fetchone()
     return Tag(**dict(row))
 
@@ -54,15 +53,12 @@ def update_tag(
     tag_id: int,
     *,
     name: Optional[str] = None,
-    nsfw: Optional[bool] = None,
 ) -> Optional[Tag]:
-    """Update a tag's name and/or nsfw flag. Returns None if not found."""
+    """Rename a tag. Returns None if not found; raises on a duplicate name."""
     if get_tag(conn, tag_id) is None:
         return None
     if name is not None:
         conn.execute("UPDATE tags SET name = ? WHERE id = ?", (name, tag_id))
-    if nsfw is not None:
-        conn.execute("UPDATE tags SET nsfw = ? WHERE id = ?", (1 if nsfw else 0, tag_id))
     conn.commit()
     return get_tag(conn, tag_id)
 
@@ -77,7 +73,7 @@ def delete_tag(conn: sqlite3.Connection, tag_id: int) -> bool:
 def get_image_tags(conn: sqlite3.Connection, image_hash: str) -> list[Tag]:
     """Return all tags attached to an image."""
     rows = conn.execute(
-        """SELECT t.id, t.name, t.nsfw, t.created_at
+        """SELECT t.id, t.name, t.created_at
            FROM image_tags it
            JOIN tags t ON t.id = it.tag_id
            WHERE it.image_hash = ?
