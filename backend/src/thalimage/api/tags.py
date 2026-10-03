@@ -61,7 +61,10 @@ def patch_tag(
     body: TagUpdate,
     db: sqlite3.Connection = Depends(get_db),
 ) -> Tag:
-    result = update_tag(db, tag_id, name=body.name, nsfw=body.nsfw)
+    try:
+        result = update_tag(db, tag_id, name=body.name, nsfw=body.nsfw)
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(409, f"Tag '{body.name}' already exists") from exc
     if result is None:
         raise HTTPException(404, "Tag not found")
     return result
@@ -92,6 +95,9 @@ def post_image_tag(
 ) -> None:
     if get_tag(db, body.tag_id) is None:
         raise HTTPException(404, "Tag not found")
+    # OR IGNORE in add_image_tag does not cover the image foreign key.
+    if db.execute("SELECT 1 FROM images WHERE content_hash = ?", (content_hash,)).fetchone() is None:
+        raise HTTPException(404, "Image not found")
     add_image_tag(db, content_hash, body.tag_id)
 
 
