@@ -20,8 +20,12 @@ Self-hosted image browser and manager for AI-generated images. Privacy-first, lo
 
 ## Deployment
 
-Thalimage runs as a single container. The image is published to GitHub
-Container Registry by CI, so a deployment is a pull rather than a build.
+Thalimage runs as a single container. CI publishes the image to GitHub
+Container Registry for each release tag (`v*`), as `:latest` and as the
+version, so a deployment is a pull rather than a build.
+
+**The deployment is untested.** The image builds in CI, but neither the
+container nor the compose stack below has been run yet.
 
 ```
 docker pull ghcr.io/rki027/thalimage:latest
@@ -135,15 +139,6 @@ docker compose pull && docker compose up -d
 
 The Tailscale sidecar is pinned (`TS_VERSION`), so `pull` does not
 upgrade it; bump the variable to do that.
-
-**Upgrading from the single-directory layout** (database at the top of
-`THALIMAGE_DATA`, before `app/` existed): stop the stack, then move the
-app's files down one level before starting it again:
-
-```bash
-cd /srv/thalimage && mkdir app && mv thalimage.db* cache app/
-chown -R root:root tailscale
-```
 
 The app reports the commit it was built from at `/api/v1/version`, and
 the frontend bundle carries the same stamp, so a half-updated deployment

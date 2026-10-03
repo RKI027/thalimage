@@ -49,7 +49,8 @@ The frontend needs Node 24 and the pnpm pinned in `frontend/package.json`.
 - `docker/` — Dockerfile, the Portainer-ready compose sample (Tailscale
   sidecar + app), `serve.json`, `.env.example`
 - `.github/workflows/docker.yml` — builds and publishes
-  `ghcr.io/rki027/thalimage`; `ci.yml` runs `check.sh`
+  `ghcr.io/rki027/thalimage` for `v*` tags; `ci.yml` runs `check.sh`
+- The deployment is untested: the image builds, nothing has run it yet
 - See the Deployment section of `README.md` for the operational details
 
 ## Documentation
