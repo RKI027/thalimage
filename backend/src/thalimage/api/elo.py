@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from thalimage.deps import get_db
-from thalimage.services.collection_service import get_collection
+from thalimage.services.collection_service import resolve_scope
 from thalimage.services.elo_service import (
     CollectionNotFound,
     InvalidVote,
@@ -40,11 +40,8 @@ def get_elo_pair(
     show_nsfw: bool = Query(False),
     db: sqlite3.Connection = Depends(get_db),
 ) -> EloPairResponse:
-    # Source preset collections are served dynamically via source_id (no collection_images rows).
-    source_id: Optional[int] = None
-    coll = get_collection(db, collection_id)
-    if coll is not None and coll.type == "source_preset":
-        source_id = coll.source_id
+    scope = resolve_scope(db, collection_id)
+    source_id = scope.source_id if scope is not None else None
 
     try:
         left, right = get_pair(
