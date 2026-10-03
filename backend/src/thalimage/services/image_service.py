@@ -1,6 +1,7 @@
 """Image retrieval and query service."""
 
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -132,6 +133,86 @@ def append_media_filters(
     return q
 
 
+@dataclass(frozen=True)
+class ListingFilters:
+    """The filters a grid applies; shared by the listing and its neighbours."""
+
+    source_id: Optional[int] = None
+    collection_id: Optional[int] = None
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    aspect_ratio_filter: Optional[str] = None
+    media_type: Optional[str] = None
+    tags: Optional[list[str]] = None
+    show_nsfw: bool = False
+
+
+def _apply_filters(q: str, p: list[object], f: ListingFilters) -> str:
+    """Append the WHERE clauses for `f` to `q`, adding values to `p`."""
+    if f.source_id is not None:
+        q += f" AND {in_source_sql()}"
+        p.append(f.source_id)
+    if f.collection_id is not None:
+        q += " AND content_hash IN (SELECT content_hash FROM collection_images WHERE collection_id = ?)"
+        p.append(f.collection_id)
+    q = append_media_filters(
+        q, p,
+        date_from=f.date_from,
+        date_to=f.date_to,
+        aspect_ratio_filter=f.aspect_ratio_filter,
+        media_type=f.media_type,
+    )
+    for tag_name in f.tags or []:
+        q += (
+            " AND EXISTS ("
+            "SELECT 1 FROM image_tags it JOIN tags t ON t.id = it.tag_id"
+            " WHERE it.image_hash = content_hash AND t.name = ?"
+            ")"
+        )
+        p.append(tag_name)
+    if not f.show_nsfw:
+        q += (
+            " AND nsfw = 0"
+            # Hidden if a member of an NSFW manual/static collection...
+            " AND content_hash NOT IN ("
+            "SELECT ci.content_hash FROM collection_images ci"
+            " JOIN collections c ON c.id = ci.collection_id WHERE c.nsfw = 1)"
+            # ...or if it lies in a source whose preset collection is NSFW
+            # (presets have no collection_images rows; they match by source).
+            " AND content_hash NOT IN ("
+            "SELECT l.content_hash FROM image_locations l"
+            " JOIN collections c ON c.source_id = l.source_id"
+            " WHERE c.type = 'source_preset' AND c.nsfw = 1)"
+        )
+    return q
+
+
+@dataclass(frozen=True)
+class _SortKey:
+    expr: str  # SQL for the key; may hold one placeholder
+    params: tuple[object, ...]  # values for that placeholder
+    alias: str  # the key's name in the SELECT list
+    numeric: bool  # compare cursor values as numbers
+
+
+def _sort_key(sort: str, elo_collection_id: Optional[int]) -> _SortKey:
+    """The key a listing orders and pages by. Pass `elo_collection_id` with
+    sort="elo" to order by that collection's ELO score (unscored = 1500)."""
+    if sort == "elo" and elo_collection_id is not None:
+        return _SortKey(
+            "COALESCE((SELECT e.score FROM elo_scores e"
+            " WHERE e.content_hash = images.content_hash"
+            " AND e.collection_id = ?), 1500.0)",
+            (elo_collection_id,),
+            "elo_score",
+            True,
+        )
+    return _SortKey(SORT_COLUMNS.get(sort, "filename"), (), "sort_key", False)
+
+
+_LIVE = "FROM images WHERE deleted = 0 AND archived = 0"
+
+
 def list_images(
     conn: sqlite3.Connection,
     *,
@@ -155,94 +236,49 @@ def list_images(
     score (only meaningful within a collection). Images with no recorded score
     sort at the default 1500.
     """
+    f = ListingFilters(
+        source_id=source_id,
+        collection_id=collection_id,
+        date_from=date_from,
+        date_to=date_to,
+        aspect_ratio_filter=aspect_ratio_filter,
+        media_type=media_type,
+        tags=tags,
+        show_nsfw=show_nsfw,
+    )
+    key = _sort_key(sort, elo_collection_id)
+    return _page(conn, f, key, direction, cursor, limit)
+
+
+def _page(
+    conn: sqlite3.Connection,
+    f: ListingFilters,
+    key: _SortKey,
+    direction: str,
+    cursor: Optional[str],
+    limit: int,
+) -> ImagePage:
     if direction not in ("asc", "desc"):
         direction = "asc"
 
-    # `sort_expr` is the SQL the cursor compares against; `order_col` is what
-    # ORDER BY uses; `cursor_col` is the row key the next cursor reads.
-    elo_sort = sort == "elo" and elo_collection_id is not None
-    if elo_sort:
-        sort_expr = (
-            "COALESCE((SELECT e.score FROM elo_scores e"
-            " WHERE e.content_hash = images.content_hash"
-            " AND e.collection_id = ?), 1500.0)"
-        )
-        order_col = cursor_col = "elo_score"
-    else:
-        sort_expr = SORT_COLUMNS.get(sort, "filename")
-        order_col = cursor_col = "sort_key"
-
-    def _apply_filters(q: str, p: list[object]) -> tuple[str, list[object]]:
-        """Append WHERE clauses for optional filters."""
-        if source_id is not None:
-            q += f" AND {in_source_sql()}"
-            p.append(source_id)
-        if collection_id is not None:
-            q += " AND content_hash IN (SELECT content_hash FROM collection_images WHERE collection_id = ?)"
-            p.append(collection_id)
-        q = append_media_filters(
-            q, p,
-            date_from=date_from,
-            date_to=date_to,
-            aspect_ratio_filter=aspect_ratio_filter,
-            media_type=media_type,
-        )
-        if tags:
-            for tag_name in tags:
-                q += (
-                    " AND EXISTS ("
-                    "SELECT 1 FROM image_tags it JOIN tags t ON t.id = it.tag_id"
-                    " WHERE it.image_hash = content_hash AND t.name = ?"
-                    ")"
-                )
-                p.append(tag_name)
-        if not show_nsfw:
-            q += (
-                " AND nsfw = 0"
-                # Hidden if a member of an NSFW manual/static collection...
-                " AND content_hash NOT IN ("
-                "SELECT ci.content_hash FROM collection_images ci"
-                " JOIN collections c ON c.id = ci.collection_id WHERE c.nsfw = 1)"
-                # ...or if it lies in a source whose preset collection is NSFW
-                # (presets have no collection_images rows; they match by source).
-                " AND content_hash NOT IN ("
-                "SELECT l.content_hash FROM image_locations l"
-                " JOIN collections c ON c.source_id = l.source_id"
-                " WHERE c.type = 'source_preset' AND c.nsfw = 1)"
-            )
-        return q, p
-
-    # Total count
-    count_sql, count_params = _apply_filters(
-        "SELECT COUNT(*) FROM images WHERE deleted = 0 AND archived = 0", []
-    )
+    count_params: list[object] = []
+    count_sql = _apply_filters(f"SELECT COUNT(*) {_LIVE}", count_params, f)
     total = conn.execute(count_sql, count_params).fetchone()[0]
 
-    # Query. Select the active sort key too so the cursor can carry its real
-    # value; extra columns are ignored when building ImageSummary.
-    select_cols = list(SUMMARY_COLUMNS)
-    if elo_sort:
-        select_cols.append(f"{sort_expr} AS elo_score")
-    else:
-        select_cols.append(f"{sort_expr} AS sort_key")
-    # The elo sort expression carries a placeholder in the SELECT clause, so its
-    # parameter must lead the list.
-    initial_params: list[object] = [elo_collection_id] if elo_sort else []
-    sql, params = _apply_filters(
-        f"SELECT {', '.join(select_cols)} FROM images WHERE deleted = 0 AND archived = 0",
-        initial_params,
-    )
+    # Select the sort key too so the cursor can carry its real value; extra
+    # columns are ignored when building ImageSummary. The key's placeholder
+    # (ELO) sits in the SELECT list, so its value leads the parameters.
+    select_cols = [*SUMMARY_COLUMNS, f"{key.expr} AS {key.alias}"]
+    params: list[object] = list(key.params)
+    sql = _apply_filters(f"SELECT {', '.join(select_cols)} {_LIVE}", params, f)
 
     if cursor is not None:
         op = ">" if direction == "asc" else "<"
-        # ELO cursors compare numerically against the REAL score, not as text.
-        sort_val, hash_val = _parse_cursor(cursor, numeric=elo_sort)
-        sql += f" AND ({sort_expr}, content_hash) {op} (?, ?)"
-        if elo_sort:
-            params.append(elo_collection_id)  # for sort_expr's placeholder
-        params.extend([sort_val, hash_val])
+        sort_val, hash_val = _parse_cursor(cursor, numeric=key.numeric)
+        sql += f" AND ({key.expr}, content_hash) {op} (?, ?)"
+        params.extend([*key.params, sort_val, hash_val])
 
-    sql += f" ORDER BY {order_col} {direction}, content_hash {direction}"
+    sql += f" ORDER BY {key.alias} {direction}, content_hash {direction}"
     sql += " LIMIT ?"
     params.append(limit + 1)  # fetch one extra to detect next page
 
@@ -257,9 +293,64 @@ def list_images(
     next_cursor = None
     if has_next and rows:
         last_row = rows[-1]
-        next_cursor = f"{last_row[cursor_col]}|{last_row['content_hash']}"
+        next_cursor = f"{last_row[key.alias]}|{last_row['content_hash']}"
 
     return ImagePage(items=items, next_cursor=next_cursor, total_count=total)
+
+
+class Neighbors(BaseModel):
+    """A window of a listing around one image."""
+
+    before: list[ImageSummary]  # nearest last, in listing order
+    after: list[ImageSummary]  # nearest first
+    position: int  # 0-based place of the image in the listing
+    total_count: int
+
+
+def neighbors(
+    conn: sqlite3.Connection,
+    content_hash: str,
+    *,
+    window: int = 50,
+    sort: str = "name",
+    direction: str = "asc",
+    elo_collection_id: Optional[int] = None,
+    filters: Optional[ListingFilters] = None,
+) -> Optional[Neighbors]:
+    """Up to `window` images on each side of `content_hash` in the listing
+    that sort, direction and filters define, wherever it falls in it.
+    None if the image does not exist. An image the filters exclude still
+    has neighbours: those around the place it would sort into."""
+    if direction not in ("asc", "desc"):
+        direction = "asc"
+    filters = filters or ListingFilters()
+    key = _sort_key(sort, elo_collection_id)
+    row = conn.execute(
+        f"SELECT {key.expr} FROM images WHERE content_hash = ?",
+        (*key.params, content_hash),
+    ).fetchone()
+    if row is None:
+        return None
+    cursor = f"{row[0]}|{content_hash}"
+    reverse = "desc" if direction == "asc" else "asc"
+
+    after = _page(conn, filters, key, direction, cursor, window)
+    before = _page(conn, filters, key, reverse, cursor, window)
+
+    # The image's position: how many listed rows sort ahead of it.
+    op = "<" if direction == "asc" else ">"
+    params: list[object] = []
+    sql = _apply_filters(f"SELECT COUNT(*) {_LIVE}", params, filters)
+    sql += f" AND ({key.expr}, content_hash) {op} (?, ?)"
+    params.extend([*key.params, row[0], content_hash])
+    position = conn.execute(sql, params).fetchone()[0]
+
+    return Neighbors(
+        before=list(reversed(before.items)),
+        after=after.items,
+        position=position,
+        total_count=after.total_count,
+    )
 
 
 def get_image(conn: sqlite3.Connection, content_hash: str) -> Optional[ImageDetail]:
