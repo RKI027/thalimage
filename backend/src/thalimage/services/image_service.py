@@ -23,6 +23,21 @@ class ImageSummary(BaseModel):
     nsfw: bool = False
 
 
+# The images columns an ImageSummary is built from, in one place.
+SUMMARY_COLUMNS: tuple[str, ...] = tuple(ImageSummary.model_fields)
+
+
+def summary_columns_sql(alias: str = "") -> str:
+    """The summary columns as a SELECT list, optionally qualified ("i.")."""
+    return ", ".join(f"{alias}{c}" for c in SUMMARY_COLUMNS)
+
+
+def summary_from_row(row: sqlite3.Row) -> ImageSummary:
+    """Build an ImageSummary from a row that selected SUMMARY_COLUMNS
+    (extra columns are ignored)."""
+    return ImageSummary(**{c: row[c] for c in SUMMARY_COLUMNS})
+
+
 class ImageDetail(ImageSummary):
     file_size: int
     file_modified: str
@@ -205,10 +220,7 @@ def list_images(
 
     # Query. Select the active sort key too so the cursor can carry its real
     # value; extra columns are ignored when building ImageSummary.
-    select_cols = [
-        "content_hash", "filename", "source_id", "relative_path", "width", "height",
-        "aspect_ratio", "format", "thumb_generated", "archived", "nsfw",
-    ]
+    select_cols = list(SUMMARY_COLUMNS)
     if elo_sort:
         select_cols.append(f"{sort_expr} AS elo_score")
     else:
@@ -240,7 +252,7 @@ def list_images(
     if has_next:
         rows = rows[:limit]
 
-    items = [ImageSummary(**{k: r[k] for k in ImageSummary.model_fields}) for r in rows]
+    items = [summary_from_row(r) for r in rows]
 
     next_cursor = None
     if has_next and rows:
