@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { settingsHref } from '$lib/settingsLink';
 	import { onMount } from 'svelte';
 	import { collectionsStore, settingsStore } from '$lib/stores';
+	import { readStored, writeStored } from '$lib/storage';
 
 	let {
 		mobileOpen = false,
@@ -26,26 +28,22 @@
 		)
 	);
 
-	const settingsHref = $derived(
-		$page.url.pathname === '/settings'
-			? '/settings'
-			: `/settings?returnTo=${encodeURIComponent($page.url.pathname + $page.url.search)}`
-	);
+	const settingsLink = $derived(settingsHref($page.url));
 
 	onMount(() => {
 		collectionsStore.refresh();
-		presetsOpen = localStorage.getItem('sidebar:presets') !== 'false';
-		collectionsOpen = localStorage.getItem('sidebar:collections') !== 'false';
+		presetsOpen = readStored('sidebar:presets', true);
+		collectionsOpen = readStored('sidebar:collections', true);
 	});
 
 	function togglePresets() {
 		presetsOpen = !presetsOpen;
-		localStorage.setItem('sidebar:presets', String(presetsOpen));
+		writeStored('sidebar:presets', presetsOpen);
 	}
 
 	function toggleCollections() {
 		collectionsOpen = !collectionsOpen;
-		localStorage.setItem('sidebar:collections', String(collectionsOpen));
+		writeStored('sidebar:collections', collectionsOpen);
 	}
 </script>
 
@@ -105,7 +103,7 @@
 
 			<section>
 				<a href="/docs" class="settings-link" onclick={onMobileClose}>Documentation</a>
-				<a href={settingsHref} class="settings-link" onclick={onMobileClose}>Settings</a>
+				<a href={settingsLink} class="settings-link" onclick={onMobileClose}>Settings</a>
 			</section>
 		</nav>
 	{/if}

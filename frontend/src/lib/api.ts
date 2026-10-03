@@ -13,6 +13,7 @@ import type {
 	SortDirection,
 	DocSummary,
 	DocPage,
+	Neighbors,
 	VersionInfo
 } from './types';
 
@@ -28,19 +29,19 @@ async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
 
 // Images
 
-export function listImages(params: {
-	cursor?: string | null;
-	limit?: number;
+/** What a listing is: its order, scope and filters (no paging). */
+export interface ListingParams {
 	sort?: SortField;
 	dir?: SortDirection;
 	source_id?: number;
 	collection_id?: number;
 	filters?: FilterState;
 	show_nsfw?: boolean;
-} = {}): Promise<ImagePage> {
+}
+
+/** The query string the backend reads a listing from. */
+export function listingQuery(params: ListingParams): URLSearchParams {
 	const q = new URLSearchParams();
-	if (params.cursor) q.set('cursor', params.cursor);
-	if (params.limit) q.set('limit', String(params.limit));
 	if (params.sort) q.set('sort', params.sort);
 	if (params.dir) q.set('dir', params.dir);
 	if (params.source_id) q.set('source_id', String(params.source_id));
@@ -54,7 +55,28 @@ export function listImages(params: {
 		if (f.media_type) q.set('media_type', f.media_type);
 		if (f.tags) f.tags.forEach((t) => q.append('tags', t));
 	}
-	return fetchJSON(`${BASE}/images?${q}`);
+	return q;
+}
+
+export function listImages(
+	params: ListingParams & { cursor?: string | null; limit?: number } = {},
+	init?: RequestInit
+): Promise<ImagePage> {
+	const q = listingQuery(params);
+	if (params.cursor) q.set('cursor', params.cursor);
+	if (params.limit) q.set('limit', String(params.limit));
+	return fetchJSON(`${BASE}/images?${q}`, init);
+}
+
+/** Up to `window` images either side of `hash` in a listing, with its place in it. */
+export function getNeighbors(
+	hash: string,
+	params: ListingParams & { window?: number } = {},
+	init?: RequestInit
+): Promise<Neighbors> {
+	const q = listingQuery(params);
+	if (params.window) q.set('window', String(params.window));
+	return fetchJSON(`${BASE}/images/${hash}/neighbors?${q}`, init);
 }
 
 export function getImage(hash: string): Promise<ImageDetail> {
@@ -169,28 +191,6 @@ export async function deleteCollection(id: number): Promise<void> {
 	if (!resp.ok) throw new Error(`Delete failed: ${resp.status}`);
 }
 
-export function addImagesToCollection(
-	collectionId: number,
-	hashes: string[]
-): Promise<{ added: number }> {
-	return fetchJSON(`${BASE}/collections/${collectionId}/images`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ hashes })
-	});
-}
-
-export function removeImagesFromCollection(
-	collectionId: number,
-	hashes: string[]
-): Promise<{ removed: number }> {
-	return fetchJSON(`${BASE}/collections/${collectionId}/images`, {
-		method: 'DELETE',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ hashes })
-	});
-}
-
 // ELO Voting
 
 export function getEloPair(collectionId: number, filters: FilterState = {}, showNsfw = false): Promise<EloPair> {
@@ -233,19 +233,6 @@ export function createTag(name: string): Promise<Tag> {
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ name })
 	});
-}
-
-export function updateTag(id: number, patch: { name?: string }): Promise<Tag> {
-	return fetchJSON(`${BASE}/tags/${id}`, {
-		method: 'PATCH',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(patch)
-	});
-}
-
-export async function deleteTag(id: number): Promise<void> {
-	const resp = await fetch(`${BASE}/tags/${id}`, { method: 'DELETE' });
-	if (!resp.ok) throw new Error(`Delete failed: ${resp.status}`);
 }
 
 export function getImageTags(hash: string): Promise<Tag[]> {

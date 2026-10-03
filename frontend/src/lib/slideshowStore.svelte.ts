@@ -1,3 +1,4 @@
+import { readStored, removeStored, writeStored } from './storage';
 import type { ImageSummary, MetadataMode, OverlayMode, SlideshowMode, SlideshowStatus } from './types';
 
 export interface SlideshowConfig {
@@ -18,42 +19,16 @@ const COOLDOWN_MAX = 20;
 // How many shown slides ← can rewind through before the trail is trimmed.
 const HISTORY_MAX = 500;
 
-function readLocalStorage<T>(key: string, fallback: T): T {
-	try {
-		const raw = localStorage.getItem(key);
-		if (raw === null) return fallback;
-		return JSON.parse(raw) as T;
-	} catch {
-		return fallback;
-	}
-}
-
-function writeLocalStorage(key: string, value: unknown): void {
-	try {
-		localStorage.setItem(key, JSON.stringify(value));
-	} catch {
-		// ignore storage errors
-	}
-}
-
-function removeLocalStorage(key: string): void {
-	try {
-		localStorage.removeItem(key);
-	} catch {
-		// ignore storage errors
-	}
-}
-
 // Migrate the old `slideshow:shuffle` boolean to the new `slideshow:mode` value,
 // then retire the legacy key so this runs at most once.
 function readInitialMode(): SlideshowMode {
-	const stored = readLocalStorage<SlideshowMode | null>('slideshow:mode', null);
+	const stored = readStored<SlideshowMode | null>('slideshow:mode', null);
 	if (stored === 'sequential' || stored === 'random' || stored === 'elo') return stored;
-	const legacy = readLocalStorage<boolean | null>('slideshow:shuffle', null);
+	const legacy = readStored<boolean | null>('slideshow:shuffle', null);
 	const mode: SlideshowMode = legacy === true ? 'random' : 'sequential';
 	if (legacy !== null) {
-		writeLocalStorage('slideshow:mode', mode);
-		removeLocalStorage('slideshow:shuffle');
+		writeStored('slideshow:mode', mode);
+		removeStored('slideshow:shuffle');
 	}
 	return mode;
 }
@@ -75,14 +50,14 @@ function createSlideshowStore() {
 	let isFullscreen = $state(false);
 	let pendingStart = $state(false);
 	let config = $state<SlideshowConfig>({
-		interval: readLocalStorage('slideshow:interval', 5000),
+		interval: readStored('slideshow:interval', 5000),
 		mode: readInitialMode()
 	});
 	let metadataMode = $state<MetadataMode>(
-		readLocalStorage('viewer:metadataMode', 'full' as MetadataMode)
+		readStored('viewer:metadataMode', 'full' as MetadataMode)
 	);
 	let overlayMode = $state<OverlayMode>(
-		readLocalStorage('slideshow:overlayMode', 'minimal' as OverlayMode)
+		readStored('slideshow:overlayMode', 'minimal' as OverlayMode)
 	);
 
 	// Internal runtime state (not reactive state — just bookkeeping)
@@ -97,7 +72,7 @@ function createSlideshowStore() {
 
 	// Remember the last non-sequential choice so ⇄ restores it (random or elo).
 	let lastWeighted: 'random' | 'elo' =
-		readLocalStorage<'random' | 'elo' | null>('slideshow:lastWeighted', null) ?? 'random';
+		readStored<'random' | 'elo' | null>('slideshow:lastWeighted', null) ?? 'random';
 
 	// random mode: precomputed permutation walked cyclically (no repeats per
 	// cycle). elo mode: on-the-fly weighted draw with a recency cooldown.
@@ -326,7 +301,7 @@ function createSlideshowStore() {
 
 	function setInterval_(ms: number): void {
 		config = { ...config, interval: ms };
-		writeLocalStorage('slideshow:interval', ms);
+		writeStored('slideshow:interval', ms);
 		if (status === 'playing') startTimer();
 	}
 
@@ -350,10 +325,10 @@ function createSlideshowStore() {
 		// Store the preference verbatim; `effectiveMode` handles ELO availability.
 		if (mode === config.mode) return;
 		config = { ...config, mode };
-		writeLocalStorage('slideshow:mode', mode);
+		writeStored('slideshow:mode', mode);
 		if (mode === 'random' || mode === 'elo') {
 			lastWeighted = mode;
-			writeLocalStorage('slideshow:lastWeighted', mode);
+			writeStored('slideshow:lastWeighted', mode);
 		}
 		// Rebuild the order/cooldown for the new strategy.
 		if (neighbors.length) initOrder(currentIndexRef);
@@ -374,12 +349,12 @@ function createSlideshowStore() {
 
 	function setMetadataMode(mode: MetadataMode): void {
 		metadataMode = mode;
-		writeLocalStorage('viewer:metadataMode', mode);
+		writeStored('viewer:metadataMode', mode);
 	}
 
 	function setOverlayMode(mode: OverlayMode): void {
 		overlayMode = mode;
-		writeLocalStorage('slideshow:overlayMode', mode);
+		writeStored('slideshow:overlayMode', mode);
 	}
 
 	return {

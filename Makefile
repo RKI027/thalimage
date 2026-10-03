@@ -38,6 +38,9 @@ fe-preview:
 fe-check:
 	cd frontend && pnpm check
 
+fe-test:
+	cd frontend && pnpm test
+
 # Clean
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

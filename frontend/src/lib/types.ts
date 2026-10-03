@@ -40,6 +40,13 @@ export interface ImagePage {
 	total_count: number;
 }
 
+export interface Neighbors {
+	before: ImageSummary[];
+	after: ImageSummary[];
+	position: number;
+	total_count: number;
+}
+
 export interface Source {
 	id: number;
 	path: string;

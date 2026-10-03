@@ -1,29 +1,22 @@
 <script lang="ts">
+	import { isVideoFilename } from '$lib/media';
 	import { imageFileUrl, previewUrl, thumbUrl } from '$lib/api';
+	import { readStored, writeStored } from '$lib/storage';
 
-	const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.avi']);
 
 	let {
 		hash,
 		filename,
-		width,
-		height,
 		loop = false,
-		nativeControls = true,
 		videoEl = $bindable(null)
 	}: {
 		hash: string;
 		filename: string;
-		width: number;
-		height: number;
 		loop?: boolean;
-		nativeControls?: boolean;
 		videoEl?: HTMLVideoElement | null;
 	} = $props();
 
-	const isVideo = $derived(
-		VIDEO_EXTENSIONS.has(filename.slice(filename.lastIndexOf('.')).toLowerCase())
-	);
+	const isVideo = $derived(isVideoFilename(filename));
 
 	let loaded = $state(false);
 	// Reset the loading state whenever the source changes.
@@ -34,12 +27,12 @@
 
 	$effect(() => {
 		if (!videoEl) return;
-		videoEl.volume = parseFloat(localStorage.getItem('video:volume') ?? '1');
-		videoEl.muted = localStorage.getItem('video:muted') === 'true';
+		videoEl.volume = readStored('video:volume', 1);
+		videoEl.muted = readStored('video:muted', false);
 
 		function onVolumeChange() {
-			localStorage.setItem('video:volume', String(videoEl!.volume));
-			localStorage.setItem('video:muted', String(videoEl!.muted));
+			writeStored('video:volume', videoEl!.volume);
+			writeStored('video:muted', videoEl!.muted);
 		}
 		videoEl.addEventListener('volumechange', onVolumeChange);
 		return () => videoEl?.removeEventListener('volumechange', onVolumeChange);
@@ -55,7 +48,6 @@
 			poster={thumbUrl(hash)}
 			{loop}
 			preload="metadata"
-			controls={nativeControls}
 			playsinline
 			onloadeddata={() => (loaded = true)}
 			onerror={() => (loaded = true)}

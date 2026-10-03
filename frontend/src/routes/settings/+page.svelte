@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress, getVersion } from '$lib/api';
-	import { collectionsStore, sourcesStore, settingsStore } from '$lib/stores';
+	import { collectionsStore, settingsStore } from '$lib/stores';
 	import type { Source, VersionInfo } from '$lib/types';
 
 	let sources: Source[] = $state([]);
@@ -31,7 +31,6 @@
 			newPath = '';
 			newLabel = '';
 			await refresh();
-			sourcesStore.refresh();
 			collectionsStore.refresh();
 		} catch (e) {
 			alert(e instanceof Error ? e.message : 'Failed to add source');
@@ -41,7 +40,6 @@
 	async function remove(id: number) {
 		await deleteSource(id);
 		await refresh();
-		sourcesStore.refresh();
 		collectionsStore.refresh();
 	}
 
@@ -56,8 +54,7 @@
 					scanStatus[id] = `Done: ${p.added} added, ${p.skipped} skipped, ${p.errors} errors`;
 					unsubscribe();
 					refresh();
-					sourcesStore.refresh();
-					collectionsStore.refresh();
+							collectionsStore.refresh();
 				} else if (p.phase === 'error') {
 					scanStatus[id] = `Error: ${p.message || 'Scan failed'}`;
 					unsubscribe();

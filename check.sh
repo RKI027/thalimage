@@ -16,7 +16,7 @@ uv run pytest -q
 # and the backend checks alone are still a valid run.
 if [ -d "$repo_root/frontend/node_modules" ]; then
     echo "=== Frontend check ==="
-    make -C "$repo_root" fe-check
+    make -C "$repo_root" fe-check fe-test
 else
     echo "=== Frontend check (skipped: frontend/node_modules absent) ==="
 fi

@@ -2,24 +2,33 @@
 	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto, beforeNavigate } from '$app/navigation';
-	import { getImage, listImages, archiveImage, previewUrl, getEloRankings } from '$lib/api';
-	import { browsingContext, backDestination, backLabel } from '$lib/browsingContext';
+	import { getImage, getNeighbors, archiveImage, previewUrl, getEloRankings } from '$lib/api';
+	import { browsingContext, backDestination, backLabel, contextListing } from '$lib/browsingContext';
 	import { settingsStore } from '$lib/stores';
 	import type { ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import { attachSwipe } from '$lib/swipe';
+	import { isVideoFilename } from '$lib/media';
+	import { readStored, writeStored } from '$lib/storage';
 	import Icon from '$lib/components/Icon.svelte';
 	import ImageViewer from '$lib/components/ImageViewer.svelte';
 	import MetadataPanel from '$lib/components/MetadataPanel.svelte';
 	import SlideshowOverlay from '$lib/components/SlideshowOverlay.svelte';
 
 	let image = $state<ImageDetail | null>(null);
+	// A window of the browsing context's listing around the current image.
 	let neighbors: ImageSummary[] = $state([]);
 	let currentIndex = $state(-1);
+	// Listing position of neighbors[0], and the listing's size.
+	let windowStart = $state(0);
+	let total = $state(0);
+	const position = $derived(currentIndex >= 0 ? windowStart + currentIndex : -1);
+	// Bumped per load; a response for an earlier load is dropped, so the page
+	// never shows an image the URL has already moved past.
+	let loadSeq = 0;
 	let error: string | null = $state(null);
 	let pageEl: HTMLElement | null = $state(null);
 	let bodyEl: HTMLElement | null = $state(null);
-	let sheetEl: HTMLElement | null = $state(null);
 	let sheetHandleEl: HTMLElement | null = $state(null);
 
 	let videoEl = $state<HTMLVideoElement | null>(null);
@@ -28,20 +37,19 @@
 	let bottomSheetOpen = $state(false);
 	let topBarVisible = $state(false);
 	let topBarTimer: ReturnType<typeof setTimeout> | null = null;
-	let videoLoop = $state(localStorage.getItem('video:loop') === 'true');
+	let videoLoop = $state(readStored('video:loop', false));
 
-	// Cap on how many neighbours the slideshow walks. The ELO rankings fetch
-	// uses the same cap so every neighbour that can appear has a score fetched;
-	// keep the two in lockstep.
-	const NEIGHBOR_LIMIT = 1000;
+	// Neighbours fetched on each side of the current image; the slideshow walks
+	// that window. A new window is fetched once navigation comes within
+	// WINDOW_EDGE of either end (unless that end is the listing's own).
+	const WINDOW = 500;
+	const WINDOW_EDGE = 50;
+	// ELO scores fetched for weighting the slideshow: enough for a whole window.
+	const NEIGHBOR_LIMIT = 2 * WINDOW + 1;
 
-	const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.avi']);
-	const isVideo = $derived(
-		image !== null &&
-		VIDEO_EXTENSIONS.has(image.filename.slice(image.filename.lastIndexOf('.')).toLowerCase())
-	);
+	const isVideo = $derived(image !== null && isVideoFilename(image.filename));
 
-	$effect(() => { localStorage.setItem('video:loop', String(videoLoop)); });
+	$effect(() => { writeStored('video:loop', videoLoop); });
 
 	const metadataModes: MetadataMode[] = ['hidden', 'compact', 'full'];
 	const overlayModes: OverlayMode[] = ['none', 'minimal', 'full'];
@@ -66,48 +74,76 @@
 	}
 
 	async function load(hash: string) {
+		const seq = ++loadSeq;
 		error = null;
 		try {
-			image = await getImage(hash);
-			if (neighbors.length === 0) {
-				await loadNeighbors();
+			const loaded = await getImage(hash);
+			if (seq !== loadSeq) return;
+			image = loaded;
+			const idx = neighbors.findIndex((n) => n.content_hash === hash);
+			if (idx >= 0) {
+				setIndex(idx);
+				// The slideshow walks the window it started with.
+				if (!inSlideshow && !windowCovers(idx)) refreshWindow(loaded);
 			} else {
-				updateIndex();
+				await refreshWindow(loaded, true);
 			}
 		} catch (e) {
+			if (seq !== loadSeq) return;
 			error = e instanceof Error ? e.message : 'Failed to load image';
 			image = null;
 		}
 	}
 
-	async function loadNeighbors() {
+	// Whether the window reaches far enough past idx on both sides (or to
+	// the listing's own ends) that no refetch is needed yet.
+	function windowCovers(idx: number): boolean {
+		const atListingStart = windowStart === 0;
+		const atListingEnd = windowStart + neighbors.length >= total;
+		return (
+			(idx >= WINDOW_EDGE || atListingStart) &&
+			(neighbors.length - 1 - idx >= WINDOW_EDGE || atListingEnd)
+		);
+	}
+
+	let windowInFlight = false;
+
+	/** Fetch the window around `around`. Runs one at a time unless forced
+	 * (the image shown is outside the current window). */
+	async function refreshWindow(around: ImageSummary, force = false) {
 		if (!ctx) {
 			neighbors = [];
+			setIndex(-1);
 			return;
 		}
-		const params: Parameters<typeof listImages>[0] = {
-			limit: NEIGHBOR_LIMIT,
-			show_nsfw: $settingsStore.show_nsfw
-		};
-		if (ctx.sort) params.sort = ctx.sort;
-		if (ctx.dir) params.dir = ctx.dir;
-		if (ctx.type === 'collection') {
-			params.collection_id = ctx.collectionId;
-			if (ctx.filters) params.filters = ctx.filters;
-		}
-		const pg = await listImages(params);
-		neighbors = pg.items;
-		updateIndex();
-		if (slideshowStore.consumePendingStart()) {
-			enterSlideshow();
+		if (windowInFlight && !force) return;
+		windowInFlight = true;
+		try {
+			const nb = await getNeighbors(around.content_hash, {
+				...contextListing(ctx, $settingsStore.show_nsfw),
+				window: WINDOW
+			});
+			const fetched = [...nb.before, around, ...nb.after];
+			// Navigation may have moved on meanwhile; the window is still worth
+			// having as long as the image now shown is in it.
+			const idx = fetched.findIndex((n) => n.content_hash === $page.params.hash);
+			if (idx < 0) return;
+			neighbors = fetched;
+			windowStart = nb.position - nb.before.length;
+			total = nb.total_count;
+			setIndex(idx);
+			if (slideshowStore.consumePendingStart()) {
+				enterSlideshow();
+			}
+		} finally {
+			windowInFlight = false;
 		}
 	}
 
-	function updateIndex() {
-		if (!image) return;
-		currentIndex = neighbors.findIndex((n) => n.content_hash === image!.content_hash);
+	function setIndex(idx: number) {
+		currentIndex = idx;
 		if (inSlideshow) {
-			slideshowStore.updateCurrentIndex(currentIndex);
+			slideshowStore.updateCurrentIndex(idx);
 		}
 	}
 
@@ -122,7 +158,12 @@
 		}
 		const newIndex = currentIndex + delta;
 		if (newIndex >= 0 && newIndex < neighbors.length) {
-			goto(`/image/${neighbors[newIndex].content_hash}`);
+			// Move now rather than when the image arrives, so a second press
+			// during a slow load steps on from here instead of repeating.
+			setIndex(newIndex);
+			const target = neighbors[newIndex];
+			if (!windowCovers(newIndex)) refreshWindow(target);
+			goto(`/image/${target.content_hash}`);
 		}
 	}
 
@@ -303,8 +344,7 @@
 		for (const offset of [1, 2, -1]) {
 			const n = neighbors[idx + offset];
 			if (!n) continue;
-			const ext = n.filename.slice(n.filename.lastIndexOf('.')).toLowerCase();
-			if (VIDEO_EXTENSIONS.has(ext)) continue;
+			if (isVideoFilename(n.filename)) continue;
 			const img = new Image();
 			img.src = previewUrl(n.content_hash);
 		}
@@ -326,8 +366,10 @@
 		const newState = !image.archived;
 		image = await archiveImage(image.content_hash, newState);
 		if (newState) {
-			// Navigate away from an archived image
+			// Navigate away from an archived image, and drop the window it was
+			// part of: the listing no longer includes it.
 			const next = neighbors[currentIndex + 1] ?? neighbors[currentIndex - 1];
+			neighbors = [];
 			if (next) {
 				goto(`/image/${next.content_hash}`);
 			} else {
@@ -347,16 +389,13 @@
 			<ImageViewer
 				hash={image.content_hash}
 				filename={image.filename}
-				width={image.width}
-				height={image.height}
 				loop={false}
-				nativeControls={false}
 				bind:videoEl
 			/>
 			<SlideshowOverlay
 				{image}
-				{currentIndex}
-				total={neighbors.length}
+				currentIndex={position}
+				{total}
 				status={slideshowStore.status}
 				config={slideshowStore.config}
 				isFullscreen={slideshowStore.isFullscreen}
@@ -386,7 +425,7 @@
 					<button class="control" disabled={currentIndex <= 0} onclick={() => navigate(-1)}>← Prev</button>
 					<span class="position">
 						{#if currentIndex >= 0}
-							{currentIndex + 1} / {neighbors.length}
+							{position + 1} / {total}
 						{/if}
 					</span>
 					<button
@@ -416,7 +455,7 @@
 				</div>
 				<!-- Mobile-only: counter + action buttons -->
 				<span class="mobile-counter">
-					{#if currentIndex >= 0}{currentIndex + 1} / {neighbors.length}{/if}
+					{#if currentIndex >= 0}{position + 1} / {total}{/if}
 				</span>
 				<div class="mobile-actions">
 					{#if isVideo}
@@ -457,10 +496,7 @@
 				<ImageViewer
 					hash={image.content_hash}
 					filename={image.filename}
-					width={image.width}
-					height={image.height}
 					loop={videoLoop}
-					nativeControls={false}
 					bind:videoEl
 				/>
 				<!-- Desktop: metadata side panel. Hidden on mobile via CSS. -->
@@ -489,7 +525,7 @@
 			<!-- Mobile bottom sheet -->
 			{#if bottomSheetOpen}
 				<button class="sheet-backdrop" onclick={() => (bottomSheetOpen = false)} aria-label="Close metadata"></button>
-				<div class="bottom-sheet" bind:this={sheetEl}>
+				<div class="bottom-sheet">
 					<div class="sheet-handle-area" bind:this={sheetHandleEl}>
 						<div class="sheet-handle"></div>
 					</div>
