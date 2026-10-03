@@ -11,12 +11,16 @@ from pydantic import BaseModel
 from thalimage.core.previews import PREVIEW_SIZES, generate_preview, nearest_size
 from thalimage.core.thumbnails import thumbnail_path
 from thalimage.deps import ContentHash, get_db, get_preview_dir, get_thumb_dir
-from thalimage.services.collection_service import get_collection
+from thalimage.services.collection_service import resolve_scope
 from thalimage.services.image_service import (
     ImageDetail,
     ImagePage,
+    InvalidCursor,
+    ListingFilters,
+    Neighbors,
     get_image,
     list_images,
+    neighbors,
     resolve_file_path,
     set_archived,
 )
@@ -27,6 +31,11 @@ router = APIRouter(prefix="/images", tags=["images"])
 # meaning. Caching them for a year removes a revalidation round-trip per
 # tile, which dominates gallery load time on a slow link.
 IMMUTABLE = {"Cache-Control": "public, max-age=31536000, immutable"}
+
+# Hi-DPI screens ask for more than the largest bucket (a 1512px-wide window
+# at dpr 2 asks for 3024); those requests get the largest bucket. Only
+# values no screen could need are rejected.
+MAX_PREVIEW_REQUEST = 16384
 
 
 @router.get("", response_model=ImagePage)
@@ -49,29 +58,80 @@ def get_images(
     # source-preset rewrite below nulls collection_id.
     elo_collection_id = collection_id if sort == "elo" else None
 
-    # Source preset collections are served dynamically: rewrite to a source filter.
+    # A collection becomes the filter that selects its images.
     if collection_id is not None:
-        coll = get_collection(db, collection_id)
-        if coll is not None and coll.type == "source_preset":
-            source_id = coll.source_id
-            collection_id = None
+        scope = resolve_scope(db, collection_id)
+        if scope is not None:
+            source_id = scope.source_id or source_id
+            collection_id = scope.collection_id
 
-    return list_images(
+    try:
+        return list_images(
+            db,
+            cursor=cursor,
+            limit=limit,
+            sort=sort,
+            direction=dir,
+            source_id=source_id,
+            collection_id=collection_id,
+            date_from=date_from,
+            date_to=date_to,
+            aspect_ratio_filter=aspect_ratio_filter,
+            media_type=media_type,
+            tags=tags,
+            show_nsfw=show_nsfw,
+            elo_collection_id=elo_collection_id,
+        )
+    except InvalidCursor as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.get("/{content_hash}/neighbors", response_model=Neighbors)
+def get_image_neighbors(
+    content_hash: ContentHash,
+    window: int = Query(50, ge=1, le=500),
+    sort: str = Query("name"),
+    dir: str = Query("asc"),
+    source_id: Optional[int] = Query(None),
+    collection_id: Optional[int] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    aspect_ratio_filter: Optional[str] = Query(None),
+    media_type: Optional[str] = Query(None),
+    tags: Optional[list[str]] = Query(None),
+    show_nsfw: bool = Query(False),
+    db: sqlite3.Connection = Depends(get_db),
+) -> Neighbors:
+    """The images around one image in a listing, for the viewer's prev/next:
+    takes the listing's own sort and filters, and works wherever the image
+    falls in it."""
+    elo_collection_id = collection_id if sort == "elo" else None
+    if collection_id is not None:
+        scope = resolve_scope(db, collection_id)
+        if scope is not None:
+            source_id = scope.source_id or source_id
+            collection_id = scope.collection_id
+    result = neighbors(
         db,
-        cursor=cursor,
-        limit=limit,
+        content_hash,
+        window=window,
         sort=sort,
         direction=dir,
-        source_id=source_id,
-        collection_id=collection_id,
-        date_from=date_from,
-        date_to=date_to,
-        aspect_ratio_filter=aspect_ratio_filter,
-        media_type=media_type,
-        tags=tags,
-        show_nsfw=show_nsfw,
         elo_collection_id=elo_collection_id,
+        filters=ListingFilters(
+            source_id=source_id,
+            collection_id=collection_id,
+            date_from=date_from,
+            date_to=date_to,
+            aspect_ratio_filter=aspect_ratio_filter,
+            media_type=media_type,
+            tags=tags,
+            show_nsfw=show_nsfw,
+        ),
     )
+    if result is None:
+        raise HTTPException(404, "Image not found")
+    return result
 
 
 @router.get("/{content_hash}", response_model=ImageDetail)
@@ -116,8 +176,13 @@ def get_image_preview(
     size: int = Query(
         PREVIEW_SIZES[0],
         ge=1,
-        le=PREVIEW_SIZES[-1],
-        description="Desired long edge in pixels; snapped up to the nearest bucket.",
+        # A sanity bound, not the largest bucket: anything up to it is
+        # served, and sizes above the largest bucket get that bucket.
+        le=MAX_PREVIEW_REQUEST,
+        description=(
+            "Desired long edge in pixels; snapped up to the nearest bucket,"
+            f" or down to {PREVIEW_SIZES[-1]} when larger than every bucket."
+        ),
     ),
     db: sqlite3.Connection = Depends(get_db),
     preview_dir: Path = Depends(get_preview_dir),

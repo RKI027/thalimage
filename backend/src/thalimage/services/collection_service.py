@@ -20,6 +20,29 @@ class Collection(BaseModel):
     image_count: int = 0
 
 
+class PresetCollectionError(Exception):
+    """Source presets follow their source: they cannot be renamed or deleted."""
+
+
+class CollectionScope(BaseModel):
+    """Which images a collection holds, as image-query filters."""
+
+    collection_id: Optional[int] = None  # manual: its collection_images rows
+    source_id: Optional[int] = None  # source preset: its source's images
+
+
+def resolve_scope(conn: sqlite3.Connection, collection_id: int) -> Optional[CollectionScope]:
+    """Translate a collection into the filter that selects its images.
+    Source presets hold no collection_images rows; they are their source.
+    None if the collection does not exist."""
+    coll = get_collection(conn, collection_id)
+    if coll is None:
+        return None
+    if coll.type == "source_preset":
+        return CollectionScope(source_id=coll.source_id)
+    return CollectionScope(collection_id=collection_id)
+
+
 _COUNT_SQL = """
     SELECT c.*,
         CASE WHEN c.type = 'source_preset'
@@ -84,13 +107,14 @@ def update_collection(
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = None,
     nsfw: Optional[bool] = None,
-) -> Optional[Collection] | str:
-    """Update a collection. Returns error string if preset rename attempted."""
+) -> Optional[Collection]:
+    """Update a collection. Returns None if it does not exist; raises
+    PresetCollectionError on an attempt to rename a preset."""
     coll = get_collection(conn, collection_id)
     if coll is None:
         return None
     if name is not None and coll.type != "manual":
-        return "preset_rename_forbidden"
+        raise PresetCollectionError("Cannot rename a preset collection")
 
     updates = []
     params: list[object] = []
@@ -120,13 +144,14 @@ def update_collection(
     return get_collection(conn, collection_id)
 
 
-def delete_collection(conn: sqlite3.Connection, collection_id: int) -> bool | str:
-    """Delete a collection. Returns error string if preset deletion attempted."""
+def delete_collection(conn: sqlite3.Connection, collection_id: int) -> bool:
+    """Delete a collection. Returns False if it does not exist; raises
+    PresetCollectionError for a preset."""
     coll = get_collection(conn, collection_id)
     if coll is None:
         return False
     if coll.type != "manual":
-        return "preset_delete_forbidden"
+        raise PresetCollectionError("Cannot delete a preset collection")
     deleted = purge_collection(conn, collection_id)
     conn.commit()
     return deleted

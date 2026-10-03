@@ -1,11 +1,12 @@
 """Tests for /api/v1/images endpoints."""
 
+import sqlite3
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 
-from tests.helpers import scan_source
+from tests.helpers import ensure_source, insert_image, scan_source
 
 
 def test_list_images_empty(client: TestClient) -> None:
@@ -180,35 +181,45 @@ def test_filter_by_aspect_ratio_landscape(client: TestClient, image_dir: Path) -
     assert data["items"][0]["filename"] == "b.jpg"
 
 
-def test_filter_by_media_type_image(client: TestClient, image_dir: Path) -> None:
-    scan_source(client, image_dir)[1]
-    resp = client.get("/api/v1/images?media_type=image")
+def _seed_media(db: sqlite3.Connection) -> dict[str, str]:
+    """Two stills and a video, modified on consecutive days around a month end."""
+    return {
+        "jan30": insert_image(db, "a" * 64, file_modified="2024-01-30T23:59:59+00:00"),
+        "jan31": insert_image(
+            db, "b" * 64, filename="clip.mp4", format="MP4",
+            file_modified="2024-01-31T10:00:00+00:00",
+        ),
+        "feb01": insert_image(db, "c" * 64, file_modified="2024-02-01T00:00:00+00:00"),
+    }
+
+
+def _listed(client: TestClient, **params: str) -> set[str]:
+    resp = client.get("/api/v1/images", params=params)
     assert resp.status_code == 200
-    # All test images are images (no videos in the fixture)
-    assert resp.json()["total_count"] == 3
+    return {i["content_hash"] for i in resp.json()["items"]}
 
 
-def test_filter_by_media_type_video(client: TestClient, image_dir: Path) -> None:
-    scan_source(client, image_dir)[1]
-    resp = client.get("/api/v1/images?media_type=video")
-    assert resp.status_code == 200
-    assert resp.json()["total_count"] == 0
+def test_filter_by_media_type(client: TestClient, db: sqlite3.Connection) -> None:
+    m = _seed_media(db)
+    assert _listed(client, media_type="video") == {m["jan31"]}
+    assert _listed(client, media_type="image") == {m["jan30"], m["feb01"]}
 
 
-def test_filter_by_date_from(client: TestClient, image_dir: Path) -> None:
-    scan_source(client, image_dir)[1]
-    # A future date should return no images
-    resp = client.get("/api/v1/images?date_from=2099-01-01T00:00:00")
-    assert resp.status_code == 200
-    assert resp.json()["total_count"] == 0
+def test_filter_by_date_range(client: TestClient, db: sqlite3.Connection) -> None:
+    m = _seed_media(db)
+    assert _listed(client, date_from="2024-01-31") == {m["jan31"], m["feb01"]}
+    assert _listed(client, date_to="2024-01-31") == {m["jan30"], m["jan31"]}
 
 
-def test_filter_by_date_to(client: TestClient, image_dir: Path) -> None:
-    scan_source(client, image_dir)[1]
-    # A past date should return no images
-    resp = client.get("/api/v1/images?date_to=1970-01-01T00:00:00")
-    assert resp.status_code == 200
-    assert resp.json()["total_count"] == 0
+def test_single_day_range_includes_that_day(client: TestClient, db: sqlite3.Connection) -> None:
+    """GEN-012: date_to is a whole day, not its first instant."""
+    m = _seed_media(db)
+    assert _listed(client, date_from="2024-01-31", date_to="2024-01-31") == {m["jan31"]}
+
+
+def test_date_to_with_a_time_is_exact(client: TestClient, db: sqlite3.Connection) -> None:
+    m = _seed_media(db)
+    assert _listed(client, date_to="2024-01-31T09:00:00+00:00") == {m["jan30"]}
 
 
 def test_get_image_preview_returns_webp(client: TestClient, image_dir: Path) -> None:
@@ -226,6 +237,17 @@ def test_preview_size_snaps_to_a_bucket(client: TestClient, image_dir: Path) -> 
     assert resp.headers["x-preview-size"] == "1280"
 
 
+def test_preview_above_the_largest_bucket_gets_the_largest(
+    client: TestClient, image_dir: Path
+) -> None:
+    """GEN-004: a 1512px-wide window at dpr 2 asks for 3024."""
+    hashes = scan_source(client, image_dir)[1]
+    for size in (2561, 3024, 5000):
+        resp = client.get(f"/api/v1/images/{hashes[0]}/preview", params={"size": size})
+        assert resp.status_code == 200, size
+        assert resp.headers["x-preview-size"] == "2560"
+
+
 def test_preview_rejects_an_absurd_size(client: TestClient, image_dir: Path) -> None:
     hashes = scan_source(client, image_dir)[1]
     resp = client.get(f"/api/v1/images/{hashes[0]}/preview", params={"size": 99999})
@@ -237,14 +259,16 @@ def test_preview_not_found(client: TestClient) -> None:
     assert resp.status_code == 404
 
 
-def test_preview_rejects_a_video(client: TestClient, tmp_path: Path) -> None:
+def test_preview_rejects_a_video(
+    client: TestClient, db: sqlite3.Connection, tmp_path: Path
+) -> None:
     root = tmp_path / "vids"
     root.mkdir()
     (root / "clip.mp4").write_bytes(b"not really a video")
-    hashes = scan_source(client, root)[1]
-    if not hashes:
-        return
-    resp = client.get(f"/api/v1/images/{hashes[0]}/preview")
+    h = insert_image(
+        db, "d" * 64, source_id=ensure_source(db, str(root)), filename="clip.mp4", format="MP4"
+    )
+    resp = client.get(f"/api/v1/images/{h}/preview")
     assert resp.status_code == 415
 
 
@@ -257,3 +281,37 @@ def test_immutable_cache_headers_on_served_files(
         resp = client.get(f"/api/v1/images/{hashes[0]}/{route}")
         assert resp.status_code == 200, route
         assert "immutable" in resp.headers["cache-control"], route
+
+
+def test_malformed_cursor_is_400(client: TestClient, db: sqlite3.Connection) -> None:
+    insert_image(db, "a" * 64)
+    assert client.get("/api/v1/images", params={"cursor": "garbage"}).status_code == 400
+    coll = client.post("/api/v1/collections", json={"name": "c"}).json()["id"]
+    resp = client.get(
+        "/api/v1/images",
+        params={"cursor": "nan-ish|x", "sort": "elo", "collection_id": coll},
+    )
+    assert resp.status_code == 400
+
+
+def test_neighbors_endpoint(client: TestClient, db: sqlite3.Connection) -> None:
+    hashes = [insert_image(db, f"{i:064d}", filename=f"n{i}.png") for i in range(5)]
+    resp = client.get(f"/api/v1/images/{hashes[2]}/neighbors", params={"window": 1})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [i["content_hash"] for i in data["before"]] == [hashes[1]]
+    assert [i["content_hash"] for i in data["after"]] == [hashes[3]]
+    assert (data["position"], data["total_count"]) == (2, 5)
+
+    preset = client.get("/api/v1/collections", params={"type": "source_preset"}).json()
+    if not preset:  # insert_image does not create the preset; make it
+        from thalimage.services.collection_service import get_or_create_source_preset
+
+        get_or_create_source_preset(db, 1, "test")
+        preset = client.get("/api/v1/collections", params={"type": "source_preset"}).json()
+    resp = client.get(
+        f"/api/v1/images/{hashes[0]}/neighbors", params={"collection_id": preset[0]["id"]}
+    )
+    assert resp.json()["total_count"] == 5
+
+    assert client.get(f"/api/v1/images/{'f' * 64}/neighbors").status_code == 404

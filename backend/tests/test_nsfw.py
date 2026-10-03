@@ -274,7 +274,6 @@ def test_collection_nsfw_can_be_set_true(db: sqlite3.Connection) -> None:
     coll = create_collection(db, "NSFW Collection")
     updated = update_collection(db, coll.id, nsfw=True)
     assert updated is not None
-    assert not isinstance(updated, str)
     assert updated.nsfw is True
 
 
@@ -284,9 +283,7 @@ def test_collection_nsfw_update_returns_correct_model(db: sqlite3.Connection) ->
     assert coll.nsfw is False
     updated = update_collection(db, coll.id, nsfw=True)
     assert updated is not None
-    assert not isinstance(updated, str)
     assert updated.nsfw is True
     updated2 = update_collection(db, coll.id, nsfw=False)
     assert updated2 is not None
-    assert not isinstance(updated2, str)
     assert updated2.nsfw is False

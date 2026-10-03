@@ -4,7 +4,12 @@ import random
 import sqlite3
 from typing import Any, Optional
 
-from thalimage.services.image_service import ImageSummary, append_media_filters
+from thalimage.services.image_service import (
+    ImageSummary,
+    append_media_filters,
+    summary_columns_sql,
+    summary_from_row,
+)
 
 K_FACTOR = 32
 
@@ -23,33 +28,30 @@ def get_pair(
     """Select two images from a collection for comparison.
 
     For source_preset collections pass source_id; for manual collections leave it None.
-    Favors images with fewer matches to ensure even coverage.
+    The pool is the live, unarchived images that pass the given filters;
+    the pair is drawn uniformly from its least-matched quarter.
     """
+    select = (
+        f"SELECT {summary_columns_sql('i.')}, COALESCE(e.matches, 0) AS matches"
+        " FROM images i LEFT JOIN elo_scores e"
+        " ON e.content_hash = i.content_hash AND e.collection_id = ?"
+        " WHERE i.deleted = 0 AND i.archived = 0"
+    )
+    params: list[object] = [collection_id]
     if source_id is not None:
-        q = """SELECT i.content_hash, i.filename, i.source_id, i.relative_path,
-                      i.width, i.height, i.aspect_ratio, i.format, i.thumb_generated,
-                      i.archived, i.nsfw,
-                      COALESCE(e.matches, 0) AS matches
-               FROM images i
-               LEFT JOIN elo_scores e ON i.content_hash = e.content_hash
-                    AND e.collection_id = ?
-               WHERE i.deleted = 0 AND i.archived = 0
-                 AND i.content_hash IN
-                     (SELECT content_hash FROM image_locations WHERE source_id = ?)"""
-        params: list[object] = [collection_id, source_id]
+        q = select + (
+            " AND i.content_hash IN"
+            " (SELECT content_hash FROM image_locations WHERE source_id = ?)"
+        )
+        params.append(source_id)
     else:
-        q = """SELECT i.content_hash, i.filename, i.source_id, i.relative_path,
-                      i.width, i.height, i.aspect_ratio, i.format, i.thumb_generated,
-                      i.archived, i.nsfw,
-                      COALESCE(e.matches, 0) AS matches
-               FROM collection_images ci
-               JOIN images i ON ci.content_hash = i.content_hash
-               LEFT JOIN elo_scores e ON i.content_hash = e.content_hash
-                    AND e.collection_id = ci.collection_id
-               WHERE ci.collection_id = ? AND i.deleted = 0 AND i.archived = 0"""
-        params = [collection_id]
+        q = select + (
+            " AND i.content_hash IN"
+            " (SELECT content_hash FROM collection_images WHERE collection_id = ?)"
+        )
+        params.append(collection_id)
 
-    q, params = append_media_filters(
+    q = append_media_filters(
         q, params,
         prefix="i.",
         date_from=date_from,
@@ -73,10 +75,7 @@ def get_pair(
     candidates = rows[:quartile_size]
     picked = random.sample(candidates, 2)
 
-    return (
-        ImageSummary(**{k: picked[0][k] for k in ImageSummary.model_fields}),
-        ImageSummary(**{k: picked[1][k] for k in ImageSummary.model_fields}),
-    )
+    return summary_from_row(picked[0]), summary_from_row(picked[1])
 
 
 class CollectionNotFound(LookupError):

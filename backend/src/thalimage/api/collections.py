@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from thalimage.deps import get_db
 from thalimage.services.collection_service import (
     Collection,
+    PresetCollectionError,
     add_images,
     create_collection,
     delete_collection,
@@ -70,17 +71,18 @@ def patch_collection(
     body: CollectionUpdate,
     db: sqlite3.Connection = Depends(get_db),
 ) -> Collection:
-    result = update_collection(
-        db, collection_id,
-        name=body.name,
-        sort_by=body.sort_by,
-        sort_dir=body.sort_dir,
-        nsfw=body.nsfw,
-    )
+    try:
+        result = update_collection(
+            db, collection_id,
+            name=body.name,
+            sort_by=body.sort_by,
+            sort_dir=body.sort_dir,
+            nsfw=body.nsfw,
+        )
+    except PresetCollectionError as exc:
+        raise HTTPException(403, str(exc)) from exc
     if result is None:
         raise HTTPException(404, "Collection not found")
-    if isinstance(result, str):
-        raise HTTPException(403, "Cannot rename a preset collection")
     return result
 
 
@@ -89,10 +91,11 @@ def del_collection(
     collection_id: int,
     db: sqlite3.Connection = Depends(get_db),
 ) -> None:
-    result = delete_collection(db, collection_id)
-    if isinstance(result, str):
-        raise HTTPException(403, "Cannot delete a preset collection")
-    if not result:
+    try:
+        deleted = delete_collection(db, collection_id)
+    except PresetCollectionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    if not deleted:
         raise HTTPException(404, "Collection not found")
 
 
