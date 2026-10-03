@@ -172,7 +172,10 @@ overview, ranking by vote, image delivery, scanning. The ELO bias above
 is documented there rather than silently fixed — the fix itself is still
 open.
 
-## Phase 5.5 — Deployment ✓
+## Phase 5.5 — Deployment (built, not yet run)
+
+The image builds in CI; the container and the compose stack have not
+been run yet, so this phase stays open until they have.
 
 The MVP bullet above credits "Docker deployment" to Sprint 5, but that
 setup was never rebuilt afterwards and had drifted: the image copied the
@@ -185,8 +188,8 @@ GID already in the base image.
 
 What this pass delivers:
 
-- **Image published to GHCR** by `.github/workflows/docker.yml` on pushes
-  to main and `v*` tags, `linux/amd64`, with `THALIMAGE_COMMIT` passed as
+- **Image published to GHCR** by `.github/workflows/docker.yml` for each
+  `v*` tag (`:latest` and the version), `linux/amd64`, with `THALIMAGE_COMMIT` passed as
   a build arg so both the API and the bundle report the build they came
   from. `.github/workflows/ci.yml` runs `check.sh` on push and PR.
 - **Dockerfile rebuilt** — repo layout preserved inside the image, a
