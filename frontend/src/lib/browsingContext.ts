@@ -1,5 +1,6 @@
 import { writable, get } from 'svelte/store';
 import type { FilterState, SortField, SortDirection } from './types';
+import type { ListingParams } from './api';
 import { readStored, writeStored } from './storage';
 
 export type BrowsingContext =
@@ -70,4 +71,12 @@ export function backLabel(ctx: BrowsingContext | null): string {
 	if (!ctx) return '← Back';
 	if (ctx.type === 'all') return '← All Images';
 	return `← ${ctx.name}`;
+}
+
+/** The listing a context shows, so the viewer can walk exactly that. */
+export function contextListing(ctx: BrowsingContext, showNsfw: boolean): ListingParams {
+	const common = { sort: ctx.sort, dir: ctx.dir, filters: ctx.filters, show_nsfw: showNsfw };
+	return ctx.type === 'all'
+		? { ...common, source_id: ctx.sourceId }
+		: { ...common, collection_id: ctx.collectionId };
 }
