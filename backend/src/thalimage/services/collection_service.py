@@ -137,10 +137,12 @@ def add_images(
     hashes: list[str],
 ) -> int:
     """Add images to a collection. Returns the number of rows actually inserted
-    (duplicates and unknown hashes don't count)."""
+    (duplicates and unknown hashes don't count). OR IGNORE does not cover
+    foreign-key failures, so unknown hashes are filtered out by the SELECT."""
     before = conn.total_changes
     conn.executemany(
-        "INSERT OR IGNORE INTO collection_images (collection_id, content_hash) VALUES (?, ?)",
+        "INSERT OR IGNORE INTO collection_images (collection_id, content_hash)"
+        " SELECT ?, content_hash FROM images WHERE content_hash = ?",
         [(collection_id, h) for h in hashes],
     )
     conn.commit()
