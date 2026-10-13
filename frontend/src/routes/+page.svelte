@@ -70,7 +70,7 @@
 		sourceId = readSourceId();
 		loadPrefs();
 		rememberContext();
-		gallery.reset();
+		settingsStore.loaded.then(() => gallery.reset());
 		return gallery.followViewport();
 	});
 

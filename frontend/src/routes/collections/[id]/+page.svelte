@@ -60,6 +60,7 @@
 		sort = loaded.sort_by as SortField;
 		dir = loaded.sort_dir as SortDirection;
 		rememberContext();
+		await settingsStore.loaded;
 		// Supersedes anything the previous collection still has in flight.
 		await gallery.reset();
 	}
@@ -92,10 +93,11 @@
 		});
 	});
 
-	// Re-fetch when show_nsfw setting changes (skip before collection is loaded)
+	// Re-fetch when show_nsfw setting changes (skip during initial load,
+	// which waits for the settings itself)
 	$effect(() => {
 		const _ = $settingsStore.show_nsfw;
-		untrack(() => { if (collection !== null) gallery.reset(); });
+		untrack(() => { if (gallery.loaded) gallery.reset(); });
 	});
 
 	$effect(() => gallery.followViewport());
