@@ -53,9 +53,12 @@ this file into those once the open items are settled, then delete it.
 
 ## Open
 
-- **Requests taking 10–35 s, server-side.** The data directory (SQLite
-  in WAL mode) is on NFS, which SQLite does not support for WAL. Measure
-  again with the double loading fixed; if it persists, move
-  `THALIMAGE_DATA/app` to local disk and compare.
+- **Requests taking 10–35 s, server-side: the database on NFS.** Still
+  there with the double loading fixed (four concurrent requests stalled
+  12 s together). Measured in the container, 4 threads × 25 rounds of the
+  app's connect-and-query: on NFS median 9–15 ms but max 3.1 s and
+  35.7 s (p90 30 s on the second run); on local disk max 22 ms. SQLite
+  does not support WAL on network filesystems. The database has to live
+  on local disk; the caches can stay on NFS (plain reads, regenerable).
 - **Creation dates** are not read inside the container (see the roadmap's
   Unsorted list).
