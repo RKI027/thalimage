@@ -13,7 +13,9 @@ from thalimage.config import Settings
 def spa_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """A client whose frontend build dir is a controlled temp tree."""
     build = tmp_path / "build"
-    (build / "_app").mkdir(parents=True)
+    (build / "_app" / "immutable").mkdir(parents=True)
+    (build / "_app" / "immutable" / "entry.abc123.js").write_text("ENTRY")
+    (build / "_app" / "version.json").write_text("{}")
     (build / "index.html").write_text("INDEX")
     (build / "foo.txt").write_text("FOO")
     # A file that lives outside the build dir and must never be served.
@@ -42,6 +44,27 @@ def test_unknown_path_falls_back_to_index(spa_client: TestClient) -> None:
     resp = spa_client.get("/some/client/route")
     assert resp.status_code == 200
     assert resp.text == "INDEX"
+
+
+@pytest.mark.parametrize("path", ["/", "/index.html", "/collections/8"])
+def test_the_page_is_revalidated_on_every_load(spa_client: TestClient, path: str) -> None:
+    # A cached index.html keeps loading the previous deploy's bundle.
+    resp = spa_client.get(path)
+    assert resp.text == "INDEX"
+    assert resp.headers["cache-control"] == "no-cache"
+
+
+def test_hashed_assets_are_cached_for_good(spa_client: TestClient) -> None:
+    resp = spa_client.get("/_app/immutable/entry.abc123.js")
+    assert resp.status_code == 200
+    assert resp.headers["cache-control"] == "public, max-age=31536000, immutable"
+
+
+@pytest.mark.parametrize("path", ["/_app/version.json", "/foo.txt"])
+def test_unhashed_files_are_revalidated(spa_client: TestClient, path: str) -> None:
+    resp = spa_client.get(path)
+    assert resp.status_code == 200
+    assert resp.headers["cache-control"] == "no-cache"
 
 
 def test_traversal_does_not_escape_build_dir(spa_client: TestClient) -> None:

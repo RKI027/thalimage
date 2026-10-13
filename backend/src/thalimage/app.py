@@ -1,14 +1,16 @@
 """FastAPI application factory."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.types import Scope
 
 from thalimage.api import collections, docs, elo, images, sources, tags, version
 from thalimage.api import settings as user_settings
@@ -19,6 +21,29 @@ from thalimage.services.scan_manager import ScanManager
 from thalimage.version import version_info
 
 logger = logging.getLogger(__name__)
+
+# Files under _app/immutable/ carry a content hash in their name, so a cached
+# copy can never be stale. Everything else, index.html above all, is
+# revalidated on each load: a cached page keeps loading the previous build.
+IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
+REVALIDATE = "no-cache"
+
+
+class BuildAssets(StaticFiles):
+    """The SPA's /_app tree, with caching set per file."""
+
+    def file_response(
+        self,
+        full_path: "os.PathLike[str] | str",
+        stat_result: os.stat_result,
+        scope: Scope,
+        status_code: int = 200,
+    ) -> Response:
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        relative = os.path.relpath(full_path, str(self.directory))
+        immutable = relative.split(os.sep)[0] == "immutable"
+        response.headers["Cache-Control"] = IMMUTABLE_CACHE if immutable else REVALIDATE
+        return response
 
 
 @asynccontextmanager
@@ -96,7 +121,7 @@ def create_app() -> FastAPI:
             frontend_dir,
         )
     else:
-        app.mount("/_app", StaticFiles(directory=frontend_dir / "_app"), name="static")
+        app.mount("/_app", BuildAssets(directory=frontend_dir / "_app"), name="static")
 
         frontend_root = frontend_dir.resolve()
 
@@ -107,8 +132,9 @@ def create_app() -> FastAPI:
             if path == "api" or path.startswith("api/"):
                 raise HTTPException(404, "Not found")
             file = (frontend_root / path).resolve()
+            headers = {"Cache-Control": REVALIDATE}
             if file.is_file() and file.is_relative_to(frontend_root):
-                return FileResponse(file)
-            return FileResponse(frontend_root / "index.html")
+                return FileResponse(file, headers=headers)
+            return FileResponse(frontend_root / "index.html", headers=headers)
 
     return app
