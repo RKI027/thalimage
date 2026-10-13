@@ -30,13 +30,21 @@ services:
       # identity, which is why it lives on the bind mount.
       - TS_AUTHKEY=${TS_AUTHKEY:?set TS_AUTHKEY to a Tailscale auth key or OAuth client secret}
       - TS_STATE_DIR=/var/lib/tailscale
+      # Log in only while the state directory holds no node identity.
+      # Otherwise every start logs in again with TS_AUTHKEY, and a spent
+      # single-use key or an expired one breaks the restart.
+      - TS_AUTH_ONCE=true
       - TS_SERVE_CONFIG=/config/serve.json
       # Tagged nodes do not expire; untagged ones drop off the tailnet at
       # node-key expiry and need re-authenticating by hand.
       - TS_EXTRA_ARGS=--advertise-tags=${TS_TAG:-tag:homelab}
     volumes:
       - ${THALIMAGE_DATA:-/srv/thalimage}/tailscale:/var/lib/tailscale
-      - ./serve.json:/config/serve.json:ro
+      # From the data directory, not next to this file: a stack pasted
+      # into Portainer has no ./serve.json beside it, and Docker then
+      # mounts an empty directory in its place. Copy serve.json there
+      # before the first deploy.
+      - ${THALIMAGE_DATA:-/srv/thalimage}/serve.json:/config/serve.json:ro
     # Userspace networking (the image default) carries inbound `serve`
     # traffic, which is all this stack needs. For a container that must
     # also originate tailnet traffic, set TS_USERSPACE=false and add:
