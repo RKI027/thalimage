@@ -40,6 +40,8 @@ runs with ffmpeg available.
 Each source folder has a matching preset collection. It is a live view
 of the images in that source rather than a stored list, so it is always
 current and nothing needs syncing; the scan only makes sure it exists.
+It is named after the source's label, or its folder when it has none;
+rename the source in Settings to rename the preset.
 
 ## The same file in several places
 

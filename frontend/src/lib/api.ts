@@ -184,8 +184,12 @@ export function createSource(
 	});
 }
 
-/** Mark a source writable (refused if its folder does not accept writes) or read-only. */
-export function updateSource(id: number, changes: { writable: boolean }): Promise<Source> {
+/** Relabel a source (a blank label clears it), or mark it writable (refused
+ * if its folder does not accept writes) or read-only. */
+export function updateSource(
+	id: number,
+	changes: { writable?: boolean; label?: string | null }
+): Promise<Source> {
 	return fetchJSON(`${BASE}/sources/${id}`, {
 		method: 'PATCH',
 		headers: { 'Content-Type': 'application/json' },

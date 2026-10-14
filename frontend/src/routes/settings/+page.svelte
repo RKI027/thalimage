@@ -10,6 +10,7 @@
 	let newPath = $state('');
 	let newLabel = $state('');
 	let newWritable = $state(false);
+	let relabelling: number | null = $state(null);
 	let scanStatus: Record<number, string> = $state({});
 	let summaries: Record<number, SourceSummary> = $state({});
 	let backendVersion: string | null = $state(null);
@@ -53,6 +54,25 @@
 			alert(e instanceof Error ? e.message : 'Failed to change the source');
 		}
 		await refresh();
+	}
+
+	async function relabel(source: Source, label: string) {
+		// Enter saves and then blurs the field; only the first save counts.
+		if (relabelling !== source.id) return;
+		relabelling = null;
+		if (label.trim() === (source.label ?? '')) return;
+		try {
+			await updateSource(source.id, { label });
+		} catch (e) {
+			alert(e instanceof Error ? e.message : 'Failed to rename the source');
+		}
+		await refresh();
+		collectionsStore.refresh();
+	}
+
+	function relabelKey(source: Source, e: KeyboardEvent & { currentTarget: HTMLInputElement }) {
+		if (e.key === 'Enter') relabel(source, e.currentTarget.value);
+		else if (e.key === 'Escape') relabelling = null;
 	}
 
 	async function remove(id: number) {
@@ -139,7 +159,20 @@
 			{#each sources as source}
 				<li>
 					<div class="source-info">
-						<strong>{source.label || source.path}</strong>
+						{#if relabelling === source.id}
+							<!-- svelte-ignore a11y_autofocus -->
+							<input
+								class="control"
+								value={source.label ?? ''}
+								placeholder="Label (blank for none)"
+								aria-label="Label"
+								autofocus
+								onkeydown={(e) => relabelKey(source, e)}
+								onblur={(e) => relabel(source, e.currentTarget.value)}
+							/>
+						{:else}
+							<strong>{source.label || source.path}</strong>
+						{/if}
 						{#if source.label}
 							<span class="path">{source.path}</span>
 						{/if}
@@ -170,6 +203,7 @@
 					</div>
 					<div class="source-actions">
 						<button class="control control-primary" onclick={() => scan(source.id)}>Scan</button>
+						<button class="control" onclick={() => (relabelling = source.id)}>Rename</button>
 						<button class="control control-danger" onclick={() => remove(source.id)}>Remove</button>
 					</div>
 				</li>

@@ -18,7 +18,7 @@ from thalimage.services.file_deletion import DeletionRefused, UnknownCopy, delet
 from thalimage.services.playable_copies import remove_playable_copies
 from thalimage.services.scan_manager import ScanManager
 from thalimage.services.scan_service import run_scan
-from thalimage.services.source_service import delete_source
+from thalimage.services.source_service import delete_source, relabel_source
 from thalimage.services.source_summary import SourceSummary, source_summary
 
 router = APIRouter(prefix="/sources", tags=["sources"])
@@ -40,7 +40,10 @@ class SourceCreate(BaseModel):
 
 
 class SourceUpdate(BaseModel):
-    writable: bool
+    """Only the fields sent are changed; a blank or null label clears it."""
+
+    writable: Optional[bool] = None
+    label: Optional[str] = None
 
 
 class CopiesToDelete(BaseModel):
@@ -114,15 +117,18 @@ def update_source(
     body: SourceUpdate,
     db: sqlite3.Connection = Depends(get_db),
 ) -> SourceResponse:
-    """Mark a source writable (once its folder has accepted a test write)
-    or read-only."""
+    """Relabel a source, or mark it writable (once its folder has accepted
+    a test write) or read-only."""
     row = db.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone()
     if row is None:
         raise HTTPException(404, "Source not found")
-    if body.writable:
-        _require_writes(Path(row["path"]))
-    db.execute("UPDATE sources SET writable = ? WHERE id = ?", (body.writable, source_id))
-    db.commit()
+    if body.writable is not None:
+        if body.writable:
+            _require_writes(Path(row["path"]))
+        db.execute("UPDATE sources SET writable = ? WHERE id = ?", (body.writable, source_id))
+        db.commit()
+    if "label" in body.model_fields_set:
+        relabel_source(db, source_id, body.label)
     row = db.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone()
     return SourceResponse(**dict(row))
 
