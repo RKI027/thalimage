@@ -28,7 +28,7 @@ this file into those once the open items are settled, then delete it.
   (p90 30 s on the second run); on local disk max 22 ms. SQLite does not
   support WAL on network filesystems. The database now has its own
   mount, `THALIMAGE_DB_DIR`, on the host's local disk; caches stay on
-  the share.
+  the share. Redeployed that way, no stall could be triggered.
 - **Backups for a database off the NAS.** A daily in-app backup (time
   and copies kept set in Settings) writes into `db_backups/` on the
   share, so the NAS still holds a recent copy.
@@ -71,7 +71,5 @@ this file into those once the open items are settled, then delete it.
 
 ## Open
 
-- **Confirm the stalls are gone** once the database is on local disk
-  (rerun the in-container benchmark; expect a max in the tens of ms).
 - **Creation dates** are not read inside the container (see the roadmap's
   Unsorted list).
