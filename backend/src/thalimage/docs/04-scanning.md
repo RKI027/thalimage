@@ -53,8 +53,11 @@ explains the difference, each opening onto the files concerned:
 - **Duplicate files**: copies with the same content as another file in
   the source. They are one image. In a writable source (see below) you
   can tick copies and delete them from disk, after a confirmation that
-  lists every file. Each image keeps at least one copy, and a file that
-  changed since the last scan is refused until you rescan.
+  lists every file with its sidecars (see below). Each image keeps at
+  least one copy, and a file that changed since the last scan is refused
+  until you rescan. When a deleted copy's sidecar differs from every
+  sidecar of the copies kept, the confirmation warns that its content
+  will be lost.
 - **Files not indexed**: files the last scan could not read or decode,
   and subfolders it could not list, with the reason. A new file that
   fails is not counted at all; one indexed before keeps its earlier
@@ -85,12 +88,22 @@ row is kept so that tags and scores survive if the file comes back.
 
 Neither flag touches your original files.
 
+## Sidecar files
+
+A sidecar is a file next to an image or video, named after it, that
+Thalimage does not index: `img.txt` or `img.png.json` beside `img.png`.
+Generation tools write them, such as Forge's parameters `.txt` or a
+ComfyUI workflow `.json`. Deleting a file deletes its sidecars too,
+unless another image or video in the same folder is named the same
+(`img.jpg` beside `img.png` and `img.txt`); the sidecar then stays
+until the last of them is deleted.
+
 ## Deleting an image
 
 **Delete…** in the image viewer removes every copy of the image from
-disk, in every source, after a confirmation that lists each file. All
-those sources must be writable; if one is not, the confirmation names
-it and offers no way to go ahead. A copy that changed since the last
+disk, in every source, with their sidecars, after a confirmation that
+lists each file. All those sources must be writable; if one is not, the
+confirmation names it and offers no way to go ahead. A copy that changed since the last
 scan refuses the whole delete until you rescan.
 
 The image is then marked deleted, as above: it leaves the gallery, but

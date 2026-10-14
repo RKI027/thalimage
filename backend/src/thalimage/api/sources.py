@@ -53,6 +53,7 @@ class DeleteFailure(BaseModel):
 
 class DeletedCopies(BaseModel):
     deleted: list[str]
+    sidecars: list[str]
     failed: list[DeleteFailure]
 
 
@@ -152,6 +153,7 @@ def delete_source_copies(
         raise HTTPException(409, str(exc)) from exc
     return DeletedCopies(
         deleted=result.deleted,
+        sidecars=result.sidecars,
         failed=[DeleteFailure(relative_path=p, error=e) for _, p, e in result.failed],
     )
 

@@ -246,6 +246,7 @@ class ImageDeleteFailure(BaseModel):
 
 class ImageDeletion(BaseModel):
     deleted: int
+    sidecars: int
     failed: list[ImageDeleteFailure]
 
 
@@ -264,6 +265,7 @@ def delete_image_files(
         raise HTTPException(404, "Image not found")
     return ImageDeletion(
         deleted=len(result.deleted),
+        sidecars=len(result.sidecars),
         failed=[
             ImageDeleteFailure(source_id=s, relative_path=p, error=e) for s, p, e in result.failed
         ],
