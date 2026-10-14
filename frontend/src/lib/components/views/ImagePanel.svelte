@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { isVideoFilename } from '$lib/media';
-	import { imageFileUrl, previewUrl, thumbUrl } from '$lib/api';
+	import { previewUrl, thumbUrl, videoUrl } from '$lib/api';
 
 
 	let {
@@ -46,7 +46,7 @@
 		<!-- svelte-ignore a11y_media_has_caption -->
 		<video
 			bind:this={videoEl}
-			src={imageFileUrl(hash)}
+			src={videoUrl(hash)}
 			poster={thumbUrl(hash)}
 			autoplay
 			muted

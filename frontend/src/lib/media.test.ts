@@ -3,7 +3,7 @@ import { isVideoFilename } from './media';
 
 describe('isVideoFilename', () => {
 	it('recognises video extensions in any case', () => {
-		for (const name of ['a.mp4', 'b.MOV', 'c.webm', 'clip.final.avi']) {
+		for (const name of ['a.mp4', 'b.MOV', 'c.webm', 'clip.final.avi', 'd.mkv']) {
 			expect(isVideoFilename(name)).toBe(true);
 		}
 	});
