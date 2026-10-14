@@ -12,11 +12,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import Scope
 
-from thalimage.api import collections, docs, elo, images, sources, tags, version
+from thalimage.api import backups, collections, docs, elo, images, sources, tags, version
 from thalimage.api import settings as user_settings
 from thalimage.config import get_settings
 from thalimage.csrf import CrossSiteWriteGuard
 from thalimage.db.engine import connect, migrate
+from thalimage.services.db_backup import BackupScheduler
 from thalimage.services.scan_manager import ScanManager
 from thalimage.version import version_info
 
@@ -59,7 +60,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.db_path = settings.resolved_db_path
     app.state.settings = settings
     app.state.scan_manager = ScanManager(concurrent=settings.concurrent_scans)
-    yield
+    app.state.backup_scheduler = BackupScheduler(
+        settings.resolved_db_path, settings.resolved_backup_dir
+    )
+    app.state.backup_scheduler.start()
+    try:
+        yield
+    finally:
+        await app.state.backup_scheduler.stop()
 
 
 def create_app() -> FastAPI:
@@ -103,6 +111,7 @@ def create_app() -> FastAPI:
         allowed_origins=cors_origins,
     )
 
+    app.include_router(backups.router, prefix="/api/v1")
     app.include_router(sources.router, prefix="/api/v1")
     app.include_router(images.router, prefix="/api/v1")
     app.include_router(collections.router, prefix="/api/v1")

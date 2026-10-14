@@ -9,8 +9,16 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from thalimage.app import create_app
-from thalimage.deps import get_db, open_db, get_preview_dir, get_scan_manager, get_thumb_dir
+from thalimage.deps import (
+    get_backup_scheduler,
+    get_db,
+    get_preview_dir,
+    get_scan_manager,
+    get_thumb_dir,
+    open_db,
+)
 from thalimage.db.engine import connect, migrate
+from thalimage.services.db_backup import BackupScheduler
 from thalimage.services.scan_manager import ScanManager
 
 
@@ -32,6 +40,7 @@ def client(db: sqlite3.Connection, tmp_path: Path):
     preview_dir.mkdir()
 
     scan_manager = ScanManager()
+    backup_scheduler = BackupScheduler(tmp_path / "test.db", tmp_path / "db_backups")
     app = create_app()
 
     # Each request gets its own connection to the test database, as in
@@ -43,6 +52,7 @@ def client(db: sqlite3.Connection, tmp_path: Path):
     app.dependency_overrides[get_thumb_dir] = lambda: thumb_dir
     app.dependency_overrides[get_preview_dir] = lambda: preview_dir
     app.dependency_overrides[get_scan_manager] = lambda: scan_manager
+    app.dependency_overrides[get_backup_scheduler] = lambda: backup_scheduler
 
     # base_url drives the Host header; use loopback so TrustedHostMiddleware
     # (which always allows loopback) accepts it.

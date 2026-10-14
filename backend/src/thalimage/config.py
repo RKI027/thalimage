@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     db_path: Optional[Path] = None
     thumb_dir: Optional[Path] = None
     preview_dir: Optional[Path] = None
+    # Where the daily database copies go. The database itself must be on
+    # local disk; its backups can sit on a network share with the caches.
+    backup_dir: Optional[Path] = None
     # The built SPA. Defaults to frontend/build in a source checkout; an
     # installed wheel has no checkout around it, so set this there (the
     # Docker image does).
@@ -92,11 +95,17 @@ class Settings(BaseSettings):
     def resolved_preview_dir(self) -> Path:
         return self.preview_dir or (self.data_dir / "cache" / "previews")
 
+    @property
+    def resolved_backup_dir(self) -> Path:
+        return self.backup_dir or (self.data_dir / "db_backups")
+
     def ensure_dirs(self) -> None:
         """Create data and cache directories if they don't exist."""
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.resolved_db_path.parent.mkdir(parents=True, exist_ok=True)
         self.resolved_thumb_dir.mkdir(parents=True, exist_ok=True)
         self.resolved_preview_dir.mkdir(parents=True, exist_ok=True)
+        self.resolved_backup_dir.mkdir(parents=True, exist_ok=True)
 
 
 @lru_cache

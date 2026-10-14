@@ -13,6 +13,7 @@ from fastapi import Request
 from thalimage.db.engine import connect
 
 if TYPE_CHECKING:
+    from thalimage.services.db_backup import BackupScheduler
     from thalimage.services.scan_manager import ScanManager
 
 # Content hashes are SHA-256 hex digests. Constraining the path param keeps
@@ -70,3 +71,9 @@ def get_scan_manager(request: Request) -> ScanManager:
     """Get the scan manager from app state."""
     mgr: ScanManager = request.app.state.scan_manager
     return mgr
+
+
+def get_backup_scheduler(request: Request) -> BackupScheduler:
+    """Get the database backup scheduler from app state."""
+    scheduler: BackupScheduler = request.app.state.backup_scheduler
+    return scheduler
