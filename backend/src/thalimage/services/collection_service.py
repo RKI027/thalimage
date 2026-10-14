@@ -18,6 +18,7 @@ class Collection(BaseModel):
     created_at: str
     updated_at: str
     image_count: int = 0
+    archived_count: int = 0
 
 
 class PresetCollectionError(Exception):
@@ -43,15 +44,22 @@ def resolve_scope(conn: sqlite3.Connection, collection_id: int) -> Optional[Coll
     return CollectionScope(collection_id=collection_id)
 
 
-_COUNT_SQL = """
+# The images a collection holds: source presets hold their source's images,
+# other collections their collection_images rows.
+_MEMBER = """CASE WHEN c.type = 'source_preset'
+        THEN i.content_hash IN (SELECT content_hash FROM image_locations WHERE source_id = c.source_id)
+        ELSE i.content_hash IN (SELECT content_hash FROM collection_images WHERE collection_id = c.id)
+    END"""
+
+# image_count is what browsing the collection shows; archived images are
+# counted apart, and images whose files are gone not at all.
+_COUNT_SQL = f"""
     SELECT c.*,
-        CASE WHEN c.type = 'source_preset'
-            THEN (SELECT COUNT(*) FROM images i WHERE i.deleted = 0 AND i.content_hash IN
-                  (SELECT content_hash FROM image_locations WHERE source_id = c.source_id))
-            ELSE COUNT(ci.content_hash)
-        END AS image_count
+        (SELECT COUNT(*) FROM images i
+         WHERE i.deleted = 0 AND i.archived = 0 AND {_MEMBER}) AS image_count,
+        (SELECT COUNT(*) FROM images i
+         WHERE i.deleted = 0 AND i.archived = 1 AND {_MEMBER}) AS archived_count
     FROM collections c
-    LEFT JOIN collection_images ci ON c.id = ci.collection_id
 """
 
 
@@ -63,19 +71,19 @@ def list_collections(
     """List all collections with image counts, optionally filtered by type."""
     if type is not None:
         rows = conn.execute(
-            _COUNT_SQL + " WHERE c.type = ? GROUP BY c.id ORDER BY c.name",
+            _COUNT_SQL + " WHERE c.type = ? ORDER BY c.name",
             (type,),
         ).fetchall()
     else:
         rows = conn.execute(
-            _COUNT_SQL + " GROUP BY c.id ORDER BY c.name"
+            _COUNT_SQL + " ORDER BY c.name"
         ).fetchall()
     return [Collection(**dict(r)) for r in rows]
 
 
 def get_collection(conn: sqlite3.Connection, collection_id: int) -> Optional[Collection]:
     row = conn.execute(
-        _COUNT_SQL + " WHERE c.id = ? GROUP BY c.id",
+        _COUNT_SQL + " WHERE c.id = ?",
         (collection_id,),
     ).fetchone()
     if row is None:

@@ -133,3 +133,50 @@ def test_filter_images_by_collection(client: TestClient, image_dir: Path) -> Non
     data = resp.json()
     assert data["total_count"] == 1
     assert data["items"][0]["content_hash"] == hashes[0]
+
+
+def _rescan(client: TestClient, source_id: int) -> None:
+    client.post(f"/api/v1/sources/{source_id}/scan")
+    client.get(f"/api/v1/sources/{source_id}/scan/status")
+
+
+def _archive(client: TestClient, content_hash: str) -> None:
+    client.patch(f"/api/v1/images/{content_hash}/archive", json={"archived": True})
+
+
+def test_collection_counts_archived_images_apart(client: TestClient, image_dir: Path) -> None:
+    """The count matches what browsing shows; archived images are counted on their own."""
+    hashes = scan_source(client, image_dir)[1]
+    cid = client.post("/api/v1/collections", json={"name": "Album"}).json()["id"]
+    client.post(f"/api/v1/collections/{cid}/images", json={"hashes": hashes})
+    _archive(client, hashes[0])
+
+    data = client.get(f"/api/v1/collections/{cid}").json()
+    shown = client.get("/api/v1/images", params={"collection_id": cid}).json()["total_count"]
+    assert (data["image_count"], data["archived_count"]) == (shown, 1)
+    assert shown == len(hashes) - 1
+
+
+def test_source_preset_counts_archived_images_apart(
+    client: TestClient, image_dir: Path
+) -> None:
+    source_id, hashes = scan_source(client, image_dir)
+    _archive(client, hashes[0])
+
+    presets = client.get("/api/v1/collections?type=source_preset").json()
+    preset = next(p for p in presets if p["source_id"] == source_id)
+    assert (preset["image_count"], preset["archived_count"]) == (len(hashes) - 1, 1)
+
+
+def test_collection_count_skips_images_whose_file_is_gone(
+    client: TestClient, image_dir: Path
+) -> None:
+    source_id, hashes = scan_source(client, image_dir)
+    cid = client.post("/api/v1/collections", json={"name": "Album"}).json()["id"]
+    client.post(f"/api/v1/collections/{cid}/images", json={"hashes": hashes})
+    victim = client.get(f"/api/v1/images/{hashes[0]}").json()["filename"]
+    (image_dir / victim).unlink()
+    _rescan(client, source_id)
+
+    data = client.get(f"/api/v1/collections/{cid}").json()
+    assert (data["image_count"], data["archived_count"]) == (len(hashes) - 1, 0)
