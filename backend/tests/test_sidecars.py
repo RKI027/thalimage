@@ -1,0 +1,132 @@
+"""Sidecars: non-media files named after a media file in the same folder
+("img.png" -> "img.txt" or "img.png.txt"). They go with their media file
+when it is deleted, unless another media file there claims them too."""
+
+import hashlib
+import os
+import shutil
+import sqlite3
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+from PIL import Image
+
+from thalimage.core.sidecars import sidecars_of
+from tests.helpers import scan_source
+
+COPY = str(Path("sub") / "a-copy.png")
+
+
+def test_sidecars_are_the_files_named_after_the_media_file(tmp_path: Path) -> None:
+    media = tmp_path / "img.png"
+    media.touch()
+    for name in ("img.txt", "img.png.json", "img.jpg", "other.txt", "img2.txt", ".DS_Store"):
+        (tmp_path / name).touch()
+    (tmp_path / "img.d").mkdir()
+
+    assert [p.name for p in sidecars_of(media)] == ["img.png.json", "img.txt"]
+
+
+def test_a_media_file_alone_has_no_sidecars(tmp_path: Path) -> None:
+    (tmp_path / "img.png").touch()
+    assert sidecars_of(tmp_path / "img.png") == []
+
+
+@pytest.fixture
+def duplicated(client: TestClient, image_dir: Path) -> tuple[int, str]:
+    """a.png and its copy sub/a-copy.png, each with a .txt sidecar; the
+    copy's says something the original's does not."""
+    shutil.copy(image_dir / "a.png", image_dir / COPY)
+    (image_dir / "a.txt").write_text("steps: 20")
+    (image_dir / "sub" / "a-copy.txt").write_text("steps: 30")
+    source_id, _ = scan_source(client, image_dir)
+    client.patch(f"/api/v1/sources/{source_id}", json={"writable": True})
+    [group] = client.get(f"/api/v1/sources/{source_id}/summary").json()["duplicates"]
+    return source_id, group["content_hash"]
+
+
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def test_the_summary_lists_each_copy_s_sidecars_with_a_digest(
+    client: TestClient, duplicated: tuple[int, str]
+) -> None:
+    source_id, _ = duplicated
+
+    [group] = client.get(f"/api/v1/sources/{source_id}/summary").json()["duplicates"]
+
+    assert group["sidecars"] == {
+        "a.png": [{"relative_path": "a.txt", "digest": _digest("steps: 20")}],
+        COPY: [
+            {"relative_path": str(Path("sub") / "a-copy.txt"), "digest": _digest("steps: 30")}
+        ],
+    }
+
+
+def test_deleting_a_copy_deletes_its_sidecars(
+    client: TestClient, db: sqlite3.Connection, image_dir: Path, duplicated: tuple[int, str]
+) -> None:
+    source_id, _ = duplicated
+    sidecar = str(Path("sub") / "a-copy.txt")
+
+    resp = client.post(f"/api/v1/sources/{source_id}/delete-copies", json={"paths": [COPY]})
+
+    assert resp.json() == {"deleted": [COPY], "sidecars": [sidecar], "failed": []}
+    assert not (image_dir / sidecar).exists()
+    assert (image_dir / "a.txt").exists()
+    rows = db.execute("SELECT path, outcome FROM file_changes ORDER BY id").fetchall()
+    assert [tuple(r) for r in rows] == [(COPY, "done"), (sidecar, "done")]
+
+
+def test_a_sidecar_another_media_file_claims_is_kept(
+    client: TestClient, image_dir: Path, duplicated: tuple[int, str]
+) -> None:
+    source_id, _ = duplicated
+    Image.new("RGB", (8, 8), "yellow").save(image_dir / "sub" / "a-copy.jpg")
+    client.post(f"/api/v1/sources/{source_id}/scan")
+    client.get(f"/api/v1/sources/{source_id}/scan/status")
+
+    resp = client.post(f"/api/v1/sources/{source_id}/delete-copies", json={"paths": [COPY]})
+
+    assert resp.json()["sidecars"] == []
+    assert (image_dir / "sub" / "a-copy.txt").exists()
+
+
+def test_a_sidecar_that_cannot_be_removed_is_reported(
+    client: TestClient,
+    image_dir: Path,
+    duplicated: tuple[int, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id, _ = duplicated
+    real_remove = os.remove
+
+    def refuse_sidecars(path: object) -> None:
+        if str(path).endswith(".txt"):
+            raise PermissionError(13, "Permission denied", str(path))
+        real_remove(path)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(os, "remove", refuse_sidecars)
+    resp = client.post(f"/api/v1/sources/{source_id}/delete-copies", json={"paths": [COPY]})
+
+    body = resp.json()
+    assert body["deleted"] == [COPY] and body["sidecars"] == []
+    [failure] = body["failed"]
+    assert failure["relative_path"] == str(Path("sub") / "a-copy.txt")
+
+
+def test_deleting_an_image_deletes_every_copy_s_sidecars(
+    client: TestClient, image_dir: Path, duplicated: tuple[int, str]
+) -> None:
+    _, content_hash = duplicated
+
+    copies = client.get(f"/api/v1/images/{content_hash}/copies").json()
+    assert [c["sidecars"] for c in copies] == [["a.txt"], [str(Path("sub") / "a-copy.txt")]]
+
+    resp = client.post(f"/api/v1/images/{content_hash}/delete")
+
+    assert resp.json() == {"deleted": 2, "sidecars": 2, "failed": []}
+    assert not (image_dir / "a.txt").exists()
+    assert not (image_dir / "sub" / "a-copy.txt").exists()

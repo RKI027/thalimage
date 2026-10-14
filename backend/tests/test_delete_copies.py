@@ -43,7 +43,7 @@ def test_deleting_a_copy_removes_the_file_and_keeps_the_image(
     resp = _delete(client, source_id, COPY)
 
     assert resp.status_code == 200
-    assert resp.json() == {"deleted": [COPY], "failed": []}
+    assert resp.json() == {"deleted": [COPY], "sidecars": [], "failed": []}
     assert not (image_dir / COPY).exists()
     assert (image_dir / "a.png").exists()
     assert client.get(f"/api/v1/sources/{source_id}/summary").json()["duplicates"] == []

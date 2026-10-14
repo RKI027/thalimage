@@ -622,14 +622,19 @@
 			</ul>
 		{:else if deleting.copies.length > 0}
 			<p>
-				Every copy below will be removed from the disk. This cannot be undone. The image leaves
-				the gallery; its tags, scores, votes and collections are kept, and come back if the same
-				file is scanned again.
+				Every copy below will be removed from the disk, with its sidecars. This cannot be undone.
+				The image leaves the gallery; its tags, scores, votes and collections are kept, and come
+				back if the same file is scanned again.
 			</p>
 		{/if}
 		<ul class="delete-list">
 			{#each deleting.copies as copy (copyPath(copy))}
-				<li>{copyPath(copy)}</li>
+				<li>
+					{copyPath(copy)}
+					{#each copy.sidecars as sidecar (sidecar)}
+						<div class="delete-sidecar">+ {copyPath({ ...copy, relative_path: sidecar })}</div>
+					{/each}
+				</li>
 			{/each}
 		</ul>
 	</ConfirmDialog>
@@ -671,6 +676,10 @@
 
 	.delete-message {
 		color: #f88;
+	}
+
+	.delete-sidecar {
+		color: #888;
 	}
 
 	.delete-list {

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from thalimage.core.sidecars import claimed, sidecars_of
 from thalimage.services.file_changes import record_change, writable_root
 from thalimage.services.locations import sync_images
 from thalimage.services.scan_service import unchanged_since_scan
@@ -25,16 +26,18 @@ class DeletionRefused(Exception):
 @dataclass
 class DeletionResult:
     deleted: list[str] = field(default_factory=list)
+    sidecars: list[str] = field(default_factory=list)
     failed: list[tuple[int, str, str]] = field(default_factory=list)  # (source, path, error)
 
 
 class Copy(BaseModel):
-    """One file holding an image's content."""
+    """One file holding an image's content, with its sidecars."""
 
     source_id: int
     source_path: str
     relative_path: str
     writable: bool
+    sidecars: list[str] = []
 
 
 @dataclass
@@ -98,7 +101,11 @@ def image_copies(conn: sqlite3.Connection, content_hash: str) -> list[Copy] | No
            ORDER BY l.source_id, l.relative_path""",
         (content_hash,),
     ).fetchall()
-    return [Copy(**dict(r)) for r in rows]
+    copies = [Copy(**dict(r)) for r in rows]
+    for c in copies:
+        root = Path(c.source_path)
+        c.sidecars = [str(p.relative_to(root)) for p in sidecars_of(root / c.relative_path)]
+    return copies
 
 
 def delete_image(conn: sqlite3.Connection, content_hash: str) -> DeletionResult | None:
@@ -128,7 +135,8 @@ def delete_image(conn: sqlite3.Connection, content_hash: str) -> DeletionResult 
 
 def _remove(conn: sqlite3.Connection, targets: list[_Target]) -> DeletionResult:
     """Refuse if any file changed since it was scanned, then remove each,
-    recording every attempt and dropping its location."""
+    recording every attempt and dropping its location. Each file's sidecars
+    go with it, unless another media file in its folder claims them."""
     for t in targets:
         try:
             unchanged = unchanged_since_scan((t.root / t.path).stat(), t.location)
@@ -139,6 +147,7 @@ def _remove(conn: sqlite3.Connection, targets: list[_Target]) -> DeletionResult:
 
     result = DeletionResult()
     for t in targets:
+        sidecars = sidecars_of(t.root / t.path)
         try:
             os.remove(t.root / t.path)
         except OSError as exc:
@@ -153,4 +162,20 @@ def _remove(conn: sqlite3.Connection, targets: list[_Target]) -> DeletionResult:
             )
             sync_images(conn, [t.location["content_hash"]])
         result.deleted.append(t.path)
+        for sidecar in sidecars:
+            if not claimed(sidecar):
+                _remove_sidecar(conn, t, str(sidecar.relative_to(t.root)), result)
     return result
+
+
+def _remove_sidecar(
+    conn: sqlite3.Connection, t: _Target, path: str, result: DeletionResult
+) -> None:
+    try:
+        os.remove(t.root / path)
+    except OSError as exc:
+        record_change(conn, t.source_id, "delete", path, outcome="failed", error=str(exc))
+        result.failed.append((t.source_id, path, str(exc)))
+        return
+    record_change(conn, t.source_id, "delete", path, outcome="done")
+    result.sidecars.append(path)

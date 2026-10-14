@@ -48,11 +48,11 @@ def test_the_copies_of_an_image_are_listed_with_their_sources(
 
     assert _copies(client, content_hash) == [
         {"source_id": first, "source_path": str(image_dir), "relative_path": "a.png",
-         "writable": True},
+         "writable": True, "sidecars": []},
         {"source_id": first, "source_path": str(image_dir), "relative_path": COPY,
-         "writable": True},
+         "writable": True, "sidecars": []},
         {"source_id": second, "source_path": str(tmp_path / "other"), "relative_path": "a.png",
-         "writable": True},
+         "writable": True, "sidecars": []},
     ]
 
 
@@ -72,7 +72,7 @@ def test_deleting_an_image_removes_every_copy_and_hides_it(
     resp = _delete(client, content_hash)
 
     assert resp.status_code == 200
-    assert resp.json() == {"deleted": 3, "failed": []}
+    assert resp.json() == {"deleted": 3, "sidecars": 0, "failed": []}
     assert not (image_dir / "a.png").exists()
     assert not (image_dir / COPY).exists()
     assert not (tmp_path / "other" / "a.png").exists()

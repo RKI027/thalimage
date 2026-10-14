@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { deleteCopies } from '$lib/api';
-	import { allButFirst, canSelect, toggled } from '$lib/copySelection';
+	import { allButFirst, canSelect, toggled, unmatchedSidecars } from '$lib/copySelection';
 	import { summaryHeadline, summaryLines } from '$lib/sourceSummary';
 	import type { SourceSummary } from '$lib/types';
 	import ConfirmDialog from './ConfirmDialog.svelte';
@@ -22,6 +22,14 @@
 	let selected = $state(new Set<string>());
 	let confirming = $state(false);
 	let message = $state('');
+	const sidecarsOf = $derived(
+		new Map(
+			summary.duplicates.flatMap((g) =>
+				g.paths.map((p) => [p, (g.sidecars[p] ?? []).map((s) => s.relative_path)] as const)
+			)
+		)
+	);
+	const unmatched = $derived(unmatchedSidecars(summary.duplicates, selected));
 
 	async function deleteSelected() {
 		confirming = false;
@@ -31,7 +39,10 @@
 			message = result.failed.length
 				? `Deleted ${result.deleted.length}; failed: ` +
 					result.failed.map((f) => `${f.relative_path} (${f.error})`).join(', ')
-				: `Deleted ${result.deleted.length} ${result.deleted.length === 1 ? 'copy' : 'copies'}.`;
+				: `Deleted ${result.deleted.length} ${result.deleted.length === 1 ? 'copy' : 'copies'}` +
+					(result.sidecars.length
+						? ` and ${result.sidecars.length} ${result.sidecars.length === 1 ? 'sidecar' : 'sidecars'}.`
+						: '.');
 		} catch (e) {
 			message = e instanceof Error ? e.message : 'Delete failed';
 		}
@@ -71,6 +82,9 @@
 										onchange={() => (selected = toggled(selected, path))}
 									/>
 									{path}
+									{#if sidecarsOf.get(path)?.length}
+										<span class="sidecars">+ {sidecarsOf.get(path)?.join(', ')}</span>
+									{/if}
 								</label>
 							{/each}
 						</li>
@@ -111,17 +125,43 @@
 	oncancel={() => (confirming = false)}
 >
 	<p>
-		These files will be removed from the disk. This cannot be undone. Each is a copy of an image
-		that keeps at least one other copy.
+		These files will be removed from the disk, each with its sidecars. This cannot be undone.
+		Each is a copy of an image that keeps at least one other copy.
 	</p>
 	<ul class="confirm-list">
 		{#each [...selected] as path (path)}
-			<li>{path}</li>
+			<li>
+				{path}
+				{#each sidecarsOf.get(path) ?? [] as sidecar (sidecar)}
+					<div class="sidecars">+ {sidecar}</div>
+				{/each}
+			</li>
 		{/each}
 	</ul>
+	{#if unmatched.length}
+		<p class="warning">
+			{unmatched.length === 1 ? 'This sidecar differs' : 'These sidecars differ'} from every
+			sidecar of the copies kept, so what {unmatched.length === 1 ? 'it holds' : 'they hold'} will
+			be lost:
+		</p>
+		<ul class="confirm-list">
+			{#each unmatched as sidecar (sidecar)}
+				<li>{sidecar}</li>
+			{/each}
+		</ul>
+	{/if}
 </ConfirmDialog>
 
 <style>
+	.sidecars {
+		color: #777;
+		font-size: 0.75rem;
+	}
+
+	.warning {
+		color: #f6a84b;
+	}
+
 	.breakdown {
 		display: flex;
 		flex-direction: column;

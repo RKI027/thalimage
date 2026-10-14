@@ -1,9 +1,12 @@
 """What a source holds: its files against its images, and why they differ."""
 
 import sqlite3
+from pathlib import Path
 from typing import Optional
 
 from pydantic import BaseModel
+
+from thalimage.core.sidecars import digest, sidecars_of
 
 
 class SourceFile(BaseModel):
@@ -11,11 +14,18 @@ class SourceFile(BaseModel):
     relative_path: str
 
 
+class Sidecar(BaseModel):
+    relative_path: str
+    digest: str
+
+
 class DuplicateGroup(BaseModel):
-    """Files in one source with the same content: one image."""
+    """Files in one source with the same content: one image. `sidecars`
+    maps each path to its sidecars, whose digests tell which say the same."""
 
     content_hash: str
     paths: list[str]
+    sidecars: dict[str, list[Sidecar]]
 
 
 class ScanFailure(BaseModel):
@@ -37,8 +47,10 @@ class SourceSummary(BaseModel):
 
 def source_summary(conn: sqlite3.Connection, source_id: int) -> Optional[SourceSummary]:
     """None if the source does not exist."""
-    if conn.execute("SELECT 1 FROM sources WHERE id = ?", (source_id,)).fetchone() is None:
+    source = conn.execute("SELECT path FROM sources WHERE id = ?", (source_id,)).fetchone()
+    if source is None:
         return None
+    root = Path(source["path"])
     locations = conn.execute(
         "SELECT l.content_hash, l.relative_path, i.archived FROM image_locations l"
         " JOIN images i ON i.content_hash = l.content_hash"
@@ -55,7 +67,9 @@ def source_summary(conn: sqlite3.Connection, source_id: int) -> Optional[SourceS
         files=len(locations),
         images=len(paths) - len(archived),
         duplicates=[
-            DuplicateGroup(content_hash=h, paths=p) for h, p in paths.items() if len(p) > 1
+            DuplicateGroup(content_hash=h, paths=p, sidecars=_sidecars(root, p))
+            for h, p in paths.items()
+            if len(p) > 1
         ],
         archived=[
             SourceFile(content_hash=h, relative_path=p[0])
@@ -71,3 +85,18 @@ def source_summary(conn: sqlite3.Connection, source_id: int) -> Optional[SourceS
             )
         ],
     )
+
+
+def _sidecars(root: Path, paths: list[str]) -> dict[str, list[Sidecar]]:
+    found = {}
+    for path in paths:
+        sidecars = []
+        for p in sidecars_of(root / path):
+            try:
+                sidecars.append(
+                    Sidecar(relative_path=str(p.relative_to(root)), digest=digest(p))
+                )
+            except OSError:
+                continue
+        found[path] = sidecars
+    return found
