@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 	import { collectionsStore, settingsStore } from '$lib/stores';
 	import { readStored, writeStored } from '$lib/storage';
+	import CollectionCount from './CollectionCount.svelte';
 
 	let {
 		mobileOpen = false,
@@ -67,7 +68,7 @@
 							<li>
 								<a href="/collections/{preset.id}" onclick={onMobileClose}>
 									{preset.name}
-									<span class="badge">{preset.image_count}</span>
+									<span class="badge"><CollectionCount imageCount={preset.image_count} archivedCount={preset.archived_count} /></span>
 								</a>
 							</li>
 						{/each}
@@ -92,7 +93,7 @@
 								<li>
 									<a href="/collections/{coll.id}" onclick={onMobileClose}>
 										{coll.name}
-										<span class="badge">{coll.image_count}</span>
+										<span class="badge"><CollectionCount imageCount={coll.image_count} archivedCount={coll.archived_count} /></span>
 									</a>
 								</li>
 							{/each}

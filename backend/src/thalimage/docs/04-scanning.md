@@ -60,6 +60,8 @@ the images under that subfolder as they were.
 **Archived** images stay in the database with everything attached —
 tags, scores, collection memberships — but drop out of galleries and out
 of voting. It is a way of setting something aside without losing it.
+A collection's image count leaves them out too; when it holds archived
+images, an archive icon next to the count says how many.
 
 **Deleted** marks an image whose file is no longer on disk anywhere. The
 row is kept so that tags and scores survive if the file comes back.

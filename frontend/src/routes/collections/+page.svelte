@@ -3,6 +3,7 @@
 	import { listCollections, createCollection, deleteCollection } from '$lib/api';
 	import { collectionsStore } from '$lib/stores';
 	import type { Collection } from '$lib/types';
+	import CollectionCount from '$lib/components/CollectionCount.svelte';
 
 	let presets: Collection[] = $state([]);
 	let collections: Collection[] = $state([]);
@@ -45,7 +46,7 @@
 					<li>
 						<a href="/collections/{preset.id}">
 							<span class="name">{preset.name}</span>
-							<span class="count">{preset.image_count} images</span>
+							<span class="count"><CollectionCount imageCount={preset.image_count} archivedCount={preset.archived_count} unit /></span>
 						</a>
 					</li>
 				{/each}
@@ -72,7 +73,7 @@
 								{coll.name}
 								{#if coll.nsfw}<span class="nsfw-badge">NSFW</span>{/if}
 							</span>
-							<span class="count">{coll.image_count} images</span>
+							<span class="count"><CollectionCount imageCount={coll.image_count} archivedCount={coll.archived_count} unit /></span>
 						</a>
 						<button class="delete" onclick={() => remove(coll.id)}>×</button>
 					</li>
