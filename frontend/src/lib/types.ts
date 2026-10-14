@@ -22,6 +22,26 @@ export interface UserSettings {
 	show_nsfw: boolean;
 }
 
+export interface BackupConfig {
+	enabled: boolean;
+	/** Local time of day, HH:MM, in the server's time zone. */
+	time: string;
+	keep: number;
+}
+
+export interface BackupRecord {
+	at: string;
+	file: string | null;
+	size: number | null;
+	error: string | null;
+}
+
+export interface BackupStatus {
+	config: BackupConfig;
+	last: BackupRecord | null;
+	running: boolean;
+}
+
 export interface ImageDetail extends ImageSummary {
 	file_size: number;
 	file_modified: string;
