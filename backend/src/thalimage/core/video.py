@@ -14,7 +14,7 @@ from PIL import Image
 from thalimage.core.thumbnails import THUMB_QUALITY, THUMB_SIZE, thumbnail_path
 from thalimage.core.webp import write_webp
 
-VIDEO_EXTENSIONS: set[str] = {".mp4", ".mov", ".webm", ".avi"}
+VIDEO_EXTENSIONS: set[str] = {".mp4", ".mov", ".webm", ".avi", ".mkv"}
 
 
 def is_video(path: Path) -> bool:
@@ -104,3 +104,104 @@ def extract_video_thumbnail(
         tmp_frame.unlink(missing_ok=True)
 
     return out_path
+
+
+# What iOS Safari, and so every iOS browser, plays. A video outside this
+# gets a playable copy: its streams are reused where they qualify.
+PLAYABLE_CONTAINERS = {".mp4", ".m4v", ".mov"}
+PLAYABLE_AUDIO = {"aac", "mp3", "alac"}
+PLAYABLE_PIX_FMTS = {"yuv420p", "yuvj420p"}
+
+# Long enough for a full transcode of a long clip on a slow CPU.
+COPY_TIMEOUT = 4 * 3600
+
+
+def probe_streams(file_path: Path) -> list[dict[str, Any]]:
+    """Every stream of the file, as ffprobe describes it."""
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_streams", "-of", "json", str(file_path)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe failed for {file_path}: {result.stderr}")
+    streams: list[dict[str, Any]] = json.loads(result.stdout).get("streams", [])
+    return streams
+
+
+def playable_copy_args(ext: str, streams: list[dict[str, Any]]) -> list[str] | None:
+    """The ffmpeg codec options that make an MP4 iOS plays from a video
+    with this extension and these streams; None if it plays as it is.
+
+    H.264 (8-bit 4:2:0), HEVC and AV1 video are kept, as are AAC, MP3 and
+    ALAC audio; anything else is re-encoded to H.264 and AAC. HEVC is
+    tagged hvc1, which Safari requires.
+    """
+    videos = [
+        s for s in streams
+        if s.get("codec_type") == "video" and not s.get("disposition", {}).get("attached_pic")
+    ]
+    audios = [s for s in streams if s.get("codec_type") == "audio"]
+    if not videos:
+        raise ValueError("No video stream")
+    video = videos[0]
+    codec = video.get("codec_name")
+
+    video_args: list[str]
+    if codec == "h264" and video.get("pix_fmt") in PLAYABLE_PIX_FMTS:
+        video_args = ["-c:v", "copy"]
+    elif codec == "hevc":
+        video_args = ["-c:v", "copy"]
+        if video.get("codec_tag_string") != "hvc1":
+            video_args += ["-tag:v", "hvc1"]
+    elif codec == "av1":
+        video_args = ["-c:v", "copy"]
+    else:
+        video_args = ["-c:v", "libx264", "-crf", "20", "-preset", "medium", "-pix_fmt", "yuv420p"]
+
+    audio_args: list[str] = []
+    if audios:
+        if audios[0].get("codec_name") in PLAYABLE_AUDIO:
+            audio_args = ["-c:a", "copy"]
+        else:
+            audio_args = ["-c:a", "aac", "-b:a", "160k"]
+
+    if (
+        ext.lower() in PLAYABLE_CONTAINERS
+        and video_args == ["-c:v", "copy"]
+        and audio_args in ([], ["-c:a", "copy"])
+    ):
+        return None
+    return video_args + audio_args
+
+
+def playable_copy_path(video_dir: Path, content_hash: str) -> Path:
+    """{dir}/{hash[:2]}/{hash}.mp4"""
+    return video_dir / content_hash[:2] / f"{content_hash}.mp4"
+
+
+def make_playable_copy(source: Path, dest: Path, codec_args: list[str]) -> None:
+    """Write an MP4 of the source's first video and audio streams, with
+    these codec options, to dest. Written aside and renamed, so a copy
+    that exists is complete."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=dest.parent, suffix=".part.mp4")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg", "-v", "error", "-y", "-i", str(source),
+                "-map", "0:V:0", "-map", "0:a:0?", *codec_args,
+                "-movflags", "+faststart", str(tmp),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=COPY_TIMEOUT,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg failed for {source}: {result.stderr.strip()}")
+        tmp.replace(dest)
+    finally:
+        tmp.unlink(missing_ok=True)

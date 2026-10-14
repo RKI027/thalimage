@@ -1,21 +1,23 @@
 """Source removal."""
 
 import sqlite3
+from typing import Optional
 
 from thalimage.services.collection_service import purge_collection
 from thalimage.services.locations import sync_images
 
 
-def delete_source(conn: sqlite3.Connection, source_id: int) -> bool:
+def delete_source(conn: sqlite3.Connection, source_id: int) -> Optional[list[str]]:
     """Delete a source and everything that exists only because of it.
 
     Content that also lies in another source survives, with its
     collections, votes and tags, and is re-pointed at that other copy.
     Content found only here is removed with all its dependent rows.
-    Returns False if there is no such source. Commits.
+    Returns the hashes of the images removed, or None if there is no such
+    source. Commits.
     """
     if conn.execute("SELECT 1 FROM sources WHERE id = ?", (source_id,)).fetchone() is None:
-        return False
+        return None
     with conn:
         for preset in conn.execute(
             "SELECT id FROM collections WHERE source_id = ? AND type = 'source_preset'",
@@ -52,4 +54,4 @@ def delete_source(conn: sqlite3.Connection, source_id: int) -> bool:
             # image_tags and image_locations cascade.
             conn.execute(f"DELETE FROM images WHERE content_hash IN ({marks})", orphans)
         conn.execute("DELETE FROM sources WHERE id = ?", (source_id,))
-    return True
+    return orphans

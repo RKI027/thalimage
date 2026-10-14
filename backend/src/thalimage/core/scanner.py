@@ -7,7 +7,7 @@ from pathlib import Path
 from thalimage.core.video import VIDEO_EXTENSIONS
 
 IMAGE_EXTENSIONS: set[str] = {
-    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp",
+    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp", ".avif",
 }
 
 SUPPORTED_EXTENSIONS: set[str] = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS

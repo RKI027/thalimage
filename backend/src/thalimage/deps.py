@@ -62,6 +62,12 @@ def get_preview_dir(request: Request) -> Path:
     return preview_dir
 
 
+def get_video_dir(request: Request) -> Path:
+    """Get the directory of playable video copies."""
+    video_dir: Path = request.app.state.settings.resolved_video_dir
+    return video_dir
+
+
 def get_docs_dir() -> Path:
     """Get the directory holding the documentation Markdown files."""
     return DOCS_DIR

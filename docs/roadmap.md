@@ -267,7 +267,7 @@ The changes that alter behaviour:
 - Model interrogation for prompt inspiration
 - Multi-user support (auth, per-user votes/tags/ELO)
 - Batch operations
-- AVIF support (TIFF and GIF are already scanned)
+- ~~AVIF support~~ — #35
 
 ## Deferred — Source Removal
 

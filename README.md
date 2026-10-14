@@ -13,7 +13,7 @@ Self-hosted image browser and manager for AI-generated images. Privacy-first, lo
 - **Slideshow** — timed, sequential or shuffled (optionally weighted by ELO score), fullscreen, with overlay controls
 - **ELO ranking** — vote between two images at a time; scores are kept per collection
 - **Tags, NSFW and archiving** — global tags; a tag named "nsfw" hides an image unless NSFW display is on, as does an NSFW collection; archiving sets images aside without losing their data
-- **Video** — MP4, MOV, WebM and AVI with ffmpeg-made thumbnails and in-browser playback
+- **Video** — MP4, MOV, WebM, AVI and MKV with ffmpeg-made thumbnails and in-browser playback; a scan makes an MP4 copy of what iOS cannot play
 - **Fast over a slow link** — 400px WebP thumbnails from the scan, display-sized WebP previews generated on demand, and immutable caching
 - **Mobile** — drawer navigation, compact headers, swipe gestures, and an installable web-app manifest
 - **In-app documentation** — at `/docs`, for behaviour the UI does not show (ranking, delivery, scanning)
@@ -120,6 +120,7 @@ THALIMAGE_DATA/                /srv/thalimage by default; a network share is fin
   app/                         mounted at /data in the app container
     cache/thumbs/              400px WebP thumbnails
     cache/previews/{size}/     long-edge-capped WebP, generated on demand
+    cache/videos/              MP4 copies of the videos iOS cannot play, made by scans
     db_backups/                the daily database backups
   tailscale/                   Tailscale node state, sidecar only
   serve.json                   tailscale serve config
@@ -212,6 +213,7 @@ variables take precedence over it.
 | `THALIMAGE_DB_PATH` | `{data_dir}/thalimage.db` | SQLite database path |
 | `THALIMAGE_THUMB_DIR` | `{data_dir}/cache/thumbs` | Thumbnail storage path |
 | `THALIMAGE_PREVIEW_DIR` | `{data_dir}/cache/previews` | Preview storage path |
+| `THALIMAGE_VIDEO_DIR` | `{data_dir}/cache/videos` | Playable video copies |
 | `THALIMAGE_BACKUP_DIR` | `{data_dir}/db_backups` | Where the daily database backups go |
 | `THALIMAGE_HOST` | `127.0.0.1` | Server bind address (the Docker image sets `0.0.0.0`) |
 | `THALIMAGE_PORT` | `8000` | Server port |

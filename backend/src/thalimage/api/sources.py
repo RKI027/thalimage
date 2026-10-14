@@ -11,10 +11,11 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse  # type: ignore[import-untyped]
 
 from thalimage.db.engine import connect
-from thalimage.deps import get_db, get_scan_manager, get_thumb_dir
+from thalimage.deps import get_db, get_scan_manager, get_thumb_dir, get_video_dir
 from thalimage.services.collection_service import get_or_create_source_preset
 from thalimage.services.file_changes import SourceNotWritable, check_folder_accepts_writes
 from thalimage.services.file_deletion import DeletionRefused, UnknownCopy, delete_copies
+from thalimage.services.playable_copies import remove_playable_copies
 from thalimage.services.scan_manager import ScanManager
 from thalimage.services.scan_service import run_scan
 from thalimage.services.source_service import delete_source
@@ -130,9 +131,12 @@ def update_source(
 def del_source(
     source_id: int,
     db: sqlite3.Connection = Depends(get_db),
+    video_dir: Path = Depends(get_video_dir),
 ) -> None:
-    if not delete_source(db, source_id):
+    removed = delete_source(db, source_id)
+    if removed is None:
         raise HTTPException(404, "Source not found")
+    remove_playable_copies(video_dir, removed)
 
 
 @router.post("/{source_id}/delete-copies", response_model=DeletedCopies)
@@ -174,6 +178,7 @@ async def trigger_scan(
     source_id: int,
     db: sqlite3.Connection = Depends(get_db),
     thumb_dir: Path = Depends(get_thumb_dir),
+    video_dir: Path = Depends(get_video_dir),
     scan_manager: ScanManager = Depends(get_scan_manager),
 ) -> dict[str, str]:
     source = db.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone()
@@ -197,7 +202,13 @@ async def trigger_scan(
             def on_progress(**kwargs: object) -> None:
                 scan_manager.update(source_id, **kwargs)
 
-            result = run_scan(worker_conn, source_id, thumb_dir, progress_callback=on_progress)
+            result = run_scan(
+                worker_conn,
+                source_id,
+                thumb_dir,
+                video_dir=video_dir,
+                progress_callback=on_progress,
+            )
             scan_manager.complete(
                 source_id,
                 added=result.added,
