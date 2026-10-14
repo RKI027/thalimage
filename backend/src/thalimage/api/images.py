@@ -12,6 +12,8 @@ from thalimage.core.previews import PREVIEW_SIZES, generate_preview, nearest_siz
 from thalimage.core.thumbnails import thumbnail_path
 from thalimage.deps import ContentHash, get_db, get_preview_dir, get_thumb_dir
 from thalimage.services.collection_service import resolve_scope
+from thalimage.services.file_changes import SourceNotWritable
+from thalimage.services.file_deletion import Copy, DeletionRefused, delete_image, image_copies
 from thalimage.services.image_service import (
     ImageDetail,
     ImagePage,
@@ -223,3 +225,46 @@ def archive_image(
     image = get_image(db, content_hash)
     assert image is not None
     return image
+
+
+@router.get("/{content_hash}/copies", response_model=list[Copy])
+def get_image_copies(
+    content_hash: ContentHash,
+    db: sqlite3.Connection = Depends(get_db),
+) -> list[Copy]:
+    copies = image_copies(db, content_hash)
+    if copies is None:
+        raise HTTPException(404, "Image not found")
+    return copies
+
+
+class ImageDeleteFailure(BaseModel):
+    source_id: int
+    relative_path: str
+    error: str
+
+
+class ImageDeletion(BaseModel):
+    deleted: int
+    failed: list[ImageDeleteFailure]
+
+
+@router.post("/{content_hash}/delete", response_model=ImageDeletion)
+def delete_image_files(
+    content_hash: ContentHash,
+    db: sqlite3.Connection = Depends(get_db),
+) -> ImageDeletion:
+    """Delete every copy of the image from disk. Refused as a whole if any
+    copy may not be deleted."""
+    try:
+        result = delete_image(db, content_hash)
+    except (SourceNotWritable, DeletionRefused) as exc:
+        raise HTTPException(409, str(exc)) from exc
+    if result is None:
+        raise HTTPException(404, "Image not found")
+    return ImageDeletion(
+        deleted=len(result.deleted),
+        failed=[
+            ImageDeleteFailure(source_id=s, relative_path=p, error=e) for s, p, e in result.failed
+        ],
+    )

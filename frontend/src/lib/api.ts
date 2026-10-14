@@ -4,6 +4,7 @@ import type {
 	BackupStatus,
 	ImagePage,
 	ImageDetail,
+	ImageCopy,
 	Source,
 	Collection,
 	Tag,
@@ -104,6 +105,18 @@ export function archiveImage(hash: string, archived: boolean): Promise<ImageDeta
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ archived })
 	});
+}
+
+/** Every file holding the image, in every source. */
+export function getImageCopies(hash: string): Promise<ImageCopy[]> {
+	return fetchJSON(`${BASE}/images/${hash}/copies`);
+}
+
+/** Delete every copy of the image from disk. Refused as a whole if any may not be deleted. */
+export function deleteImage(
+	hash: string
+): Promise<{ deleted: number; failed: { source_id: number; relative_path: string; error: string }[] }> {
+	return fetchJSON(`${BASE}/images/${hash}/delete`, { method: 'POST' });
 }
 
 export function imageFileUrl(hash: string): string {

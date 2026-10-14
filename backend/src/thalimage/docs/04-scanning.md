@@ -85,6 +85,19 @@ row is kept so that tags and scores survive if the file comes back.
 
 Neither flag touches your original files.
 
+## Deleting an image
+
+**Delete…** in the image viewer removes every copy of the image from
+disk, in every source, after a confirmation that lists each file. All
+those sources must be writable; if one is not, the confirmation names
+it and offers no way to go ahead. A copy that changed since the last
+scan refuses the whole delete until you rescan.
+
+The image is then marked deleted, as above: it leaves the gallery, but
+its tags, scores, votes and collection memberships are kept, and come
+back if a scan finds the same file again. If some copy could not be
+removed, the image stays, and the confirmation says which and why.
+
 ## Read-only and writable sources
 
 A source is read-only unless you mark it writable, when adding it or

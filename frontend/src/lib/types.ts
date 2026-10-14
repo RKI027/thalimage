@@ -162,3 +162,11 @@ export interface VersionInfo {
 	version: string;
 	commit: string | null;
 }
+
+/** One file holding an image's content. */
+export interface ImageCopy {
+	source_id: number;
+	source_path: string;
+	relative_path: string;
+	writable: boolean;
+}

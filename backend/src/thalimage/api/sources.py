@@ -152,7 +152,7 @@ def delete_source_copies(
         raise HTTPException(409, str(exc)) from exc
     return DeletedCopies(
         deleted=result.deleted,
-        failed=[DeleteFailure(relative_path=p, error=e) for p, e in result.failed],
+        failed=[DeleteFailure(relative_path=p, error=e) for _, p, e in result.failed],
     )
 
 
