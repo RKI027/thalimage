@@ -5,7 +5,8 @@ const copy = (source_path: string, relative_path: string, writable = true) => ({
 	source_id: source_path.length,
 	source_path,
 	relative_path,
-	writable
+	writable,
+	sidecars: []
 });
 
 describe('copyPath', () => {

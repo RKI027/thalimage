@@ -115,7 +115,11 @@ export function getImageCopies(hash: string): Promise<ImageCopy[]> {
 /** Delete every copy of the image from disk. Refused as a whole if any may not be deleted. */
 export function deleteImage(
 	hash: string
-): Promise<{ deleted: number; failed: { source_id: number; relative_path: string; error: string }[] }> {
+): Promise<{
+	deleted: number;
+	sidecars: number;
+	failed: { source_id: number; relative_path: string; error: string }[];
+}> {
 	return fetchJSON(`${BASE}/images/${hash}/delete`, { method: 'POST' });
 }
 
@@ -187,7 +191,11 @@ export async function deleteSource(id: number): Promise<void> {
 export function deleteCopies(
 	sourceId: number,
 	paths: string[]
-): Promise<{ deleted: string[]; failed: { relative_path: string; error: string }[] }> {
+): Promise<{
+	deleted: string[];
+	sidecars: string[];
+	failed: { relative_path: string; error: string }[];
+}> {
 	return fetchJSON(`${BASE}/sources/${sourceId}/delete-copies`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },

@@ -21,8 +21,8 @@ describe('summaryLines', () => {
 
 	it('counts the extra copies, not the groups', () => {
 		const duplicates = [
-			{ content_hash: 'a', paths: ['a.png', 'a2.png', 'a3.png'] },
-			{ content_hash: 'b', paths: ['b.png', 'b2.png'] }
+			{ content_hash: 'a', paths: ['a.png', 'a2.png', 'a3.png'], sidecars: {} },
+			{ content_hash: 'b', paths: ['b.png', 'b2.png'], sidecars: {} }
 		];
 		expect(summaryLines({ ...empty, duplicates })).toEqual([
 			{ kind: 'duplicates', label: '3 duplicate files (same content as another file)' }
