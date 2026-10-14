@@ -41,6 +41,9 @@
 		align-items: center;
 		gap: 2px;
 		opacity: 0.8;
+		/* A finger-sized target without growing the badge. */
+		padding: 10px 8px;
+		margin: -10px -8px;
 	}
 
 	.screen-reader {

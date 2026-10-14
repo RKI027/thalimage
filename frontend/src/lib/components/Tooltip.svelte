@@ -1,8 +1,11 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { placeTooltip } from '$lib/tooltip';
+	import { placeTooltip, tooltipReaction, type TooltipEvent } from '$lib/tooltip';
 
-	/** Shows `text` next to its content while the content is hovered or focused. */
+	/**
+	 * Shows `text` next to its content while the content is hovered or
+	 * focused; on a touchscreen, a tap on the content toggles it.
+	 */
 	let { text, children }: { text: string; children: Snippet } = $props();
 
 	const id = $props.id();
@@ -11,13 +14,21 @@
 	let tip: HTMLElement | undefined = $state();
 	let position: { left: number; top: number } | null = $state(null);
 
-	function show() {
-		open = true;
+	// The pointer that started the latest press: a click carries no reliable pointerType.
+	let pressedWith = 'mouse';
+
+	function react(event: TooltipEvent, dom?: Event) {
+		const next = tooltipReaction(open, event);
+		if (next.consume) {
+			dom?.preventDefault();
+			dom?.stopPropagation();
+		}
+		open = next.open;
+		if (!open) position = null;
 	}
 
-	function hide() {
-		open = false;
-		position = null;
+	function pressAnywhere(e: PointerEvent) {
+		if (open && !anchor?.contains(e.target as Node)) react({ kind: 'outside' });
 	}
 
 	$effect(() => {
@@ -35,16 +46,22 @@
 	}
 </script>
 
-<svelte:window onscroll={hide} onkeydown={(e) => e.key === 'Escape' && hide()} />
+<svelte:window
+	onscrollcapture={() => open && react({ kind: 'dismiss' })}
+	onkeydown={(e) => e.key === 'Escape' && open && react({ kind: 'dismiss' })}
+	onpointerdowncapture={pressAnywhere}
+/>
 
 <span
 	class="anchor"
 	bind:this={anchor}
 	aria-describedby={open ? id : undefined}
-	onmouseenter={show}
-	onmouseleave={hide}
-	onfocusin={show}
-	onfocusout={hide}
+	onpointerenter={(e) => react({ kind: 'enter', pointer: e.pointerType })}
+	onpointerleave={(e) => react({ kind: 'leave', pointer: e.pointerType })}
+	onpointerdown={(e) => (pressedWith = e.pointerType)}
+	onclick={(e) => react({ kind: 'tap', pointer: pressedWith }, e)}
+	onfocusin={() => react({ kind: 'focus' })}
+	onfocusout={() => react({ kind: 'blur' })}
 	role="presentation"
 >
 	{@render children()}
