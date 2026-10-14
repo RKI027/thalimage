@@ -22,15 +22,24 @@ function createDataStore<T>(fetcher: () => Promise<T[]>) {
 function createSettingsStore() {
 	const { subscribe, set } = writable<UserSettings>({ show_nsfw: false });
 
+	// Settles after the first refresh, failed or not, so a page can hold its
+	// first fetch until the server's settings (not the defaults) are known.
+	let markLoaded: () => void;
+	const loaded = new Promise<void>((resolve) => (markLoaded = resolve));
+
 	async function refresh() {
-		set(await getSettings());
+		try {
+			set(await getSettings());
+		} finally {
+			markLoaded();
+		}
 	}
 
 	async function patch(updates: Partial<UserSettings>) {
 		set(await patchSettings(updates));
 	}
 
-	return { subscribe, refresh, patch };
+	return { subscribe, refresh, patch, loaded };
 }
 
 export const collectionsStore = createDataStore<Collection>(listCollections);

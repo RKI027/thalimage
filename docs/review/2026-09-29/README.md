@@ -1,7 +1,7 @@
 # Full review: thalimage — 2026-09-29
 
 - **Scope:** repository root, files tracked by git (`git ls-files`), excluding `docs/review/`.
-- **Commit:** `031252b` (chore: release 0.5.0). **The working tree was dirty**: the reviewed contents of `CLAUDE.md`, `README.md`, `docker/Dockerfile`, `docker/docker-compose.yml`, `docker/entrypoint.sh` and `docs/agent/phases.md` include uncommitted edits.
+- **Commit:** `4757067` (chore: release 0.5.0). **The working tree was dirty**: the reviewed contents of `CLAUDE.md`, `README.md`, `docker/Dockerfile`, `docker/docker-compose.yml`, `docker/entrypoint.sh` and `docs/agent/phases.md` include uncommitted edits.
 - **Date:** 2026-09-29
 
 ## Counts

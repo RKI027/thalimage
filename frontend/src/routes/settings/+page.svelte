@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress, getVersion } from '$lib/api';
 	import { collectionsStore, settingsStore } from '$lib/stores';
+	import BackupSettings from '$lib/components/BackupSettings.svelte';
 	import type { Source, VersionInfo } from '$lib/types';
 
 	let sources: Source[] = $state([]);
@@ -94,6 +95,8 @@
 			/>
 		</div>
 	</section>
+
+	<BackupSettings />
 
 	<h3>Source Folders</h3>
 	<p class="description">Add folders containing your AI-generated images. Thalimage will scan them for images and extract metadata.</p>

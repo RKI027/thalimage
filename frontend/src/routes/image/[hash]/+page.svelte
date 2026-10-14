@@ -119,6 +119,7 @@
 		if (windowInFlight && !force) return;
 		windowInFlight = true;
 		try {
+			await settingsStore.loaded;
 			const nb = await getNeighbors(around.content_hash, {
 				...contextListing(ctx, $settingsStore.show_nsfw),
 				window: WINDOW

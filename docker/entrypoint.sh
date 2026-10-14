@@ -17,6 +17,16 @@ getent passwd "$PUID" >/dev/null 2>&1 || useradd -u "$PUID" -g "$PGID" -d /data 
 mkdir -p /data
 chown -R "$PUID:$PGID" /data
 
+# The database can live outside /data (it must, when /data is a network
+# share): give its folder to the app user too.
+if [ -n "${THALIMAGE_DB_PATH:-}" ]; then
+    db_dir=$(dirname "$THALIMAGE_DB_PATH")
+    if [ "$db_dir" != "/" ]; then
+        mkdir -p "$db_dir"
+        chown -R "$PUID:$PGID" "$db_dir"
+    fi
+fi
+
 # gosu does not reliably carry HOME across the privilege drop, and the
 # optional config.toml is looked up under it.
 export HOME=/data

@@ -12,7 +12,6 @@
 	onMount(() => { settingsStore.refresh(); });
 
 	const isSlideshow = $derived(slideshowStore.status !== 'idle');
-	const routeGroup = $derived($page.url.pathname.split('/')[1] || 'home');
 
 	const settingsLink = $derived(settingsHref($page.url));
 </script>
@@ -43,9 +42,7 @@
 			<Sidebar mobileOpen={mobileStore.drawerOpen} onMobileClose={mobileStore.close} />
 		{/if}
 		<main>
-			{#key routeGroup}
-				{@render children()}
-			{/key}
+			{@render children()}
 		</main>
 	</div>
 </div>

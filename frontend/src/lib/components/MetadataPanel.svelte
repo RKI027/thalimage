@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatSize } from '$lib/format';
 	import type { ImageDetail, MetadataMode, Tag } from '$lib/types';
 	import { getImageTags, addImageTag, removeImageTag, listTags, createTag } from '$lib/api';
 
@@ -59,12 +60,6 @@
 	async function removeTag(tag: Tag) {
 		await removeImageTag(image.content_hash, tag.id);
 		tags = tags.filter((t) => t.id !== tag.id);
-	}
-
-	function formatSize(bytes: number): string {
-		if (bytes < 1024) return `${bytes} B`;
-		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 	}
 
 	function tryParseJSON(s: string | null): Record<string, unknown> | null {

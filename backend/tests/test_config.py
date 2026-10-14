@@ -62,3 +62,18 @@ def test_env_overrides_toml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setenv("THALIMAGE_PORT", "9999")
     settings = Settings()
     assert settings.port == 9999
+
+
+def test_backup_dir_defaults_inside_the_data_dir(tmp_path: Path) -> None:
+    assert Settings(data_dir=tmp_path).resolved_backup_dir == tmp_path / "db_backups"
+
+
+def test_ensure_dirs_creates_the_database_and_backup_folders(tmp_path: Path) -> None:
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        db_path=tmp_path / "local" / "thalimage.db",
+        backup_dir=tmp_path / "nas" / "db_backups",
+    )
+    settings.ensure_dirs()
+    assert (tmp_path / "local").is_dir()
+    assert (tmp_path / "nas" / "db_backups").is_dir()

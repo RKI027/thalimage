@@ -1,4 +1,7 @@
 import type {
+	BackupConfig,
+	BackupRecord,
+	BackupStatus,
 	ImagePage,
 	ImageDetail,
 	Source,
@@ -265,6 +268,24 @@ export function patchSettings(patch: Partial<UserSettings>): Promise<UserSetting
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(patch)
 	});
+}
+
+// Database backups
+
+export function getBackupStatus(): Promise<BackupStatus> {
+	return fetchJSON(`${BASE}/backups`);
+}
+
+export function patchBackupConfig(patch: Partial<BackupConfig>): Promise<BackupStatus> {
+	return fetchJSON(`${BASE}/backups`, {
+		method: 'PATCH',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(patch)
+	});
+}
+
+export function runBackupNow(): Promise<BackupRecord> {
+	return fetchJSON(`${BASE}/backups/run`, { method: 'POST' });
 }
 
 // Documentation

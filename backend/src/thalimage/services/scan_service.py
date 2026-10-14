@@ -23,7 +23,7 @@ from thalimage.core.video import (
     ffmpeg_available,
     is_video,
 )
-from thalimage.services.locations import sync_images
+from thalimage.services.locations import EARLIEST_CREATED, sync_images
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +195,12 @@ def run_scan(
     return result
 
 
+def _birthtime(stat: os.stat_result) -> Optional[float]:
+    """The file's creation time where the platform reports one (macOS,
+    BSD); Linux does not, and gives None."""
+    return getattr(stat, "st_birthtime", None)
+
+
 def _iso(timestamp: float) -> str:
     return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
 
@@ -203,7 +209,7 @@ def _index_file(
     file_path: Path, relative: str, stat: os.stat_result, thumb_dir: Path
 ) -> _Indexed:
     """Hash a file, read its dimensions and metadata, write its thumbnail."""
-    birthtime = getattr(stat, "st_birthtime", None)
+    birthtime = _birthtime(stat)
     h = content_hash(file_path)
 
     meta: Optional[ImageMetadata]
@@ -295,8 +301,7 @@ def _upsert_location(conn: sqlite3.Connection, source_id: int, item: _Indexed) -
             filename=excluded.filename,
             file_size=excluded.file_size,
             file_modified=excluded.file_modified,
-            file_created=excluded.file_created
-        """,
+            file_created=""" + EARLIEST_CREATED.format(new="excluded.file_created", old="file_created"),
         (source_id, item.relative_path, item.content_hash, item.filename,
          item.file_size, item.file_modified, item.file_created),
     )

@@ -24,6 +24,12 @@ def in_source_sql(source_param: str = "?", hash_col: str = "content_hash") -> st
     )
 
 
+# The earliest creation date known for the content. A scan that cannot read
+# one (Linux has no birth time) passes NULL, which must not erase a date
+# recorded earlier; SQLite's two-argument MIN is NULL if either side is.
+EARLIEST_CREATED = "COALESCE(MIN({new}, {old}), {new}, {old})"
+
+
 def sync_images(conn: sqlite3.Connection, hashes: Iterable[str]) -> None:
     """Point each image at a location that still exists, or mark it deleted.
 
@@ -35,11 +41,13 @@ def sync_images(conn: sqlite3.Connection, hashes: Iterable[str]) -> None:
             conn.execute("UPDATE images SET deleted = 1 WHERE content_hash = ?", (h,))
             continue
         conn.execute(
-            """UPDATE images SET source_id = ?, relative_path = ?, filename = ?,
-                   file_size = ?, file_modified = ?, file_created = ?, deleted = 0
-               WHERE content_hash = ?""",
-            (loc["source_id"], loc["relative_path"], loc["filename"], loc["file_size"],
-             loc["file_modified"], loc["file_created"], h),
+            f"""UPDATE images SET source_id = :source_id, relative_path = :relative_path,
+                   filename = :filename, file_size = :file_size,
+                   file_modified = :file_modified,
+                   file_created = {EARLIEST_CREATED.format(new=":file_created", old="file_created")},
+                   deleted = 0
+               WHERE content_hash = :hash""",
+            {**dict(loc), "hash": h},
         )
 
 
