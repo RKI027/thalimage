@@ -9,6 +9,7 @@ import type {
 	Tag,
 	UserSettings,
 	ScanProgress,
+	SourceSummary,
 	EloPair,
 	EloRanking,
 	FilterState,
@@ -142,6 +143,10 @@ export function createSource(path: string, label?: string, recursive = true): Pr
 export async function deleteSource(id: number): Promise<void> {
 	const resp = await fetch(`${BASE}/sources/${id}`, { method: 'DELETE' });
 	if (!resp.ok) throw new Error(`Delete failed: ${resp.status}`);
+}
+
+export async function getSourceSummary(sourceId: number): Promise<SourceSummary> {
+	return fetchJSON(`${BASE}/sources/${sourceId}/summary`);
 }
 
 export async function triggerScan(sourceId: number): Promise<{ status: string }> {

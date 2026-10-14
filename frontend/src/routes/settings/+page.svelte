@@ -1,14 +1,16 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress, getVersion } from '$lib/api';
+	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress, getVersion, getSourceSummary } from '$lib/api';
 	import { collectionsStore, settingsStore } from '$lib/stores';
 	import BackupSettings from '$lib/components/BackupSettings.svelte';
-	import type { Source, VersionInfo } from '$lib/types';
+	import SourceBreakdown from '$lib/components/SourceBreakdown.svelte';
+	import type { Source, SourceSummary, VersionInfo } from '$lib/types';
 
 	let sources: Source[] = $state([]);
 	let newPath = $state('');
 	let newLabel = $state('');
 	let scanStatus: Record<number, string> = $state({});
+	let summaries: Record<number, SourceSummary> = $state({});
 	let backendVersion: string | null = $state(null);
 	let backendCommit: string | null = $state(null);
 
@@ -23,6 +25,8 @@
 
 	async function refresh() {
 		sources = await listSources();
+		const loaded = await Promise.all(sources.map((s) => getSourceSummary(s.id)));
+		summaries = Object.fromEntries(sources.map((s, i) => [s.id, loaded[i]]));
 	}
 
 	async function addSource() {
@@ -55,7 +59,7 @@
 					scanStatus[id] = `Done: ${p.added} added, ${p.skipped} skipped, ${p.errors} errors`;
 					unsubscribe();
 					refresh();
-							collectionsStore.refresh();
+					collectionsStore.refresh();
 				} else if (p.phase === 'error') {
 					scanStatus[id] = `Error: ${p.message || 'Scan failed'}`;
 					unsubscribe();
@@ -122,6 +126,9 @@
 							<span class="meta">Last scan: {new Date(source.last_scan).toLocaleString()}</span>
 						{:else}
 							<span class="meta">Not yet scanned</span>
+						{/if}
+						{#if summaries[source.id] && source.last_scan}
+							<SourceBreakdown summary={summaries[source.id]} />
 						{/if}
 						{#if scanStatus[source.id]}
 							<span class="scan-status">{scanStatus[source.id]}</span>
