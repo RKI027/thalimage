@@ -44,6 +44,20 @@ It is opened from one of its copies; if that copy disappears, the app
 switches to another. The image only counts as deleted once no copy is
 left anywhere.
 
+## Why a source has fewer images than files
+
+Each source in Settings sets the files indexed in it against the images
+its preset shows ("1,390 files → 954 images"), followed by whatever
+explains the difference, each opening onto the files concerned:
+
+- **Duplicate files**: copies with the same content as another file in
+  the source. They are one image.
+- **Files not indexed**: files the last scan could not read or decode,
+  and subfolders it could not list, with the reason. A new file that
+  fails is not counted at all; one indexed before keeps its earlier
+  entry. Every scan replaces this list.
+- **Archived images**: indexed, but left out of browsing.
+
 ## When a source cannot be read
 
 If the source folder is missing, is not a folder, or cannot be read —

@@ -94,6 +94,19 @@ export interface Collection {
 	archived_count: number;
 }
 
+/** What a source holds: its files against its images, and why they differ. */
+export interface SourceSummary {
+	/** Files indexed in the source. */
+	files: number;
+	/** Images browsing the source shows. */
+	images: number;
+	/** Files in the source with the same content: one image each. */
+	duplicates: { content_hash: string; paths: string[] }[];
+	archived: { content_hash: string; relative_path: string }[];
+	/** What the latest scan could not index; a folder ends with a separator. */
+	failures: { relative_path: string; reason: string }[];
+}
+
 export interface ScanProgress {
 	source_id: number;
 	phase: string;

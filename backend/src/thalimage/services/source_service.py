@@ -30,6 +30,7 @@ def delete_source(conn: sqlite3.Connection, source_id: int) -> bool:
             )
         ]
         conn.execute("DELETE FROM image_locations WHERE source_id = ?", (source_id,))
+        conn.execute("DELETE FROM scan_failures WHERE source_id = ?", (source_id,))
         sync_images(conn, located_here)
 
         # Whatever still points here has no copy left anywhere (sync_images

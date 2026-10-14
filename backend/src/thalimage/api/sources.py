@@ -16,6 +16,7 @@ from thalimage.services.collection_service import get_or_create_source_preset
 from thalimage.services.scan_manager import ScanManager
 from thalimage.services.scan_service import run_scan
 from thalimage.services.source_service import delete_source
+from thalimage.services.source_summary import SourceSummary, source_summary
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 
@@ -81,6 +82,17 @@ def del_source(
 ) -> None:
     if not delete_source(db, source_id):
         raise HTTPException(404, "Source not found")
+
+
+@router.get("/{source_id}/summary", response_model=SourceSummary)
+def get_source_summary(
+    source_id: int,
+    db: sqlite3.Connection = Depends(get_db),
+) -> SourceSummary:
+    summary = source_summary(db, source_id)
+    if summary is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+    return summary
 
 
 @router.post("/{source_id}/scan", status_code=202)
