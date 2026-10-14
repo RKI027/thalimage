@@ -51,7 +51,10 @@ its preset shows ("1,390 files → 954 images"), followed by whatever
 explains the difference, each opening onto the files concerned:
 
 - **Duplicate files**: copies with the same content as another file in
-  the source. They are one image.
+  the source. They are one image. In a writable source (see below) you
+  can tick copies and delete them from disk, after a confirmation that
+  lists every file. Each image keeps at least one copy, and a file that
+  changed since the last scan is refused until you rescan.
 - **Files not indexed**: files the last scan could not read or decode,
   and subfolders it could not list, with the reason. A new file that
   fails is not counted at all; one indexed before keeps its earlier
