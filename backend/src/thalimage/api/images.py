@@ -13,6 +13,7 @@ from thalimage.core.thumbnails import thumbnail_path
 from thalimage.core.video import playable_copy_path
 from thalimage.deps import ContentHash, get_db, get_preview_dir, get_thumb_dir, get_video_dir
 from thalimage.services.collection_service import resolve_scope
+from thalimage.services.elo_service import EloStanding, image_standings
 from thalimage.services.file_changes import SourceNotWritable
 from thalimage.services.file_deletion import Copy, DeletionRefused, delete_image, image_copies
 from thalimage.services.image_service import (
@@ -146,6 +147,18 @@ def get_image_detail(
     if image is None:
         raise HTTPException(404, "Image not found")
     return image
+
+
+@router.get("/{content_hash}/elo", response_model=list[EloStanding])
+def get_image_elo(
+    content_hash: ContentHash,
+    db: sqlite3.Connection = Depends(get_db),
+) -> list[EloStanding]:
+    """The image's ELO standing in each collection it has been voted in."""
+    standings = image_standings(db, content_hash)
+    if standings is None:
+        raise HTTPException(404, "Image not found")
+    return standings
 
 
 @router.get("/{content_hash}/file")

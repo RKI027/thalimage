@@ -21,6 +21,16 @@ everything" are different questions.
 Voting is therefore not available on "All Images", which is virtual and
 has no collection row to attach scores to.
 
+## An image's standing
+
+The viewer's information panel shows where an image stands. Opened from
+a collection it has been voted in, it shows the score, the rank ("12th
+of 954": one plus the images scored higher, out of the collection's
+scored images that are not deleted) and the matches won and lost there;
+the compact panel shows only score and rank. The full panel also lists
+the image's score and rank in every other collection it has been voted
+in. Images with equal scores share a rank.
+
 ## How pairs are chosen
 
 Candidates are every image in the collection that is not deleted and not
