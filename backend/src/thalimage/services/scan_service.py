@@ -117,6 +117,11 @@ def run_scan(
     # Paths whose location row stays. A file that cannot be read keeps its
     # previous row rather than reading as deleted.
     kept: set[str] = set()
+    # What could not be indexed, and why: relative path -> reason.
+    failures: dict[str, str] = {
+        str(d.relative_to(source_path)) + os.sep: "Folder could not be read"
+        for d in listing.unreadable
+    }
     pending: list[_Indexed] = []
     last_write = time.monotonic()
 
@@ -144,9 +149,13 @@ def run_scan(
         except _SkipFile as exc:
             logger.warning("Skipping %s: %s", file_path, exc)
             result.errors += 1
-        except Exception:
+            failures[relative] = str(exc)
+        except Exception as exc:
             logger.exception("Failed to process %s during scan", file_path)
             result.errors += 1
+            # The path is listed beside the reason already; keep it short.
+            reason = str(exc).replace(str(file_path), relative)
+            failures[relative] = f"{type(exc).__name__}: {reason}"
             kept.add(relative)
 
         # Step 4: write in batches
@@ -169,7 +178,7 @@ def run_scan(
 
     # Step 5: drop the locations of files that are gone. Nothing under a
     # folder that could not be listed counts as gone: its contents are unknown.
-    unreadable = [str(d.relative_to(source_path)) + os.sep for d in listing.unreadable]
+    unreadable = [p for p in failures if p.endswith(os.sep)]
     gone = [
         relative
         for relative in known
@@ -181,6 +190,11 @@ def run_scan(
             [(source_id, relative) for relative in gone],
         )
         sync_images(conn, (known[relative]["content_hash"] for relative in gone))
+        conn.execute("DELETE FROM scan_failures WHERE source_id = ?", (source_id,))
+        conn.executemany(
+            "INSERT INTO scan_failures (source_id, relative_path, reason) VALUES (?, ?, ?)",
+            [(source_id, path, reason) for path, reason in failures.items()],
+        )
         conn.execute(
             "UPDATE sources SET last_scan = datetime('now') WHERE id = ?",
             (source_id,),
