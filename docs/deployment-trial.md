@@ -21,6 +21,17 @@ this file into those once the open items are settled, then delete it.
 - **Every page loaded twice per navigation**, and an NSFW collection
   could show empty until a reload (the first listing raced the
   settings). Both fixed in the frontend.
+- **Requests taking 10–35 s: the database on NFS.** Still there with the
+  double loading fixed (four concurrent requests stalled 12 s together).
+  Measured in the container, 4 threads × 25 rounds of the app's
+  connect-and-query: on NFS median 9–15 ms but max 3.1 s and 35.7 s
+  (p90 30 s on the second run); on local disk max 22 ms. SQLite does not
+  support WAL on network filesystems. The database now has its own
+  mount, `THALIMAGE_DB_DIR`, on the host's local disk; caches stay on
+  the share.
+- **Backups for a database off the NAS.** A daily in-app backup (time
+  and copies kept set in Settings) writes into `db_backups/` on the
+  share, so the NAS still holds a recent copy.
 
 ## To document
 
@@ -37,7 +48,7 @@ this file into those once the open items are settled, then delete it.
   Prefer the exact MagicDNS name once known.
 - **Open the `https://` URL.** Only 443 is served; a bare name may try
   port 80 and fail with "can't connect".
-- **Data layout.** `app/` (database, caches) is a sibling of
+- **Data layout.** `app/` (caches, database backups) is a sibling of
   `tailscale/`, so the app's startup chown never reaches the node keys.
   A stack built from the older compose file mounted all of
   `THALIMAGE_DATA` and has to be moved over (and `tailscale/` handed back
@@ -47,18 +58,20 @@ this file into those once the open items are settled, then delete it.
   to their source); copy `cache/` along. If the copy changed file
   mtimes, the next scan reprocesses everything and records the copy
   dates — restore the files' mtimes first.
+- **`THALIMAGE_DB_DIR` and `TZ`.** The database folder is required and
+  must be local disk; `TZ` sets the zone the backup time is read in.
+  Moving an existing database there: stop the stack, move
+  `app/thalimage.db*` into `THALIMAGE_DB_DIR`, redeploy.
+- **Restoring a backup.** Stop the stack, copy a
+  `db_backups/thalimage-*.db` over `THALIMAGE_DB_DIR/thalimage.db`,
+  delete any `thalimage.db-wal`/`-shm` beside it, start.
 - **Testing a branch.** Run the publish workflow by hand on the branch;
   it moves `:dev`. A deployment on `THALIMAGE_TAG=dev` picks it up on
   redeploy with "re-pull image".
 
 ## Open
 
-- **Requests taking 10–35 s, server-side: the database on NFS.** Still
-  there with the double loading fixed (four concurrent requests stalled
-  12 s together). Measured in the container, 4 threads × 25 rounds of the
-  app's connect-and-query: on NFS median 9–15 ms but max 3.1 s and
-  35.7 s (p90 30 s on the second run); on local disk max 22 ms. SQLite
-  does not support WAL on network filesystems. The database has to live
-  on local disk; the caches can stay on NFS (plain reads, regenerable).
+- **Confirm the stalls are gone** once the database is on local disk
+  (rerun the in-container benchmark; expect a max in the tens of ms).
 - **Creation dates** are not read inside the container (see the roadmap's
   Unsorted list).

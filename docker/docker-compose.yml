@@ -68,9 +68,14 @@ services:
       - tailscale
 
     volumes:
-      # Database, thumbnails and previews. A real directory, not a named
-      # volume: the SQLite file is in WAL mode and wants a plain local
-      # filesystem, and a path you can back up and inspect. A sibling of
+      # The database, on the Docker host's local disk. SQLite runs in WAL
+      # mode, which does not work over a network filesystem: on NFS,
+      # requests stall for tens of seconds. The entrypoint chowns it to the
+      # app user.
+      - ${THALIMAGE_DB_DIR:?set THALIMAGE_DB_DIR to a folder on the Docker host's local disk}:/db
+
+      # Thumbnails, previews and the daily database backups (db_backups/).
+      # Plain files only, so a network share is fine here. A sibling of
       # tailscale/, not its parent: the entrypoint chowns /data to the app
       # user, and the node keys must stay out of the app's reach.
       - ${THALIMAGE_DATA:-/srv/thalimage}/app:/data
@@ -85,6 +90,10 @@ services:
 
     environment:
       - THALIMAGE_DATA_DIR=/data
+      - THALIMAGE_DB_PATH=/db/thalimage.db
+      # The daily backup runs at a local time of day, read in this zone
+      # (e.g. Europe/Paris). Log timestamps follow it too.
+      - TZ=${TZ:-UTC}
       # Host-header allowlist. Requests arriving under any other name get
       # a 400. The wildcard covers the MagicDNS name without pinning the
       # tailnet: ["thalimage.tail1234.ts.net"] is the exact form.
