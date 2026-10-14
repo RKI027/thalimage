@@ -1,7 +1,9 @@
 # Thalimage Roadmap
 
 What is done, what is next, and the backlog. Everything here describes
-the code as it is now; superseded plans say so where they stand.
+the code as it is now; superseded plans say so where they stand. New
+work is tracked in [GitHub issues](https://github.com/RKI027/thalimage/issues);
+items move there from this file as they are picked up.
 Records of earlier work are in [`archive/`](archive/README.md); full
 review runs, with their resolution ledgers, are in [`review/`](review/).
 
@@ -152,20 +154,9 @@ A `/docs` route in the app for behaviour that is real but invisible
 from the UI, so design details stop living only in the code. Markdown
 served by the backend, rendered in the frontend.
 
-First subject, and the reason this exists: **ELO pair selection is
-biased against new images.** `elo_service.get_pair` sorts candidates by
-match count, takes the bottom quartile, then samples two of them
-*uniformly* — so match count decides pool membership but applies no
-preference within the pool. On an 885-image collection the quartile is
-221 images, of which 24 have zero matches; a new image therefore
-surfaces about once in 110 pairs, no more often than one already seen
-five times. Related: pairs are not score-matched, so each vote carries
-little information; and the query loads every candidate row on each
-request, twice per vote because the frontend prefetches.
-
-Fixes to consider: weight sampling by inverse match count, or draw one
-side from the minimum-matches bucket; pick the opponent by ELO
-proximity.
+First subject, and the reason this exists: ELO pair selection is biased
+against new images. The analysis and the fixes to consider are in
+[#10](https://github.com/RKI027/thalimage/issues/10).
 
 Published at `/docs`, sourced from `backend/src/thalimage/docs/*.md`:
 overview, ranking by vote, image delivery, scanning. The ELO bias above
@@ -294,7 +285,9 @@ When removing a source, the user should choose:
    is re-added.
 2. **Generate sidecar files or not** — write metadata (ELO scores,
    tags, prompt data) to sidecar files alongside the original images
-   before removal, so data survives independently of the DB.
+   before removal, so data survives independently of the DB. Sidecar
+   handling in general is
+   [#25](https://github.com/RKI027/thalimage/issues/25).
 
 ## Unsorted
 
@@ -310,10 +303,6 @@ When removing a source, the user should choose:
   currently combines both; they'd be wired together. A clean Svelte
   wrapper around `flickr/justified-layout` + optional seam-carved thumbs
   could be worth releasing independently.
-- add a filter on ELO, not sure which metric, i'm thinking about
-  top/bottom percentile (with showing the resulting number of
-  pictures). Another way would top/bottom absolute number but less
-  sure.
 - Tag ontology / hierarchy: parent-child relationships between tags,
   browseable tag tree, implicit inheritance (tagging with "character/alice"
   also applies "character"). Deferred from Phase 4.
