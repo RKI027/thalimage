@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress, getVersion, getSourceSummary } from '$lib/api';
+	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress, getVersion, getSourceSummary, updateSource } from '$lib/api';
 	import { collectionsStore, settingsStore } from '$lib/stores';
 	import BackupSettings from '$lib/components/BackupSettings.svelte';
 	import SourceBreakdown from '$lib/components/SourceBreakdown.svelte';
@@ -9,6 +9,7 @@
 	let sources: Source[] = $state([]);
 	let newPath = $state('');
 	let newLabel = $state('');
+	let newWritable = $state(false);
 	let scanStatus: Record<number, string> = $state({});
 	let summaries: Record<number, SourceSummary> = $state({});
 	let backendVersion: string | null = $state(null);
@@ -32,14 +33,26 @@
 	async function addSource() {
 		if (!newPath.trim()) return;
 		try {
-			await createSource(newPath.trim(), newLabel.trim() || undefined);
+			await createSource(newPath.trim(), newLabel.trim() || undefined, { writable: newWritable });
 			newPath = '';
 			newLabel = '';
+			newWritable = false;
 			await refresh();
 			collectionsStore.refresh();
 		} catch (e) {
 			alert(e instanceof Error ? e.message : 'Failed to add source');
 		}
+	}
+
+	async function setWritable(source: Source, box: HTMLInputElement) {
+		try {
+			await updateSource(source.id, { writable: box.checked });
+		} catch (e) {
+			// The box was ticked by hand; the source did not change, so put it back.
+			box.checked = source.writable;
+			alert(e instanceof Error ? e.message : 'Failed to change the source');
+		}
+		await refresh();
 	}
 
 	async function remove(id: number) {
@@ -110,6 +123,10 @@
 		<input bind:value={newLabel} placeholder="Label (optional)" class="control label-input" />
 		<button class="control control-primary" onclick={addSource}>Add</button>
 	</div>
+	<label class="writable">
+		<input type="checkbox" bind:checked={newWritable} />
+		Thalimage may change files in this folder (delete, rename, move)
+	</label>
 
 	{#if sources.length === 0}
 		<p class="empty">No source folders configured.</p>
@@ -127,6 +144,14 @@
 						{:else}
 							<span class="meta">Not yet scanned</span>
 						{/if}
+						<label class="writable">
+							<input
+								type="checkbox"
+								checked={source.writable}
+								onchange={(e) => setWritable(source, e.currentTarget)}
+							/>
+							{source.writable ? 'Thalimage may change files here' : 'Read-only: Thalimage never changes files here'}
+						</label>
 						{#if summaries[source.id] && source.last_scan}
 							<SourceBreakdown summary={summaries[source.id]} />
 						{/if}
@@ -282,6 +307,18 @@
 	.meta {
 		color: #666;
 		font-size: 0.8rem;
+	}
+
+	.writable {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 0.8rem;
+		color: #888;
+	}
+
+	.add-form + .writable {
+		margin: -8px 0 16px;
 	}
 
 	.scan-status {

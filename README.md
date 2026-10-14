@@ -160,8 +160,11 @@ the stack again.
    they did not, the next scan reprocesses every file and records the
    copy dates; restore the mtimes before scanning.
 
-**Image folders** are mounted read-only; nothing is ever written back
-into them. `THALIMAGE_IMAGES` is required: it names the host folder the
+**Image folders** are mounted read-only by default. Thalimage changes
+files only in a source marked writable in Settings, and marking one
+writable is refused while its folder does not accept writes. To allow
+it, drop `:ro` from that folder's mount and make sure `PUID`/`PGID` may
+write there. `THALIMAGE_IMAGES` is required: it names the host folder the
 compose file mounts at `/images`. Register `/images`, or folders under
 it, as sources in Settings. Further trees go on extra lines, as the
 commented example in the compose file shows:

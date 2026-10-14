@@ -73,6 +73,8 @@ export interface Source {
 	label: string | null;
 	recursive: boolean;
 	enabled: boolean;
+	/** Thalimage may change files in this source (delete, rename, move). */
+	writable: boolean;
 	created_at: string;
 	last_scan: string | null;
 }

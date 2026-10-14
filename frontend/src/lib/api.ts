@@ -23,10 +23,21 @@ import type {
 
 const BASE = '/api/v1';
 
+/** The `detail` of a FastAPI error body, or the body itself. */
+function errorReason(body: string): string {
+	try {
+		const detail = JSON.parse(body)?.detail;
+		if (typeof detail === 'string') return detail;
+	} catch {
+		// not JSON
+	}
+	return body;
+}
+
 async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
 	const resp = await fetch(url, init);
 	if (!resp.ok) {
-		throw new Error(`API error ${resp.status}: ${await resp.text()}`);
+		throw new Error(`API error ${resp.status}: ${errorReason(await resp.text())}`);
 	}
 	return resp.json();
 }
@@ -132,11 +143,25 @@ export function listSources(): Promise<Source[]> {
 	return fetchJSON(`${BASE}/sources`);
 }
 
-export function createSource(path: string, label?: string, recursive = true): Promise<Source> {
+export function createSource(
+	path: string,
+	label?: string,
+	options: { recursive?: boolean; writable?: boolean } = {}
+): Promise<Source> {
+	const { recursive = true, writable = false } = options;
 	return fetchJSON(`${BASE}/sources`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ path, label, recursive })
+		body: JSON.stringify({ path, label, recursive, writable })
+	});
+}
+
+/** Mark a source writable (refused if its folder does not accept writes) or read-only. */
+export function updateSource(id: number, changes: { writable: boolean }): Promise<Source> {
+	return fetchJSON(`${BASE}/sources/${id}`, {
+		method: 'PATCH',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(changes)
 	});
 }
 

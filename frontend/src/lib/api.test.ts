@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { displaySize, listingQuery } from './api';
+import { displaySize, listingQuery, updateSource } from './api';
 
 describe('listingQuery', () => {
 	it('is empty for a default listing', () => {
@@ -57,5 +57,17 @@ describe('displaySize', () => {
 	it('never asks for more than the largest preview (GEN-004)', () => {
 		screen(1512, 982, 2);
 		expect(displaySize()).toBe(2560);
+	});
+});
+
+describe('updateSource', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it("reports the server's reason when it refuses", async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(JSON.stringify({ detail: '/x is mounted read-only' }), { status: 409 }))
+		);
+		await expect(updateSource(1, { writable: true })).rejects.toThrow(/^API error 409: \/x is mounted read-only$/);
 	});
 });

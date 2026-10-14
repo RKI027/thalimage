@@ -80,7 +80,8 @@ services:
       # user, and the node keys must stay out of the app's reach.
       - ${THALIMAGE_DATA:-/srv/thalimage}/app:/data
 
-      # Image roots, read-only — nothing is ever written back into them.
+      # Image roots, read-only. Thalimage changes files only in a source
+      # marked writable in Settings, which also needs `:ro` dropped here.
       # THALIMAGE_IMAGES is mounted at /images; register it (or folders
       # under it) in Settings by container path. Further trees go on lines
       # of their own. These paths are stored absolutely in the database,
