@@ -29,6 +29,13 @@ this file into those once the open items are settled, then delete it.
   support WAL on network filesystems. The database now has its own
   mount, `THALIMAGE_DB_DIR`, on the host's local disk; caches stay on
   the share. Redeployed that way, no stall could be triggered.
+- **Creation dates erased by rescans.** Every re-indexed file came back
+  with no birth time (Linux reports none) and the scan wrote that over
+  the macOS-recorded date: all 958 images lost theirs. Rescans now keep
+  the earliest known date; the lost ones were restored from the
+  pre-deployment database by content hash. New files fall back to the
+  mtime, which matches the creation time for this library (see the
+  roadmap's Unsorted list).
 - **Backups for a database off the NAS.** A daily in-app backup (time
   and copies kept set in Settings) writes into `db_backups/` on the
   share, so the NAS still holds a recent copy.
@@ -71,5 +78,3 @@ this file into those once the open items are settled, then delete it.
 
 ## Open
 
-- **Creation dates** are not read inside the container (see the roadmap's
-  Unsorted list).

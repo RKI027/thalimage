@@ -311,11 +311,13 @@ When removing a source, the user should choose:
 - The slideshow walks the window of neighbours it starts with, up to
   1001 images around the starting image; a slideshow over a larger
   listing stops at the window's end.
-- Creation dates under Docker: the scanner reads `st_birthtime`, which
-  Python does not expose on Linux, so every file first scanned inside the
-  container gets a NULL `file_created`. The Created sort falls back to
-  `file_modified` for those, which is a different date. Rows scanned
-  earlier on macOS keep their value (the scan upsert never touches
-  `file_created`). Options to weigh: the Linux `statx` syscall (birth
-  time, where the filesystem records it — not guaranteed over NFS), or
-  embedded EXIF/PNG creation metadata.
+- Creation dates under Docker: Python reports no birth time on Linux, so
+  files first scanned inside the container have no `file_created`; the
+  Created sort and the viewer fall back to `file_modified`. Measured on
+  the first deployed library (1,387 images with macOS birth times), the
+  two differ by under 5 s for all but 3 files, and almost none embed a
+  date (9 PNG "Creation Time" chunks, no EXIF dates), so the fallback is
+  faithful. `statx` was rejected: copying files to the NAS gave them new
+  birth times, while their mtimes survived. Rescans now keep the earliest
+  known date instead of erasing it. Revisit only for a library whose
+  files are edited after creation.
