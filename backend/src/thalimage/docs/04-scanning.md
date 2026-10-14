@@ -80,8 +80,18 @@ images, an archive icon next to the count says how many.
 **Deleted** marks an image whose file is no longer on disk anywhere. The
 row is kept so that tags and scores survive if the file comes back.
 
-Neither flag touches your original files. Thalimage never writes to or
-removes anything in a source folder.
+Neither flag touches your original files.
+
+## Read-only and writable sources
+
+A source is read-only unless you mark it writable, when adding it or
+later in Settings. Thalimage never writes to, renames or removes
+anything in a read-only source. Marking a source writable first checks
+that its folder accepts writes (by creating and removing a temporary
+file), and is refused if it does not, e.g. when it is mounted read-only.
+Every change Thalimage then makes to files is recorded in the database
+(`file_changes`: what, where, when, and whether it worked), and the
+record is kept even after the source is removed.
 
 ## Removing a source
 

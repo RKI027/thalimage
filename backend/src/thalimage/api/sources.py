@@ -13,6 +13,7 @@ from sse_starlette.sse import EventSourceResponse  # type: ignore[import-untyped
 from thalimage.db.engine import connect
 from thalimage.deps import get_db, get_scan_manager, get_thumb_dir
 from thalimage.services.collection_service import get_or_create_source_preset
+from thalimage.services.file_changes import SourceNotWritable, check_folder_accepts_writes
 from thalimage.services.scan_manager import ScanManager
 from thalimage.services.scan_service import run_scan
 from thalimage.services.source_service import delete_source
@@ -33,6 +34,11 @@ class SourceCreate(BaseModel):
     path: str
     label: Optional[str] = None
     recursive: bool = True
+    writable: bool = False
+
+
+class SourceUpdate(BaseModel):
+    writable: bool
 
 
 class SourceResponse(BaseModel):
@@ -41,6 +47,7 @@ class SourceResponse(BaseModel):
     label: Optional[str]
     recursive: bool
     enabled: bool
+    writable: bool
     created_at: str
     last_scan: Optional[str]
 
@@ -59,11 +66,13 @@ def create_source(
     source_path = Path(body.path).resolve()
     if not source_path.is_dir():
         raise HTTPException(400, f"Directory does not exist: {body.path}")
+    if body.writable:
+        _require_writes(source_path)
 
     try:
         cursor = db.execute(
-            "INSERT INTO sources (path, label, recursive) VALUES (?, ?, ?)",
-            (str(source_path), body.label, body.recursive),
+            "INSERT INTO sources (path, label, recursive, writable) VALUES (?, ?, ?, ?)",
+            (str(source_path), body.label, body.recursive, body.writable),
         )
         db.commit()
     except sqlite3.IntegrityError as exc:
@@ -73,6 +82,32 @@ def create_source(
     source = SourceResponse(**dict(row))
     get_or_create_source_preset(db, source.id, body.label or source_path.name)
     return source
+
+
+def _require_writes(folder: Path) -> None:
+    try:
+        check_folder_accepts_writes(folder)
+    except SourceNotWritable as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.patch("/{source_id}", response_model=SourceResponse)
+def update_source(
+    source_id: int,
+    body: SourceUpdate,
+    db: sqlite3.Connection = Depends(get_db),
+) -> SourceResponse:
+    """Mark a source writable (once its folder has accepted a test write)
+    or read-only."""
+    row = db.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, "Source not found")
+    if body.writable:
+        _require_writes(Path(row["path"]))
+    db.execute("UPDATE sources SET writable = ? WHERE id = ?", (body.writable, source_id))
+    db.commit()
+    row = db.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone()
+    return SourceResponse(**dict(row))
 
 
 @router.delete("/{source_id}", status_code=204)
