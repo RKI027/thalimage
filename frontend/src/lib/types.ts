@@ -88,7 +88,10 @@ export interface Collection {
 	nsfw: boolean;
 	created_at: string;
 	updated_at: string;
+	/** Images browsing the collection shows. */
 	image_count: number;
+	/** Archived images in the collection, not shown when browsing. */
+	archived_count: number;
 }
 
 export interface ScanProgress {
