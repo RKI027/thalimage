@@ -170,6 +170,18 @@ export async function deleteSource(id: number): Promise<void> {
 	if (!resp.ok) throw new Error(`Delete failed: ${resp.status}`);
 }
 
+/** Delete copies of duplicated images from disk. Refused as a whole if any may not be deleted. */
+export function deleteCopies(
+	sourceId: number,
+	paths: string[]
+): Promise<{ deleted: string[]; failed: { relative_path: string; error: string }[] }> {
+	return fetchJSON(`${BASE}/sources/${sourceId}/delete-copies`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ paths })
+	});
+}
+
 export async function getSourceSummary(sourceId: number): Promise<SourceSummary> {
 	return fetchJSON(`${BASE}/sources/${sourceId}/summary`);
 }

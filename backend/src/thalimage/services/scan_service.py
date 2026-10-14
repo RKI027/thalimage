@@ -130,12 +130,10 @@ def run_scan(
         previous = known.get(relative)
         try:
             stat = file_path.stat()
-            modified = _iso(stat.st_mtime)
             # Step 2: skip unchanged files whose metadata is current
             if (
                 previous is not None
-                and previous["file_modified"] == modified
-                and previous["file_size"] == stat.st_size
+                and unchanged_since_scan(stat, previous)
                 and previous["extractor_version"] >= EXTRACTOR_VERSION
             ):
                 kept.add(relative)
@@ -213,6 +211,14 @@ def _birthtime(stat: os.stat_result) -> Optional[float]:
     """The file's creation time where the platform reports one (macOS,
     BSD); Linux does not, and gives None."""
     return getattr(stat, "st_birthtime", None)
+
+
+def unchanged_since_scan(stat: os.stat_result, location: sqlite3.Row) -> bool:
+    """Whether a file still has the modification time and size its
+    location row recorded: the scan's test for "not changed"."""
+    return bool(
+        location["file_modified"] == _iso(stat.st_mtime) and location["file_size"] == stat.st_size
+    )
 
 
 def _iso(timestamp: float) -> str:

@@ -14,6 +14,7 @@ from thalimage.db.engine import connect
 from thalimage.deps import get_db, get_scan_manager, get_thumb_dir
 from thalimage.services.collection_service import get_or_create_source_preset
 from thalimage.services.file_changes import SourceNotWritable, check_folder_accepts_writes
+from thalimage.services.file_deletion import DeletionRefused, UnknownCopy, delete_copies
 from thalimage.services.scan_manager import ScanManager
 from thalimage.services.scan_service import run_scan
 from thalimage.services.source_service import delete_source
@@ -39,6 +40,20 @@ class SourceCreate(BaseModel):
 
 class SourceUpdate(BaseModel):
     writable: bool
+
+
+class CopiesToDelete(BaseModel):
+    paths: list[str]
+
+
+class DeleteFailure(BaseModel):
+    relative_path: str
+    error: str
+
+
+class DeletedCopies(BaseModel):
+    deleted: list[str]
+    failed: list[DeleteFailure]
 
 
 class SourceResponse(BaseModel):
@@ -117,6 +132,28 @@ def del_source(
 ) -> None:
     if not delete_source(db, source_id):
         raise HTTPException(404, "Source not found")
+
+
+@router.post("/{source_id}/delete-copies", response_model=DeletedCopies)
+def delete_source_copies(
+    source_id: int,
+    body: CopiesToDelete,
+    db: sqlite3.Connection = Depends(get_db),
+) -> DeletedCopies:
+    """Delete files from disk that are copies of an image kept elsewhere.
+    Refused as a whole if any of them may not be deleted."""
+    try:
+        result = delete_copies(db, source_id, body.paths)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except UnknownCopy as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except (SourceNotWritable, DeletionRefused) as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return DeletedCopies(
+        deleted=result.deleted,
+        failed=[DeleteFailure(relative_path=p, error=e) for p, e in result.failed],
+    )
 
 
 @router.get("/{source_id}/summary", response_model=SourceSummary)
