@@ -1,5 +1,7 @@
 """Tests for /api/v1/collections endpoints."""
 
+import shutil
+import sqlite3
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -180,3 +182,21 @@ def test_collection_count_skips_images_whose_file_is_gone(
 
     data = client.get(f"/api/v1/collections/{cid}").json()
     assert (data["image_count"], data["archived_count"]) == (len(hashes) - 1, 0)
+
+
+def test_source_preset_counts_copies_in_one_source_once(
+    client: TestClient, db: sqlite3.Connection, image_dir: Path
+) -> None:
+    source_id, hashes = scan_source(client, image_dir)
+    first = client.get(f"/api/v1/images/{hashes[0]}").json()["filename"]
+    (image_dir / "copy").mkdir()
+    shutil.copy(image_dir / first, image_dir / "copy" / first)
+    _rescan(client, source_id)
+    copies = db.execute(
+        "SELECT COUNT(*) FROM image_locations WHERE content_hash = ?", (hashes[0],)
+    ).fetchone()[0]
+    assert copies == 2
+
+    presets = client.get("/api/v1/collections?type=source_preset").json()
+    preset = next(p for p in presets if p["source_id"] == source_id)
+    assert preset["image_count"] == len(hashes)
