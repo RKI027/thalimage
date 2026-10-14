@@ -172,10 +172,11 @@ overview, ranking by vote, image delivery, scanning. The ELO bias above
 is documented there rather than silently fixed — the fix itself is still
 open.
 
-## Phase 5.5 — Deployment (built, not yet run)
+## Phase 5.5 — Deployment ✓
 
-The image builds in CI; the container and the compose stack have not
-been run yet, so this phase stays open until they have.
+First run on 2026-10-13: Portainer on a homelab host, images and data on
+an NFS share. The operational details it turned up are in the README's
+Deployment section.
 
 The MVP bullet above credits "Docker deployment" to Sprint 5, but that
 setup was never rebuilt afterwards and had drifted: the image copied the
@@ -201,10 +202,28 @@ What this pass delivers:
   `network_mode: service:tailscale`; `tailscale serve` terminates TLS.
   Nothing is published to the host, so the app is unreachable from the
   LAN, and Tailscale does not need to be on the Docker host.
-- **Bind-mounted data directory** with two siblings: `app/` (the
-  database and both cache trees, mounted at `/data`) and `tailscale/`
-  (the node state, kept out of the app container since the 2026-09-29
-  review).
+- **Bind-mounted data directory** with two siblings: `app/` (both
+  cache trees and the database backups, mounted at `/data`) and
+  `tailscale/` (the node state, kept out of the app container since the
+  2026-09-29 review).
+
+What the first run fixed:
+
+- **The database on local disk.** On NFS, requests stalled for 10–35 s:
+  SQLite's WAL mode does not work over a network filesystem. The
+  database got its own required mount, `THALIMAGE_DB_DIR`, and a daily
+  in-app backup into `db_backups/` on the share.
+- **Creation dates** erased by rescans inside the container (see
+  Unsorted).
+- **Stale frontend after an upgrade:** `index.html` is served
+  `no-cache`, hashed assets immutable.
+- **Pages loaded twice per navigation**, and an NSFW collection could
+  show empty while the first listing raced the settings.
+- **`serve.json`** is mounted from the data directory (a stack pasted
+  into Portainer has none beside it), and `TS_AUTH_ONCE` stops the
+  sidecar re-logging in on every start.
+- **`:dev` images**: a manual run of the publish workflow on a branch,
+  for testing it on the deployment.
 
 Traefik was considered and not used: it would have needed a tailnet-bound
 entrypoint on the shared homelab stack, a DNS record, and Tailscale on

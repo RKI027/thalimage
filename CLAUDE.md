@@ -51,7 +51,8 @@ The frontend needs Node 24 and the pnpm pinned in `frontend/package.json`.
 - `.github/workflows/docker.yml` — builds and publishes
   `ghcr.io/rki027/thalimage` for `v*` tags, and as `:dev` when run by hand
   on a branch; `ci.yml` runs `check.sh`
-- The deployment is untested: the image builds, nothing has run it yet
+- Runs on a homelab host (Portainer). The database must sit on local disk
+  (`THALIMAGE_DB_DIR`): SQLite in WAL mode stalls on NFS
 - See the Deployment section of `README.md` for the operational details
 
 ## Documentation
