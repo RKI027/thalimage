@@ -153,7 +153,12 @@
 							{source.writable ? 'Thalimage may change files here' : 'Read-only: Thalimage never changes files here'}
 						</label>
 						{#if summaries[source.id] && source.last_scan}
-							<SourceBreakdown summary={summaries[source.id]} />
+							<SourceBreakdown
+								summary={summaries[source.id]}
+								sourceId={source.id}
+								writable={source.writable}
+								onchange={refresh}
+							/>
 						{/if}
 						{#if scanStatus[source.id]}
 							<span class="scan-status">{scanStatus[source.id]}</span>
