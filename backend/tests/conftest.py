@@ -16,6 +16,7 @@ from thalimage.deps import (
     get_preview_dir,
     get_scan_manager,
     get_thumb_dir,
+    get_video_dir,
     open_db,
 )
 from thalimage.db.engine import connect, migrate
@@ -64,6 +65,7 @@ def client(db: sqlite3.Connection, tmp_path: Path):
     app.dependency_overrides[get_db] = _test_db
     app.dependency_overrides[get_thumb_dir] = lambda: thumb_dir
     app.dependency_overrides[get_preview_dir] = lambda: preview_dir
+    app.dependency_overrides[get_video_dir] = lambda: tmp_path / "videos"
     app.dependency_overrides[get_scan_manager] = lambda: scan_manager
     app.dependency_overrides[get_backup_scheduler] = lambda: backup_scheduler
 

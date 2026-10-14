@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 class ScanProgress(BaseModel):
     source_id: int
-    phase: str = "idle"  # idle, discovering, processing, complete, error
+    phase: str = "idle"  # idle, discovering, processing, checking, converting, complete, error
     current: int = 0
     total: int = 0
     added: int = 0
@@ -30,7 +30,7 @@ class ScanManager:
 
     def is_running(self, source_id: int) -> bool:
         p = self._progress.get(source_id)
-        return p is not None and p.phase in ("discovering", "processing")
+        return p is not None and p.phase in ("discovering", "processing", "checking", "converting")
 
     def any_running(self) -> bool:
         return any(self.is_running(sid) for sid in self._progress)

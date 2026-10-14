@@ -1,5 +1,5 @@
 /** Video file extensions; must match VIDEO_EXTENSIONS in backend core/video.py. */
-const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.avi']);
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.avi', '.mkv']);
 
 /** Whether a filename is one of the video formats the scanner indexes. */
 export function isVideoFilename(filename: string): boolean {

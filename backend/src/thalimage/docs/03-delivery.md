@@ -7,7 +7,7 @@ get depends on where you are looking.
 |---|---|
 | Gallery grid | Thumbnail — WebP, 400px long edge |
 | Viewer, slideshow, voting | Preview — WebP, capped at your screen size |
-| Video playback | The original file, streamed |
+| Video playback | The original file, streamed, or a copy iOS can play |
 
 ## Why previews exist
 
@@ -40,7 +40,16 @@ year without revalidating.
 ## Video
 
 Video is served as the original file, with range requests supported —
-playback and seeking start without downloading the whole file first. No
-transcoding happens, so a large video is still a large video; a reduced
-preview encode is possible but not currently done, as it would cost
-significant CPU and disk for every file scanned.
+playback and seeking start without downloading the whole file first.
+There is no reduced preview encode, so a large video is still a large
+video.
+
+iPhones and iPads play only some formats, in every browser and in the
+home-screen app alike: H.264, HEVC and AV1 video, with AAC or MP3 audio,
+in an MP4 or MOV file. For any other video (VP9 or WebM files, MKV
+files, Opus audio), a scan writes an MP4 copy under `cache/videos/`, and
+the viewer plays that copy everywhere. The copy reuses what already
+plays and converts the rest: a file that only needs a different
+container takes seconds, while re-encoding VP9 to H.264 takes a few times
+the video's length. Your original file is never changed. The copy is
+deleted with its image or its source.

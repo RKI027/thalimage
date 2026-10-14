@@ -10,7 +10,8 @@ from pydantic import BaseModel
 
 from thalimage.core.previews import PREVIEW_SIZES, generate_preview, nearest_size
 from thalimage.core.thumbnails import thumbnail_path
-from thalimage.deps import ContentHash, get_db, get_preview_dir, get_thumb_dir
+from thalimage.core.video import playable_copy_path
+from thalimage.deps import ContentHash, get_db, get_preview_dir, get_thumb_dir, get_video_dir
 from thalimage.services.collection_service import resolve_scope
 from thalimage.services.file_changes import SourceNotWritable
 from thalimage.services.file_deletion import Copy, DeletionRefused, delete_image, image_copies
@@ -161,6 +162,26 @@ def get_image_file(
     return FileResponse(p, headers=IMMUTABLE)
 
 
+@router.get("/{content_hash}/video")
+def get_image_video(
+    content_hash: ContentHash,
+    db: sqlite3.Connection = Depends(get_db),
+    video_dir: Path = Depends(get_video_dir),
+) -> FileResponse:
+    """The video as the viewer plays it: its playable copy when it has one
+    (made at scan time for what iOS cannot play), else the original."""
+    file_path = resolve_file_path(db, content_hash)
+    if file_path is None:
+        raise HTTPException(404, "Image not found")
+    copy = playable_copy_path(video_dir, content_hash)
+    if copy.exists():
+        return FileResponse(copy, media_type="video/mp4", headers=IMMUTABLE)
+    p = Path(file_path)
+    if not p.exists():
+        raise HTTPException(404, "File not found on disk")
+    return FileResponse(p, headers=IMMUTABLE)
+
+
 @router.get("/{content_hash}/thumb")
 def get_image_thumb(
     content_hash: ContentHash,
@@ -254,6 +275,7 @@ class ImageDeletion(BaseModel):
 def delete_image_files(
     content_hash: ContentHash,
     db: sqlite3.Connection = Depends(get_db),
+    video_dir: Path = Depends(get_video_dir),
 ) -> ImageDeletion:
     """Delete every copy of the image from disk. Refused as a whole if any
     copy may not be deleted."""
@@ -263,6 +285,8 @@ def delete_image_files(
         raise HTTPException(409, str(exc)) from exc
     if result is None:
         raise HTTPException(404, "Image not found")
+    if not result.failed:
+        playable_copy_path(video_dir, content_hash).unlink(missing_ok=True)
     return ImageDeletion(
         deleted=len(result.deleted),
         sidecars=len(result.sidecars),

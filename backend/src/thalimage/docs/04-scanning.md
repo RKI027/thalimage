@@ -20,6 +20,12 @@ in which case it is read once more to pick that up.
 4. **Recording.** The image and where it was found are written to the
    database, a few dozen files at a time, so the rest of the app stays
    responsive during a long scan.
+5. **Playable videos.** Once everything is recorded, each video not seen
+   before is checked, and those iOS cannot play get an MP4 copy (see
+   Image delivery). The scan shows this as "Checking videos", then
+   "Making videos playable on iOS"; the images are already browsable
+   while it runs. The first scan after an upgrade checks every video
+   once, which takes a while on a large library.
 
 A file that cannot be read or decoded is counted as an error and the
 scan carries on with the next one; what was indexed for it before stays

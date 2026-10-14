@@ -71,6 +71,8 @@ class Settings(BaseSettings):
     db_path: Optional[Path] = None
     thumb_dir: Optional[Path] = None
     preview_dir: Optional[Path] = None
+    # Playable copies of videos iOS cannot play (see core/video.py).
+    video_dir: Optional[Path] = None
     # Where the daily database copies go. The database itself must be on
     # local disk; its backups can sit on a network share with the caches.
     backup_dir: Optional[Path] = None
@@ -96,6 +98,10 @@ class Settings(BaseSettings):
         return self.preview_dir or (self.data_dir / "cache" / "previews")
 
     @property
+    def resolved_video_dir(self) -> Path:
+        return self.video_dir or (self.data_dir / "cache" / "videos")
+
+    @property
     def resolved_backup_dir(self) -> Path:
         return self.backup_dir or (self.data_dir / "db_backups")
 
@@ -105,6 +111,7 @@ class Settings(BaseSettings):
         self.resolved_db_path.parent.mkdir(parents=True, exist_ok=True)
         self.resolved_thumb_dir.mkdir(parents=True, exist_ok=True)
         self.resolved_preview_dir.mkdir(parents=True, exist_ok=True)
+        self.resolved_video_dir.mkdir(parents=True, exist_ok=True)
         self.resolved_backup_dir.mkdir(parents=True, exist_ok=True)
 
 

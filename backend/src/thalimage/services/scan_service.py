@@ -24,6 +24,7 @@ from thalimage.core.video import (
     is_video,
 )
 from thalimage.services.locations import EARLIEST_CREATED, sync_images
+from thalimage.services.playable_copies import prepare_playable_copies
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ def run_scan(
     source_id: int,
     thumb_dir: Path,
     *,
+    video_dir: Optional[Path] = None,
     progress_callback: Optional[Callable[..., None]] = None,
 ) -> ScanResult:
     """Run a full scan for a source folder.
@@ -79,6 +81,7 @@ def run_scan(
     4. Write them to the DB in short batches
     5. Drop the locations of files that are gone; an image with no location
        left anywhere is marked deleted
+    6. With a video_dir, make playable copies of the videos iOS cannot play
     """
     source = conn.execute(
         "SELECT * FROM sources WHERE id = ?", (source_id,)
@@ -203,6 +206,13 @@ def run_scan(
 
     label = source["label"] or source_path.name
     get_or_create_source_preset(conn, source_id, label)
+
+    # Step 6: playable copies, after the index is written: a long transcode
+    # must not hold back what the scan found.
+    if video_dir is not None and ffmpeg_available():
+        result.errors += prepare_playable_copies(
+            conn, source_id, video_dir, progress_callback=progress_callback
+        )
 
     return result
 

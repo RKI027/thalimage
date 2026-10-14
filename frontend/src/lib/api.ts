@@ -123,6 +123,11 @@ export function deleteImage(
 	return fetchJSON(`${BASE}/images/${hash}/delete`, { method: 'POST' });
 }
 
+/** A video as the viewer plays it: a copy iOS can play when the original is not one. */
+export function videoUrl(hash: string): string {
+	return `${BASE}/images/${hash}/video`;
+}
+
 export function imageFileUrl(hash: string): string {
 	return `${BASE}/images/${hash}/file`;
 }
