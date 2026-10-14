@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from thalimage.app import create_app
+from thalimage.config import get_settings
 from thalimage.deps import (
     get_backup_scheduler,
     get_db,
@@ -20,6 +21,18 @@ from thalimage.deps import (
 from thalimage.db.engine import connect, migrate
 from thalimage.services.db_backup import BackupScheduler
 from thalimage.services.scan_manager import ScanManager
+
+
+@pytest.fixture(autouse=True)
+def isolated_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Keep every test off the real ~/.thalimage: the app's startup (and
+    any Settings()) gets a temporary data dir and no local config.toml."""
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("THALIMAGE_DATA_DIR", str(data_dir))
+    monkeypatch.setattr("thalimage.config.default_data_dir", lambda: data_dir)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture

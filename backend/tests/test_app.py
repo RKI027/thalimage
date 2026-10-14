@@ -134,3 +134,10 @@ def test_frontend_dir_defaults_to_the_checkout_build() -> None:
 
     assert Settings().resolved_frontend_dir == REPO_ROOT / "frontend" / "build"
     assert (REPO_ROOT / "backend" / "pyproject.toml").is_file()
+
+
+def test_tests_never_start_the_app_on_the_real_data_dir(client: TestClient, tmp_path: Path) -> None:
+    settings = client.app.state.settings  # type: ignore[attr-defined]
+    assert settings.data_dir.is_relative_to(tmp_path)
+    assert settings.resolved_db_path.is_relative_to(tmp_path)
+    assert not settings.data_dir.is_relative_to(Path.home())
