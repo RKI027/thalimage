@@ -72,6 +72,7 @@
 	const ctx = $derived($browsingContext);
 	const back = $derived(backDestination(ctx));
 	const backText = $derived(backLabel(ctx));
+	const browsedCollection = $derived(ctx?.type === 'collection' ? ctx.collectionId : undefined);
 	const inSlideshow = $derived(slideshowStore.status !== 'idle');
 
 	function showTopBar() {
@@ -560,7 +561,7 @@
 				/>
 				<!-- Desktop: metadata side panel. Hidden on mobile via CSS. -->
 				<div class="metadata-side">
-					<MetadataPanel {image} mode={slideshowStore.metadataMode} />
+					<MetadataPanel {image} collectionId={browsedCollection} mode={slideshowStore.metadataMode} />
 				</div>
 			</div>
 
@@ -588,7 +589,7 @@
 					<div class="sheet-handle-area" bind:this={sheetHandleEl}>
 						<div class="sheet-handle"></div>
 					</div>
-					<MetadataPanel {image} mode="full" />
+					<MetadataPanel {image} collectionId={browsedCollection} mode="full" />
 				</div>
 			{/if}
 		</div>

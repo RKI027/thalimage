@@ -1,9 +1,18 @@
 <script lang="ts">
 	import { formatSize } from '$lib/format';
-	import type { ImageDetail, MetadataMode, Tag } from '$lib/types';
-	import { getImageTags, addImageTag, removeImageTag, listTags, createTag } from '$lib/api';
+	import type { EloStanding, ImageDetail, MetadataMode, Tag } from '$lib/types';
+	import { getImageTags, addImageTag, removeImageTag, listTags, createTag, getImageElo } from '$lib/api';
+	import { rankText, splitStandings } from '$lib/eloStanding';
 
-	let { image, mode = 'full' }: { image: ImageDetail; mode?: MetadataMode } = $props();
+	/** `collectionId` is the collection being browsed: its ELO standing comes first. */
+	let {
+		image,
+		mode = 'full',
+		collectionId
+	}: { image: ImageDetail; mode?: MetadataMode; collectionId?: number } = $props();
+
+	let standings = $state<EloStanding[]>([]);
+	const elo = $derived(splitStandings(standings, collectionId));
 
 	let tags = $state<Tag[]>([]);
 	let tagInput = $state('');
@@ -13,6 +22,9 @@
 	$effect(() => {
 		if (mode !== 'hidden' && image) {
 			getImageTags(image.content_hash).then((t) => (tags = t));
+			getImageElo(image.content_hash)
+				.then((s) => (standings = s))
+				.catch(() => (standings = []));
 		}
 	});
 
@@ -80,6 +92,9 @@
 				<dt>Name</dt><dd>{image.filename}</dd>
 				<dt>Dimensions</dt><dd>{image.width} × {image.height}</dd>
 				<dt>Format</dt><dd>{image.format}</dd>
+				{#if elo.current}
+					<dt>ELO</dt><dd>{Math.round(elo.current.score)} · {rankText(elo.current)}</dd>
+				{/if}
 			</dl>
 		</div>
 	{:else}
@@ -98,6 +113,28 @@
 					{/if}
 				</dl>
 			</section>
+
+			{#if standings.length > 0}
+				<section>
+					<h3>ELO</h3>
+					{#if elo.current}
+						<dl>
+							<dt>Score</dt><dd>{Math.round(elo.current.score)}</dd>
+							<dt>Rank</dt><dd>{rankText(elo.current)}</dd>
+							<dt>Matches</dt>
+							<dd>{elo.current.matches} ({elo.current.wins} won, {elo.current.losses} lost)</dd>
+						</dl>
+					{/if}
+					{#if elo.others.length > 0}
+						<h4>{elo.current ? 'In other collections' : 'By collection'}</h4>
+						<dl>
+							{#each elo.others as s (s.collection_id)}
+								<dt>{s.collection_name}</dt><dd>{Math.round(s.score)} · {rankText(s)}</dd>
+							{/each}
+						</dl>
+					{/if}
+				</section>
+			{/if}
 
 			{#if image.ai_tool || image.prompt}
 				<section>
@@ -209,6 +246,13 @@
 		grid-template-columns: auto 1fr;
 		gap: 4px 12px;
 		font-size: 0.85rem;
+	}
+
+	h4 {
+		margin: 10px 0 6px;
+		font-size: 0.75rem;
+		font-weight: normal;
+		color: #888;
 	}
 
 	dt {

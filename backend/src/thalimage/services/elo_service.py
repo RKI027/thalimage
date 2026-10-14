@@ -4,6 +4,8 @@ import random
 import sqlite3
 from typing import Any, Optional
 
+from pydantic import BaseModel
+
 from thalimage.services.image_service import (
     ImageSummary,
     append_media_filters,
@@ -175,6 +177,49 @@ def get_rankings(
         (collection_id, limit),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+class EloStanding(BaseModel):
+    """An image's place in one collection's ELO ranking. `rank` counts the
+    collection's live scored images with a higher score, plus one, out of
+    `ranked` such images."""
+
+    collection_id: int
+    collection_name: str
+    score: float
+    rank: int
+    ranked: int
+    matches: int
+    wins: int
+    losses: int
+
+
+_LIVE_SCORES = """SELECT e2.score FROM elo_scores e2
+    JOIN images i2 ON i2.content_hash = e2.content_hash
+    WHERE e2.collection_id = e.collection_id AND i2.deleted = 0"""
+
+
+def image_standings(conn: sqlite3.Connection, content_hash: str) -> list[EloStanding] | None:
+    """The image's standing in every collection it has a score in, by
+    collection name; None if there is no such image."""
+    if conn.execute(
+        "SELECT 1 FROM images WHERE content_hash = ?", (content_hash,)
+    ).fetchone() is None:
+        return None
+    rows = conn.execute(
+        f"""SELECT e.collection_id, c.name AS collection_name, e.score, e.matches,
+               (SELECT COUNT(*) FROM ({_LIVE_SCORES}) WHERE score > e.score) + 1 AS rank,
+               (SELECT COUNT(*) FROM ({_LIVE_SCORES})) AS ranked,
+               (SELECT COUNT(*) FROM votes v
+                WHERE v.collection_id = e.collection_id AND v.winner_hash = e.content_hash) AS wins,
+               (SELECT COUNT(*) FROM votes v
+                WHERE v.collection_id = e.collection_id AND v.loser_hash = e.content_hash) AS losses
+           FROM elo_scores e JOIN collections c ON c.id = e.collection_id
+           WHERE e.content_hash = ?
+           ORDER BY c.name, e.collection_id""",
+        (content_hash,),
+    ).fetchall()
+    return [EloStanding(**dict(r)) for r in rows]
 
 
 def _get_score(conn: sqlite3.Connection, collection_id: int, content_hash: str) -> float:

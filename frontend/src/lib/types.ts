@@ -176,3 +176,16 @@ export interface ImageCopy {
 	/** Sidecar files next to it, relative to the source. */
 	sidecars: string[];
 }
+
+/** An image's place in one collection's ELO ranking. */
+export interface EloStanding {
+	collection_id: number;
+	collection_name: string;
+	score: number;
+	/** 1 + the live scored images with a higher score; `ranked` counts them all. */
+	rank: number;
+	ranked: number;
+	matches: number;
+	wins: number;
+	losses: number;
+}

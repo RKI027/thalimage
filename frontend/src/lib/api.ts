@@ -5,6 +5,7 @@ import type {
 	ImagePage,
 	ImageDetail,
 	ImageCopy,
+	EloStanding,
 	Source,
 	Collection,
 	Tag,
@@ -105,6 +106,11 @@ export function archiveImage(hash: string, archived: boolean): Promise<ImageDeta
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ archived })
 	});
+}
+
+/** The image's ELO standing in each collection it has been voted in. */
+export function getImageElo(hash: string): Promise<EloStanding[]> {
+	return fetchJSON(`${BASE}/images/${hash}/elo`);
 }
 
 /** Every file holding the image, in every source. */
