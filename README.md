@@ -30,8 +30,11 @@ on a deployment set to `THALIMAGE_TAG=dev`:
 gh workflow run docker.yml --ref <branch>
 ```
 
-**The deployment is untested.** The image builds in CI, but neither the
-container nor the compose stack below has been run yet.
+Redeploy with "re-pull image" (or `docker compose pull`) to pick it up.
+
+The stack below runs in Portainer on a homelab host, with the images and
+the data directory on an NFS share and the database on the host's local
+disk.
 
 ```
 docker pull ghcr.io/rki027/thalimage:latest
@@ -62,7 +65,7 @@ runs two services:
 
 - **`tailscale`** — a `tailscale/tailscale` sidecar that joins the
   tailnet as its own node and runs `tailscale serve` (config in
-  `docker/serve.json`), terminating TLS with a Tailscale-issued
+  `serve.json`), terminating TLS with a Tailscale-issued
   certificate. Tailscale does **not** need to be installed on the Docker
   host.
 - **`thalimage`** — the app, with `network_mode: service:tailscale`, so
@@ -70,14 +73,18 @@ runs two services:
   identity of its own. Nothing is published to the host, so the app is
   unreachable from the LAN.
 
-The app ends up at `https://<TS_HOSTNAME>.<your-tailnet>.ts.net`.
+The app ends up at `https://<TS_HOSTNAME>.<your-tailnet>.ts.net`. Open
+it with the `https://` scheme: only port 443 is served, and a bare name
+may make the browser try port 80 and fail to connect.
 
 Before deploying, in the Tailscale admin console:
 
 - enable **MagicDNS** and **HTTPS certificates** for the tailnet, or
   `serve` cannot obtain a certificate;
-- define the tag named in `TS_TAG` and grant your account permission to
-  apply it. Tagged nodes never expire; an untagged one drops off the
+- define the tag named in `TS_TAG` in `tagOwners`, **with an owner**
+  allowed to apply it. Without an owner the first join can succeed and a
+  later restart fail with `requested tags [...] are invalid or not
+  permitted`. Tagged nodes never expire; an untagged one drops off the
   tailnet at node-key expiry and has to be re-authenticated by hand;
 - to narrow access to particular devices, write a Tailscale ACL grant
   against that tag. Without one, every device on the tailnet can reach
@@ -85,9 +92,17 @@ Before deploying, in the Tailscale admin console:
 
 `TS_AUTHKEY` (an auth key, or an OAuth client secret) is needed only for
 the node's first authentication — after that the node identity lives in
-the state directory on the bind mount.
+the state directory on the bind mount, and `TS_AUTH_ONCE` keeps the
+sidecar from logging in again on later starts. Generate the key under
+Settings → Keys → Generate auth key (not "Add app", which makes an App
+Connector): not reusable, not ephemeral, tagged with `TS_TAG`, and
+pre-approved if device approval is on.
 
-Copy `docker/.env.example` to `.env` and fill it in, then:
+Copy `docker/serve.json` to `$THALIMAGE_DATA/serve.json`. It is mounted
+from there rather than from beside the compose file: a stack pasted into
+Portainer has no `./serve.json`, and Docker would mount an empty
+directory in its place (the sidecar then logs `read /config/serve.json:
+is a directory`). Copy `docker/.env.example` to `.env` and fill it in, then:
 
 ```bash
 cd docker
@@ -96,26 +111,54 @@ docker compose up -d
 
 ### Storage
 
-Everything the stack owns lives under one host directory
-(`THALIMAGE_DATA`, `/srv/thalimage` by default), split in two siblings:
+The stack keeps its state in two host directories:
 
 ```
-app/                           mounted at /data in the app container
+THALIMAGE_DB_DIR/              mounted at /db; local disk only
   thalimage.db  (+ -wal, -shm) SQLite, WAL mode
-  cache/thumbs/                400px WebP thumbnails
-  cache/previews/{size}/       long-edge-capped WebP, generated on demand
-tailscale/                     Tailscale node state, sidecar only
+THALIMAGE_DATA/                /srv/thalimage by default; a network share is fine
+  app/                         mounted at /data in the app container
+    cache/thumbs/              400px WebP thumbnails
+    cache/previews/{size}/     long-edge-capped WebP, generated on demand
+    db_backups/                the daily database backups
+  tailscale/                   Tailscale node state, sidecar only
+  serve.json                   tailscale serve config
 ```
 
-They are siblings on purpose: the app's entrypoint hands `/data` to the
-app user on every start, and the Tailscale node keys must stay root-owned
-and out of the app container.
+**The database must be on the Docker host's local disk.** SQLite's WAL
+mode does not work over a network filesystem: with the database on NFS,
+requests stalled for 10–35 s (measured in the container: a 35.7 s worst
+case on NFS against 22 ms on local disk). `THALIMAGE_DB_DIR` is required
+for that reason. The caches and backups are plain files and can live on
+a share.
 
-This is what to back up. Because the database is in WAL mode, copying
-`thalimage.db` alone is not enough — either stop the container first, or
-use `sqlite3 /srv/thalimage/app/thalimage.db ".backup /tmp/snapshot.db"`,
-which takes a consistent snapshot of a live database. It should be a
-real local filesystem, not a network share.
+`app/` and `tailscale/` are siblings on purpose: the app's entrypoint
+hands `/data` (and the database folder) to the app user on every start,
+and the Tailscale node keys must stay root-owned and out of the app
+container.
+
+**Backups.** The app copies the database into `db_backups/` once a day,
+with SQLite's backup API, so the copy is consistent while the app runs.
+Settings → Database backup sets the time of day (06:00 by default, read
+in the `TZ` zone), how many copies to keep (7), and has "Back up now".
+A run missed while the app was down is not made up. With the data
+directory on a NAS, this keeps a recent copy of the local-disk database
+there. To restore one: stop the stack, copy a
+`db_backups/thalimage-*.db` over `$THALIMAGE_DB_DIR/thalimage.db`,
+delete any `thalimage.db-wal` and `thalimage.db-shm` beside it, and start
+the stack again.
+
+**Moving an existing database in** (e.g. from a desktop install):
+
+1. Checkpoint the WAL before copying (`sqlite3 thalimage.db "PRAGMA
+   wal_checkpoint(TRUNCATE)"`), or copy with `.backup`.
+2. Put it in `THALIMAGE_DB_DIR` and copy `cache/` into `app/` along with
+   it.
+3. Rewrite `sources.path` to the container paths (`/images/...`). Image
+   paths are stored relative to their source, so only the sources change.
+4. Make sure the copied image files kept their modification times. If
+   they did not, the next scan reprocesses every file and records the
+   copy dates; restore the mtimes before scanning.
 
 **Image folders** are mounted read-only; nothing is ever written back
 into them. `THALIMAGE_IMAGES` is required: it names the host folder the
@@ -166,6 +209,7 @@ variables take precedence over it.
 | `THALIMAGE_DB_PATH` | `{data_dir}/thalimage.db` | SQLite database path |
 | `THALIMAGE_THUMB_DIR` | `{data_dir}/cache/thumbs` | Thumbnail storage path |
 | `THALIMAGE_PREVIEW_DIR` | `{data_dir}/cache/previews` | Preview storage path |
+| `THALIMAGE_BACKUP_DIR` | `{data_dir}/db_backups` | Where the daily database backups go |
 | `THALIMAGE_HOST` | `127.0.0.1` | Server bind address (the Docker image sets `0.0.0.0`) |
 | `THALIMAGE_PORT` | `8000` | Server port |
 | `THALIMAGE_FRONTEND_DIR` | `frontend/build` in a checkout | Built SPA to serve (the Docker image sets it) |
@@ -174,12 +218,16 @@ variables take precedence over it.
 | `THALIMAGE_CORS_ORIGINS` | `[]` | Allowed CORS origins (JSON list); empty since the frontend is served same-origin |
 | `THALIMAGE_ALLOWED_HOSTS` | `[]` | Additional permitted `Host` header values (JSON list) |
 
-`THALIMAGE_ALLOWED_HOSTS` is a DNS-rebinding defense, not
-authentication. `localhost` and `127.0.0.1` are always accepted; an
+`THALIMAGE_ALLOWED_HOSTS` must be a JSON list
+(`["thalimage.tail1234.ts.net"]`); anything else stops startup with
+`error parsing value for field "allowed_hosts"`. It is a DNS-rebinding
+defense, not authentication. `localhost` and `127.0.0.1` are always accepted; an
 empty list therefore means loopback only, and any request arriving under
 another name gets a 400. Add the hostnames clients actually use — e.g.
 `["thalimage.tail1234.ts.net"]`, or the wildcard `["*.ts.net"]`. Set it
-to `["*"]` to disable the check.
+to `["*"]` to disable the check. An entry with a scheme
+(`https://...`) or a short name the browser does not use gives "Invalid
+host header"; pin the exact MagicDNS name once it is known.
 
 The app runs as a **single process**: scan progress and the
 one-scan-per-source guard live in its memory, so do not add
