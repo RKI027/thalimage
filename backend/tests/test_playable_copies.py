@@ -11,6 +11,7 @@ from PIL import Image
 
 from tests.helpers import requires_ffmpeg, scan_source
 from thalimage.core.video import playable_copy_args, playable_copy_path, probe_streams
+from thalimage.services.playable_copies import prepare_playable_copies
 
 
 def _video(codec: str, tag: str = "", pix_fmt: str = "yuv420p") -> dict:
@@ -137,6 +138,27 @@ def test_each_video_is_probed_once(
     client.get(f"/api/v1/sources/{source_id}/scan/status")
 
     assert probed == []
+
+
+@requires_ffmpeg
+def test_checking_and_copying_report_their_progress(
+    client: TestClient, db: sqlite3.Connection, videos: Path, video_dir: Path
+) -> None:
+    source_id, _ = scan_source(client, videos)
+    db.execute("UPDATE images SET needs_playable_copy = NULL")
+    db.commit()
+    playable_copy_path(video_dir, _hash(client, source_id, "vp9.webm")).unlink()
+    reports: list[dict] = []
+
+    prepare_playable_copies(db, source_id, video_dir, progress_callback=lambda **kw: reports.append(kw))
+
+    assert reports == [
+        {"phase": "checking", "total": 2, "current": 0},
+        {"current": 1},
+        {"current": 2},
+        {"phase": "converting", "total": 1, "current": 0},
+        {"current": 1},
+    ]
 
 
 @requires_ffmpeg

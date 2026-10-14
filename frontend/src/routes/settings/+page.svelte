@@ -68,6 +68,8 @@
 			const unsubscribe = subscribeScanProgress(id, (p) => {
 				if (p.phase === 'processing') {
 					scanStatus[id] = `Processing ${p.current}/${p.total}…`;
+				} else if (p.phase === 'checking') {
+					scanStatus[id] = `Checking videos ${p.current}/${p.total}…`;
 				} else if (p.phase === 'converting') {
 					scanStatus[id] = `Making videos playable on iOS ${p.current}/${p.total}…`;
 				} else if (p.phase === 'complete') {

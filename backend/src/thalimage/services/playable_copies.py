@@ -39,29 +39,39 @@ def prepare_playable_copies(
         (source_id,),
     ).fetchall()
 
+    # A video is probed once; one whose copy is missing is probed again,
+    # since what the copy needs is not stored.
+    to_probe = [
+        v for v in videos
+        if v["needs_playable_copy"] is None
+        or (
+            v["needs_playable_copy"]
+            and not playable_copy_path(video_dir, v["content_hash"]).exists()
+        )
+    ]
+
     errors = 0
     to_copy: list[tuple[str, Path, list[str]]] = []
-    for v in videos:
-        if v["needs_playable_copy"] == 0:
-            continue
+    if progress_callback and to_probe:
+        progress_callback(phase="checking", total=len(to_probe), current=0)
+    for checked, v in enumerate(to_probe, start=1):
         path = root / v["relative_path"]
-        if v["needs_playable_copy"] is not None and playable_copy_path(
-            video_dir, v["content_hash"]
-        ).exists():
-            continue
         try:
             args = playable_copy_args(path.suffix, probe_streams(path))
         except Exception:
             logger.exception("Could not probe %s", path)
             errors += 1
-            continue
-        with conn:
-            conn.execute(
-                "UPDATE images SET needs_playable_copy = ? WHERE content_hash = ?",
-                (args is not None, v["content_hash"]),
-            )
+            args = None
+        else:
+            with conn:
+                conn.execute(
+                    "UPDATE images SET needs_playable_copy = ? WHERE content_hash = ?",
+                    (args is not None, v["content_hash"]),
+                )
         if args is not None and not playable_copy_path(video_dir, v["content_hash"]).exists():
             to_copy.append((v["content_hash"], path, args))
+        if progress_callback:
+            progress_callback(current=checked)
 
     if progress_callback and to_copy:
         progress_callback(phase="converting", total=len(to_copy), current=0)
