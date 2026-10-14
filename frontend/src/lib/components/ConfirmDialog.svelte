@@ -4,13 +4,15 @@
 	/**
 	 * A modal asking to confirm an action. Cancel has the focus, so Enter or
 	 * Escape never confirms by accident; `danger` styles the confirm button
-	 * for actions that cannot be undone.
+	 * for actions that cannot be undone. With `canConfirm` false the dialog
+	 * only explains why the action is not possible.
 	 */
 	let {
 		open,
 		title,
 		confirmLabel,
 		danger = false,
+		canConfirm = true,
 		onconfirm,
 		oncancel,
 		children
@@ -19,6 +21,7 @@
 		title: string;
 		confirmLabel: string;
 		danger?: boolean;
+		canConfirm?: boolean;
 		onconfirm: () => void;
 		oncancel: () => void;
 		children: Snippet;
@@ -39,9 +42,11 @@
 	<div class="actions">
 		<!-- svelte-ignore a11y_autofocus -->
 		<button class="control" autofocus onclick={oncancel}>Cancel</button>
-		<button class="control {danger ? 'control-danger' : 'control-primary'}" onclick={onconfirm}>
-			{confirmLabel}
-		</button>
+		{#if canConfirm}
+			<button class="control {danger ? 'control-danger' : 'control-primary'}" onclick={onconfirm}>
+				{confirmLabel}
+			</button>
+		{/if}
 	</div>
 </dialog>
 

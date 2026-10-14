@@ -2,10 +2,19 @@
 	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto, beforeNavigate } from '$app/navigation';
-	import { getImage, getNeighbors, archiveImage, previewUrl, getEloRankings } from '$lib/api';
+	import {
+		getImage,
+		getNeighbors,
+		archiveImage,
+		previewUrl,
+		getEloRankings,
+		getImageCopies,
+		deleteImage
+	} from '$lib/api';
 	import { browsingContext, backDestination, backLabel, contextListing } from '$lib/browsingContext';
 	import { settingsStore } from '$lib/stores';
-	import type { ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
+	import type { ImageCopy, ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
+	import { copyPath, readOnlySources } from '$lib/imageCopies';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import { attachSwipe } from '$lib/swipe';
 	import { isVideoFilename } from '$lib/media';
@@ -14,6 +23,7 @@
 	import ImageViewer from '$lib/components/ImageViewer.svelte';
 	import MetadataPanel from '$lib/components/MetadataPanel.svelte';
 	import SlideshowOverlay from '$lib/components/SlideshowOverlay.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 
 	let image = $state<ImageDetail | null>(null);
 	// A window of the browsing context's listing around the current image.
@@ -38,6 +48,11 @@
 	let topBarVisible = $state(false);
 	let topBarTimer: ReturnType<typeof setTimeout> | null = null;
 	let videoLoop = $state(readStored('video:loop', false));
+
+	// The image being confirmed for deletion, pinned so navigating cannot
+	// change what gets deleted, with its copies; null when not deleting.
+	let deleting = $state<{ hash: string; copies: ImageCopy[]; message: string } | null>(null);
+	const deletingReadOnly = $derived(deleting ? readOnlySources(deleting.copies) : []);
 
 	// Neighbours fetched on each side of the current image; the slideshow walks
 	// that window. A new window is fetched once navigation comes within
@@ -224,6 +239,7 @@
 	function onKeydown(e: KeyboardEvent) {
 		const tag = (e.target as HTMLElement).tagName;
 		if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+		if (deleting) return;
 
 		if (e.key === 'ArrowLeft') {
 			e.preventDefault();
@@ -366,16 +382,51 @@
 		if (!image) return;
 		const newState = !image.archived;
 		image = await archiveImage(image.content_hash, newState);
-		if (newState) {
-			// Navigate away from an archived image, and drop the window it was
-			// part of: the listing no longer includes it.
-			const next = neighbors[currentIndex + 1] ?? neighbors[currentIndex - 1];
-			neighbors = [];
-			if (next) {
-				goto(`/image/${next.content_hash}`);
-			} else {
-				goto(back);
+		if (newState) leaveImage();
+	}
+
+	// Navigate away from an image the listing no longer includes, and drop
+	// the window it was part of.
+	function leaveImage() {
+		const next = neighbors[currentIndex + 1] ?? neighbors[currentIndex - 1];
+		neighbors = [];
+		if (next) {
+			goto(`/image/${next.content_hash}`);
+		} else {
+			goto(back);
+		}
+	}
+
+	async function askDelete() {
+		if (!image) return;
+		const hash = image.content_hash;
+		try {
+			deleting = { hash, copies: await getImageCopies(hash), message: '' };
+		} catch (e) {
+			deleting = { hash, copies: [], message: e instanceof Error ? e.message : 'Could not list the files' };
+		}
+	}
+
+	async function confirmDelete() {
+		if (!deleting) return;
+		const { hash } = deleting;
+		try {
+			const result = await deleteImage(hash);
+			if (result.failed.length === 0) {
+				deleting = null;
+				leaveImage();
+				return;
 			}
+			deleting = {
+				hash,
+				copies: await getImageCopies(hash),
+				message:
+					`Deleted ${result.deleted}; these could not be deleted: ` +
+					result.failed.map((f) => `${f.relative_path} (${f.error})`).join(', ')
+			};
+		} catch (e) {
+			const message = e instanceof Error ? e.message : 'Delete failed';
+			deleting = { hash, copies: deleting?.copies ?? [], message };
 		}
 	}
 </script>
@@ -453,6 +504,9 @@
 						onclick={toggleArchive}
 						title={image.archived ? 'Unarchive' : 'Archive'}
 					>{image.archived ? '↩ Unarchive' : '⬜ Archive'}</button>
+					<button class="control" onclick={askDelete} title="Delete the image's files from disk">
+						Delete…
+					</button>
 				</div>
 				<!-- Mobile-only: counter + action buttons -->
 				<span class="mobile-counter">
@@ -483,6 +537,10 @@
 					>
 						<Icon name={image.archived ? 'unarchive' : 'archive'} />
 						<span class="mobile-btn-label">{image.archived ? 'Restore' : 'Archive'}</span>
+					</button>
+					<button class="mobile-btn" onclick={askDelete} title="Delete the image's files from disk">
+						<Icon name="trash" />
+						<span class="mobile-btn-label">Delete</span>
 					</button>
 					<button class="mobile-btn" onclick={() => { bottomSheetOpen = true; showTopBar(); }} title="Image info">
 						<Icon name="info" />
@@ -539,6 +597,44 @@
 	<div class="loading">Loading…</div>
 {/if}
 
+{#if deleting}
+	<ConfirmDialog
+		open
+		title="Delete this image from disk?"
+		confirmLabel="Delete {deleting.copies.length} {deleting.copies.length === 1 ? 'file' : 'files'} permanently"
+		danger
+		canConfirm={deleting.copies.length > 0 && deletingReadOnly.length === 0}
+		onconfirm={confirmDelete}
+		oncancel={() => (deleting = null)}
+	>
+		{#if deleting.message}
+			<p class="delete-message">{deleting.message}</p>
+		{/if}
+		{#if deletingReadOnly.length > 0}
+			<p>
+				Some copies are in sources Thalimage may not change. To delete the image, mark
+				{deletingReadOnly.length === 1 ? 'this source' : 'these sources'} writable in Settings first:
+			</p>
+			<ul class="delete-list">
+				{#each deletingReadOnly as folder (folder)}
+					<li>{folder}</li>
+				{/each}
+			</ul>
+		{:else if deleting.copies.length > 0}
+			<p>
+				Every copy below will be removed from the disk. This cannot be undone. The image leaves
+				the gallery; its tags, scores, votes and collections are kept, and come back if the same
+				file is scanned again.
+			</p>
+		{/if}
+		<ul class="delete-list">
+			{#each deleting.copies as copy (copyPath(copy))}
+				<li>{copyPath(copy)}</li>
+			{/each}
+		</ul>
+	</ConfirmDialog>
+{/if}
+
 <style>
 	.image-page {
 		display: flex;
@@ -571,6 +667,17 @@
 	.loop-btn.active {
 		border-color: #6ea8fe;
 		color: #6ea8fe;
+	}
+
+	.delete-message {
+		color: #f88;
+	}
+
+	.delete-list {
+		margin: 8px 0;
+		padding-left: 18px;
+		font-family: monospace;
+		font-size: 0.8rem;
 	}
 
 	.archive-btn.archived {

@@ -30,6 +30,11 @@
 		<path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9" />
 		<path d="M12 17v-5" />
 		<path d="M9.5 14.5 12 12l2.5 2.5" />
+	{:else if name === 'trash'}
+		<path d="M4 7h16" />
+		<path d="M10 4h4" />
+		<path d="M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12" />
+		<path d="M10 11v6M14 11v6" />
 	{:else if name === 'pause'}
 		<path d="M9 4.5v15" />
 		<path d="M15 4.5v15" />
