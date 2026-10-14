@@ -1,15 +1,22 @@
 """Tests for build version reporting."""
 
+import os
 import subprocess
 from pathlib import Path
 
 from thalimage.version import describe_commit, version_info
 
 
+# The developer's own git config stays out of the throwaway repos: a
+# global commit.gpgsign would sign test commits with their key, and hang
+# while the key's agent is locked.
+_ISOLATED = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+
+
 def _git(repo: Path, *args: str) -> None:
     subprocess.run(
         ["git", "-c", "user.email=t@t", "-c", "user.name=T", *args],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo, check=True, capture_output=True, env=_ISOLATED,
     )
 
 
