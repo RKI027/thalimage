@@ -75,6 +75,3 @@ this file into those once the open items are settled, then delete it.
 - **Testing a branch.** Run the publish workflow by hand on the branch;
   it moves `:dev`. A deployment on `THALIMAGE_TAG=dev` picks it up on
   redeploy with "re-pull image".
-
-## Open
-
