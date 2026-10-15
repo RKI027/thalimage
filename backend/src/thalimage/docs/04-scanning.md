@@ -14,6 +14,11 @@ in which case it is read once more to pick that up.
    header. For AI-generated images, the generation parameters embedded
    by tools such as Automatic1111 and ComfyUI are parsed out where
    present — prompt, model, sampler, seed and so on.
+   Keywords and star ratings that photo tools (Windows Explorer,
+   digiKam, Lightroom…) wrote into the file become tags: each keyword a
+   tag of that name, joining an existing tag whatever its case, and a
+   rating a `rating:N` tag. Removing such a tag in Thalimage is final:
+   reading the file again does not bring it back.
 3. **Thumbnail generation.** A 400px WebP is written to `cache/thumbs/`.
    For videos, a frame is pulled with ffmpeg at 10% into the runtime,
    which usually avoids a black opening frame.

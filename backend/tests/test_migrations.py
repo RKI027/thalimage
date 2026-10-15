@@ -153,3 +153,24 @@ def test_014_marks_videos_current_and_stills_for_re_extraction(tmp_path: Path) -
     versions = dict(conn.execute("SELECT content_hash, extractor_version FROM image_metadata"))
     assert versions == {"still": 0, "clip": 1}
     conn.close()
+
+
+def test_018_marks_videos_current_and_stills_for_re_extraction(tmp_path: Path) -> None:
+    conn = _db_at(tmp_path, 17)
+    conn.execute("INSERT INTO sources (id, path) VALUES (1, '/a')")
+    for h in ("still", "clip"):
+        _image(conn, h)
+    conn.execute("UPDATE images SET format = 'MP4' WHERE content_hash = 'clip'")
+    conn.executemany(
+        "INSERT INTO image_metadata (content_hash, extractor_version) VALUES (?, 1)",
+        [("still",), ("clip",)],
+    )
+    conn.commit()
+
+    migrate(conn, target=18)
+
+    rows = {r[0]: (r[1], r[2]) for r in conn.execute(
+        "SELECT content_hash, extractor_version, file_tags FROM image_metadata"
+    )}
+    assert rows == {"still": (1, None), "clip": (2, None)}
+    conn.close()
