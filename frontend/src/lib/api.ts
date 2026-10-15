@@ -21,6 +21,7 @@ import type {
 	DocSummary,
 	DocPage,
 	Neighbors,
+	SequenceItem,
 	VersionInfo
 } from './types';
 
@@ -103,6 +104,11 @@ export function getNeighbors(
 	const q = listingQuery(params);
 	if (params.window) q.set('window', String(params.window));
 	return fetchJSON(`${BASE}/images/${hash}/neighbors?${q}`, init);
+}
+
+/** The whole listing, in order, for a slideshow. */
+export function getSequence(params: ListingParams = {}): Promise<SequenceItem[]> {
+	return fetchJSON(`${BASE}/images/sequence?${listingQuery(params)}`);
 }
 
 export function getImage(hash: string): Promise<ImageDetail> {

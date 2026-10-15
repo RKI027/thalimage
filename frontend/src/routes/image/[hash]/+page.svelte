@@ -7,7 +7,7 @@
 		getNeighbors,
 		archiveImage,
 		previewUrl,
-		getEloRankings,
+		getSequence,
 		getImageCopies,
 		deleteImage
 	} from '$lib/api';
@@ -16,6 +16,7 @@
 	import type { ImageCopy, ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
 	import { copyPath, readOnlySources } from '$lib/imageCopies';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
+	import { createSlidePreloader } from '$lib/slidePreloader';
 	import { attachSwipe } from '$lib/swipe';
 	import { isVideoFilename } from '$lib/media';
 	import { readStored, writeStored } from '$lib/storage';
@@ -54,13 +55,14 @@
 	let deleting = $state<{ hash: string; copies: ImageCopy[]; message: string } | null>(null);
 	const deletingReadOnly = $derived(deleting ? readOnlySources(deleting.copies) : []);
 
-	// Neighbours fetched on each side of the current image; the slideshow walks
-	// that window. A new window is fetched once navigation comes within
-	// WINDOW_EDGE of either end (unless that end is the listing's own).
+	// Neighbours fetched on each side of the current image, for prev/next. A
+	// new window is fetched once navigation comes within WINDOW_EDGE of either
+	// end (unless that end is the listing's own).
 	const WINDOW = 500;
 	const WINDOW_EDGE = 50;
-	// ELO scores fetched for weighting the slideshow: enough for a whole window.
-	const NEIGHBOR_LIMIT = 2 * WINDOW + 1;
+	// Slides a slideshow keeps loaded ahead of and behind the one shown.
+	const PRELOAD_AHEAD = 2;
+	const PRELOAD_BEHIND = 2;
 
 	const isVideo = $derived(image !== null && isVideoFilename(image.filename));
 
@@ -99,8 +101,10 @@
 			const idx = neighbors.findIndex((n) => n.content_hash === hash);
 			if (idx >= 0) {
 				setIndex(idx);
-				// The slideshow walks the window it started with.
+				// A slideshow walks its own listing; the window waits for it to end.
 				if (!inSlideshow && !windowCovers(idx)) refreshWindow(loaded);
+			} else if (inSlideshow) {
+				setIndex(-1);
 			} else {
 				await refreshWindow(loaded, true);
 			}
@@ -159,16 +163,13 @@
 
 	function setIndex(idx: number) {
 		currentIndex = idx;
-		if (inSlideshow) {
-			slideshowStore.updateCurrentIndex(idx);
-		}
 	}
 
 	function navigate(delta: number) {
-		if (inSlideshow) slideshowStore.resetTimer();
-		// In a shuffle slideshow, ←/→ walk the shuffle order/history (matching
-		// auto-advance) instead of the underlying collection order.
-		if (inSlideshow && slideshowStore.isShuffle) {
+		// In a slideshow, ←/→ walk the slideshow's own order, sorted or
+		// shuffled (matching auto-advance), instead of the viewer's window.
+		if (inSlideshow) {
+			slideshowStore.resetTimer();
 			if (delta < 0) slideshowStore.back();
 			else slideshowStore.advance();
 			return;
@@ -184,27 +185,26 @@
 		}
 	}
 
+	// The slideshow walks the whole listing the viewer was opened from, with
+	// each image's ELO score when that listing is a collection.
 	async function enterSlideshow() {
-		if (neighbors.length === 0) return;
-		// ELO weighting needs a collection context (scores are per-collection).
-		// "All Images" has no collection row, so ELO is unavailable there.
-		let eloScores: Map<string, number> | null = null;
-		let eloAvailable = false;
-		if (ctx?.type === 'collection') {
-			eloAvailable = true;
-			try {
-				const rankings = await getEloRankings(ctx.collectionId!, { limit: NEIGHBOR_LIMIT, showNsfw: true });
-				eloScores = new Map(rankings.items.map((r) => [r.image.content_hash, r.score]));
-			} catch {
-				// No scores yet — defaults to uniform (all 1500).
-				eloScores = new Map();
-			}
-		}
-		slideshowStore.enter(neighbors, currentIndex, (hash) => goto(`/image/${hash}`), {
-			eloScores,
-			eloAvailable
-		});
+		if (!ctx || !image || neighbors.length === 0) return;
+		const shown = image.content_hash;
+		await settingsStore.loaded;
+		const items = await getSequence(contextListing(ctx, $settingsStore.show_nsfw));
+		if (items.length === 0) return;
+		const idx = items.findIndex((i) => i.content_hash === shown);
+		slideshowStore.enter(items, Math.max(idx, 0), (hash) => goto(`/image/${hash}`));
 	}
+
+	// Once a slideshow ends, fetch the window around the image it stopped on
+	// if that image lies outside the current one.
+	$effect(() => {
+		if (inSlideshow) return;
+		untrack(() => {
+			if (image && currentIndex < 0) refreshWindow(image, true);
+		});
+	});
 
 	function toggleVideoPlayback() {
 		const v = videoEl;
@@ -358,7 +358,7 @@
 	// full files are too large to prefetch eagerly.
 	$effect(() => {
 		const idx = currentIndex;
-		if (idx < 0 || neighbors.length === 0) return;
+		if (inSlideshow || idx < 0 || neighbors.length === 0) return;
 		for (const offset of [1, 2, -1]) {
 			const n = neighbors[idx + offset];
 			if (!n) continue;
@@ -366,6 +366,24 @@
 			const img = new Image();
 			img.src = previewUrl(n.content_hash);
 		}
+	});
+
+	// In a slideshow, keep the slides around the one shown loaded instead.
+	const preloadSlides = createSlidePreloader();
+	$effect(() => {
+		// Re-run on each slide and on a change of shuffle mode.
+		const _hash = image?.content_hash;
+		const _mode = slideshowStore.config.mode;
+		if (!inSlideshow) {
+			preloadSlides([]);
+			return;
+		}
+		untrack(() =>
+			preloadSlides([
+				...slideshowStore.upcoming(PRELOAD_AHEAD),
+				...slideshowStore.recent(PRELOAD_BEHIND)
+			])
+		);
 	});
 
 	// Swipe-down to close bottom sheet
@@ -447,8 +465,8 @@
 			/>
 			<SlideshowOverlay
 				{image}
-				currentIndex={position}
-				{total}
+				currentIndex={slideshowStore.position}
+				total={slideshowStore.total}
 				status={slideshowStore.status}
 				config={slideshowStore.config}
 				isFullscreen={slideshowStore.isFullscreen}
