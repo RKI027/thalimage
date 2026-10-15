@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { balancedBand, gini, headToHead, lorenz, matchCounts } from './eloStats';
+import { balancedBand, gini, headToHead, lorenz, matchCounts, showsImage } from './eloStats';
+import type { CoveredImage } from './types';
 
 describe('gini', () => {
 	it('is 0 when every image has played as often', () => {
@@ -60,5 +61,15 @@ describe('headToHead', () => {
 		expect(cells.find((c) => c.row === 'a' && c.col === 'b')).toEqual({ row: 'a', col: 'b', wins: 2, losses: 1 });
 		expect(cells.find((c) => c.row === 'b' && c.col === 'a')).toEqual({ row: 'b', col: 'a', wins: 1, losses: 2 });
 		expect(cells.find((c) => c.row === 'a' && c.col === 'c')).toEqual({ row: 'a', col: 'c', wins: 0, losses: 0 });
+	});
+});
+
+describe('showsImage', () => {
+	const image = (nsfw: boolean) => ({ nsfw }) as CoveredImage;
+
+	it('shows a safe image always, an NSFW one only while NSFW is shown', () => {
+		expect(showsImage(image(false), false)).toBe(true);
+		expect(showsImage(image(true), false)).toBe(false);
+		expect(showsImage(image(true), true)).toBe(true);
 	});
 });

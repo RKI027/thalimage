@@ -27,11 +27,16 @@ export function rankingsContext(collectionId: number, name: string, pageUrl: str
 
 export type RankingsView = 'list' | 'stats';
 
+/** The tab a `view` parameter names; the stats are the default. */
+export function rankingsView(param: string | null): RankingsView {
+	return param === 'list' ? 'list' : 'stats';
+}
+
 /** The rankings page at `pathname` showing `view`, other parameters of
- * `search` kept; the list is the default and needs no parameter. */
+ * `search` kept; the stats are the default and need no parameter. */
 export function rankingsViewHref(pathname: string, search: string, view: RankingsView): string {
 	const q = new URLSearchParams(search);
-	if (view === 'list') q.delete('view');
+	if (view === rankingsView(null)) q.delete('view');
 	else q.set('view', view);
 	const qs = q.toString();
 	return qs ? `${pathname}?${qs}` : pathname;

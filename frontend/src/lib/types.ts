@@ -171,6 +171,8 @@ export interface EloRanked {
 export interface CoveredImage {
 	content_hash: string;
 	filename: string;
+	/** Hidden while NSFW images are hidden. */
+	nsfw: boolean;
 	matches: number;
 	score: number | null;
 	rank: number | null;

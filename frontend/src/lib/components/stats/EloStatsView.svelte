@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type * as PlotModule from '@observablehq/plot';
-	import { getEloStats } from '$lib/api';
-	import { balancedBand, gini, headToHead, lorenz, matchCounts } from '$lib/eloStats';
+	import { getEloStats, thumbUrl } from '$lib/api';
+	import { balancedBand, gini, headToHead, lorenz, matchCounts, showsImage } from '$lib/eloStats';
+	import { settingsStore } from '$lib/stores';
 	import type { CoveredImage, EloStats } from '$lib/types';
 	import Chart from './Chart.svelte';
 
@@ -21,6 +22,11 @@
 	let stats = $state<EloStats | null>(null);
 	let plot = $state<typeof PlotModule | null>(null);
 	let error = $state<string | null>(null);
+
+	type Cell = ReturnType<typeof headToHead>[number];
+	/** The head-to-head cell under the pointer, and where the pointer is. */
+	let matchup = $state<{ cell: Cell; x: number; y: number } | null>(null);
+	const topById = $derived(new Map((stats?.top ?? []).map((t) => [t.content_hash, t])));
 
 	$effect(() => {
 		const id = collectionId;
@@ -140,14 +146,12 @@
 	}
 
 	function headToHeadGrid(Plot: typeof PlotModule, width: number) {
-		const top = stats?.top ?? [];
-		const ids = top.map((t) => t.content_hash);
-		const byId = new Map(top.map((t) => [t.content_hash, t]));
-		const label = (id: string) => `#${byId.get(id)?.rank}`;
+		const ids = (stats?.top ?? []).map((t) => t.content_hash);
+		const label = (id: string) => `#${topById.get(id)?.rank}`;
 		const cells = headToHead(ids, stats?.head_to_head ?? []);
 		const played = cells.filter((c) => c.wins + c.losses > 0);
 		const size = Math.min(width, 640);
-		return Plot.plot({
+		const grid = Plot.plot({
 			width: size,
 			height: size - 8,
 			marginLeft: 40,
@@ -166,18 +170,27 @@
 			marks: [
 				Plot.cell(cells, { x: 'col', y: 'row', fill: UNPLAYED, inset: 1 }),
 				Plot.cell(played, { x: 'col', y: 'row', fill: (c) => c.wins / (c.wins + c.losses), inset: 1 }),
-				Plot.tip(
-					cells,
-					Plot.pointer({
-						x: 'col',
-						y: 'row',
-						title: (c) =>
-							`${label(c.row)} against ${label(c.col)}: ${c.wins + c.losses ? `${c.wins}–${c.losses}` : 'never met'}\n${byId.get(c.row)?.filename}\n${byId.get(c.col)?.filename}`,
-						...TIP
-					})
-				)
+				Plot.cell(cells, Plot.pointer({ x: 'col', y: 'row', fill: 'none', stroke: INK, strokeWidth: 1.5 }))
 			]
 		});
+		let at = { x: 0, y: 0 };
+		grid.addEventListener('pointermove', (e) => {
+			const { clientX, clientY } = e as PointerEvent;
+			at = { x: clientX, y: clientY };
+			if (matchup) matchup = { ...matchup, ...at };
+		});
+		grid.addEventListener('input', () => {
+			const cell = (grid as PlotModule.Plot).value as Cell | null;
+			matchup = cell ? { cell, ...at } : null;
+		});
+		return grid;
+	}
+
+	/** Keeps the matchup card beside the pointer and inside the window. */
+	function cardStyle(x: number, y: number): string {
+		const left = x + 296 > innerWidth ? x - 296 : x + 16;
+		const top = y + 220 > innerHeight ? y - 220 : y + 16;
+		return `left: ${Math.max(8, left)}px; top: ${Math.max(8, top)}px`;
 	}
 </script>
 
@@ -234,6 +247,26 @@
 						note="Each cell: the row's record against the column · dark: never met"
 						render={headToHeadGrid}
 					/>
+				</div>
+			{/if}
+			{#if matchup}
+				{@const { cell } = matchup}
+				<div class="matchup" style={cardStyle(matchup.x, matchup.y)} aria-hidden="true">
+					{#each [cell.row, cell.col] as id, i (i)}
+						{@const image = topById.get(id)}
+						<div class="side">
+							{#if image && showsImage(image, $settingsStore.show_nsfw)}
+								<img src={thumbUrl(id)} alt="" />
+							{:else}
+								<div class="hidden-thumb">NSFW</div>
+							{/if}
+							<span class="who">#{image?.rank}</span>
+							<span class="file">{image?.filename}</span>
+						</div>
+						{#if i === 0}
+							<span class="record">{cell.wins + cell.losses ? `${cell.wins}–${cell.losses}` : 'never met'}</span>
+						{/if}
+					{/each}
 				</div>
 			{/if}
 		</section>
@@ -293,6 +326,68 @@
 
 	.charts.single {
 		grid-template-columns: minmax(0, 680px);
+	}
+
+	.matchup {
+		position: fixed;
+		z-index: 20;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		width: 280px;
+		padding: 10px;
+		background: #111111;
+		border: 1px solid #383835;
+		border-radius: 8px;
+		pointer-events: none;
+	}
+
+	.side {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 2px;
+	}
+
+	.side img,
+	.hidden-thumb {
+		width: 110px;
+		height: 110px;
+		object-fit: cover;
+		border-radius: 4px;
+		background: #242423;
+	}
+
+	.hidden-thumb {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #898781;
+		font-size: 0.8rem;
+	}
+
+	.who {
+		color: #f0efec;
+		font-weight: 600;
+		font-size: 0.85rem;
+	}
+
+	.file {
+		max-width: 100%;
+		color: #898781;
+		font-size: 0.7rem;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.record {
+		color: #c3c2b7;
+		font-size: 0.85rem;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
 	}
 
 	.status {

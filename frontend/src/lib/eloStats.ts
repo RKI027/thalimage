@@ -1,6 +1,6 @@
 /** Figures the voting statistics derive from match counts and meetings. */
 
-import type { Meeting } from './types';
+import type { CoveredImage, Meeting } from './types';
 
 /** How unevenly matches spread over images: 0 when every image has played
  * as often as every other, approaching 1 when a few have played them all. */
@@ -55,4 +55,9 @@ export function headToHead(
 			.filter((col) => col !== row)
 			.map((col) => ({ row, col, wins: won.get(`${row}|${col}`) ?? 0, losses: won.get(`${col}|${row}`) ?? 0 }))
 	);
+}
+
+/** Whether the stats may show the image itself, not only its file name. */
+export function showsImage(image: CoveredImage, showNsfw: boolean): boolean {
+	return showNsfw || !image.nsfw;
 }
