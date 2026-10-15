@@ -240,3 +240,14 @@ def test_windows_exif_rating_when_there_is_no_xmp(tmp_path: Path) -> None:
     Image.new("RGB", (8, 8)).save(path, format="JPEG", exif=exif)
 
     assert extract_metadata(path).rating == 4
+
+
+def test_xmp_with_entity_declarations_is_refused(tmp_path: Path) -> None:
+    packet = (
+        b'<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "fox">]>'
+        + _xmp("&a;").split(b"?>", 1)[1]
+    )
+    path = tmp_path / "x.jpg"
+    Image.new("RGB", (8, 8)).save(path, format="JPEG", xmp=packet)
+
+    assert extract_metadata(path).keywords == []

@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 import piexif  # type: ignore[import-untyped]
+from defusedxml import DefusedXmlException
+from defusedxml.ElementTree import fromstring as parse_xml
 from PIL import Image, ImageFile, IptcImagePlugin
 from pydantic import BaseModel
 from sd_parsers import ParserManager  # type: ignore[import-untyped]
@@ -173,11 +175,14 @@ def _extract_keywords_and_rating(
 
 
 def _parse_xmp(packet: Any) -> Optional[ET.Element]:
+    """Parse an XMP packet, refusing entity expansion and external
+    references: it comes from files of unknown origin."""
     if not packet:
         return None
     try:
-        return ET.fromstring(packet.decode("utf-8") if isinstance(packet, bytes) else packet)
-    except (ET.ParseError, UnicodeDecodeError):
+        root: ET.Element = parse_xml(packet.decode("utf-8") if isinstance(packet, bytes) else packet)
+        return root
+    except (ET.ParseError, DefusedXmlException, UnicodeDecodeError):
         return None
 
 
