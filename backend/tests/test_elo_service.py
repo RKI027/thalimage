@@ -82,12 +82,12 @@ def test_record_vote_updates_scores(db: sqlite3.Connection) -> None:
     cid, hashes = _seed_collection_with_images(db, n=2)
     record_vote(db, cid, winner_hash=hashes[0], loser_hash=hashes[1])
 
-    rankings = get_rankings(db, cid)
+    rankings = get_rankings(db, cid).items
     assert len(rankings) == 2
-    winner = next(r for r in rankings if r["content_hash"] == hashes[0])
-    loser = next(r for r in rankings if r["content_hash"] == hashes[1])
-    assert winner["score"] > 1500.0
-    assert loser["score"] < 1500.0
+    winner = next(r for r in rankings if r.image.content_hash == hashes[0])
+    loser = next(r for r in rankings if r.image.content_hash == hashes[1])
+    assert winner.score > 1500.0
+    assert loser.score < 1500.0
 
 
 def test_elo_calculation_correctness(db: sqlite3.Connection) -> None:
@@ -95,11 +95,11 @@ def test_elo_calculation_correctness(db: sqlite3.Connection) -> None:
     cid, hashes = _seed_collection_with_images(db, n=2)
     record_vote(db, cid, winner_hash=hashes[0], loser_hash=hashes[1])
 
-    rankings = get_rankings(db, cid)
-    winner = next(r for r in rankings if r["content_hash"] == hashes[0])
-    loser = next(r for r in rankings if r["content_hash"] == hashes[1])
-    assert abs(winner["score"] - 1516.0) < 0.01
-    assert abs(loser["score"] - 1484.0) < 0.01
+    rankings = get_rankings(db, cid).items
+    winner = next(r for r in rankings if r.image.content_hash == hashes[0])
+    loser = next(r for r in rankings if r.image.content_hash == hashes[1])
+    assert abs(winner.score - 1516.0) < 0.01
+    assert abs(loser.score - 1484.0) < 0.01
 
 
 def test_get_rankings_ordered_by_score_desc(db: sqlite3.Connection) -> None:
@@ -108,9 +108,9 @@ def test_get_rankings_ordered_by_score_desc(db: sqlite3.Connection) -> None:
     record_vote(db, cid, winner_hash=hashes[0], loser_hash=hashes[1])
     record_vote(db, cid, winner_hash=hashes[0], loser_hash=hashes[2])
 
-    rankings = get_rankings(db, cid)
-    assert rankings[0]["content_hash"] == hashes[0]
-    scores = [r["score"] for r in rankings]
+    rankings = get_rankings(db, cid).items
+    assert rankings[0].image.content_hash == hashes[0]
+    scores = [r.score for r in rankings]
     assert scores == sorted(scores, reverse=True)
 
 
@@ -131,9 +131,9 @@ def test_vote_increments_matches(db: sqlite3.Connection) -> None:
     record_vote(db, cid, winner_hash=hashes[0], loser_hash=hashes[1])
     record_vote(db, cid, winner_hash=hashes[1], loser_hash=hashes[0])
 
-    rankings = get_rankings(db, cid)
+    rankings = get_rankings(db, cid).items
     for r in rankings:
-        assert r["matches"] == 2
+        assert r.matches == 2
 
 
 def test_get_pair_favors_fewer_matches(db: sqlite3.Connection) -> None:

@@ -1,15 +1,17 @@
 """ELO voting endpoints."""
 
 import sqlite3
-from typing import Any, Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from thalimage.deps import get_db
 from thalimage.services.collection_service import resolve_scope
+from thalimage.services.elo_ranking import elo_cut
 from thalimage.services.elo_service import (
     CollectionNotFound,
+    EloRankingPage,
     InvalidVote,
     get_pair,
     get_rankings,
@@ -38,6 +40,8 @@ def get_elo_pair(
     aspect_ratio_filter: Optional[str] = Query(None),
     media_type: Optional[str] = Query(None),
     show_nsfw: bool = Query(False),
+    elo_end: Literal["top", "bottom"] = Query("top"),
+    elo_percent: Optional[int] = Query(None, ge=1, le=100),
     db: sqlite3.Connection = Depends(get_db),
 ) -> EloPairResponse:
     scope = resolve_scope(db, collection_id)
@@ -53,6 +57,7 @@ def get_elo_pair(
             aspect_ratio_filter=aspect_ratio_filter,
             media_type=media_type,
             show_nsfw=show_nsfw,
+            elo_cut=elo_cut(collection_id, elo_end, elo_percent),
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -78,10 +83,12 @@ def post_vote(
     return {"status": "recorded"}
 
 
-@router.get("/rankings")
+@router.get("/rankings", response_model=EloRankingPage)
 def get_elo_rankings(
     collection_id: int,
-    limit: int = 100,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    show_nsfw: bool = Query(False),
     db: sqlite3.Connection = Depends(get_db),
-) -> list[dict[str, Any]]:
-    return get_rankings(db, collection_id, limit=limit)
+) -> EloRankingPage:
+    return get_rankings(db, collection_id, offset=offset, limit=limit, show_nsfw=show_nsfw)
