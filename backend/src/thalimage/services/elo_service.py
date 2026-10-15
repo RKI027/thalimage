@@ -1,7 +1,9 @@
 """ELO voting service: pair selection, vote recording, rankings."""
 
+import math
 import random
 import sqlite3
+from collections.abc import Sequence
 from typing import Optional
 
 from pydantic import BaseModel
@@ -16,6 +18,9 @@ from thalimage.services.image_service import (
 )
 
 K_FACTOR = 32
+START_SCORE = 1500.0
+# Score gap, in points, of one standard deviation in the opponent draw.
+OPPONENT_SPREAD = 100.0
 
 
 def get_pair(
@@ -29,16 +34,19 @@ def get_pair(
     media_type: Optional[str] = None,
     show_nsfw: bool = False,
     elo_cut: Optional[EloCut] = None,
+    exclude: Sequence[str] = (),
 ) -> tuple[ImageSummary, ImageSummary]:
     """Select two images from a collection for comparison.
 
     For source_preset collections pass source_id; for manual collections leave it None.
     The pool is the live, unarchived images that pass the given filters,
-    the ELO cut among them;
-    the pair is drawn uniformly from its least-matched quarter.
+    the ELO cut among them, less the `exclude`d images unless that leaves
+    fewer than two. The first image is drawn from the pool's least-matched
+    images; the second by closeness in score to it (see `_opponent_weight`).
     """
     select = (
-        f"SELECT {summary_columns_sql('i.')}, COALESCE(e.matches, 0) AS matches"
+        "SELECT i.content_hash, COALESCE(e.matches, 0) AS matches,"
+        f" COALESCE(e.score, {START_SCORE}) AS score"
         " FROM images i LEFT JOIN elo_scores e"
         " ON e.content_hash = i.content_hash AND e.collection_id = ?"
         " WHERE i.deleted = 0 AND i.archived = 0"
@@ -71,7 +79,6 @@ def get_pair(
         params.extend(values)
     if not show_nsfw:
         q += f" AND {safe_sql('i.')}"
-    q += " ORDER BY matches ASC, RANDOM()"
 
     rows = conn.execute(q, params).fetchall()
 
@@ -80,13 +87,37 @@ def get_pair(
             f"Collection {collection_id} needs at least 2 images for voting;"
             f" its filters and the NSFW setting leave {len(rows)}"
         )
+    excluded = set(exclude)
+    kept = [r for r in rows if r["content_hash"] not in excluded]
+    if len(kept) >= 2:
+        rows = kept
 
-    # Pick from bottom quartile by match count
-    quartile_size = max(2, len(rows) // 4)
-    candidates = rows[:quartile_size]
-    picked = random.sample(candidates, 2)
+    fewest = min(r["matches"] for r in rows)
+    first = random.choice([r for r in rows if r["matches"] == fewest])
+    others = [r for r in rows if r is not first]
+    nearest = min(abs(r["score"] - first["score"]) for r in others)
+    second = random.choices(
+        others,
+        weights=[_opponent_weight(first["score"], r["score"], r["matches"], nearest) for r in others],
+    )[0]
 
-    return summary_from_row(picked[0]), summary_from_row(picked[1])
+    summaries = {
+        r["content_hash"]: summary_from_row(r)
+        for r in conn.execute(
+            f"SELECT {summary_columns_sql()} FROM images WHERE content_hash IN (?, ?)",
+            (first["content_hash"], second["content_hash"]),
+        )
+    }
+    return summaries[first["content_hash"]], summaries[second["content_hash"]]
+
+
+def _opponent_weight(score: float, other: float, matches: int, nearest: float) -> float:
+    """How likely `other` is drawn against an image scored `score`: a
+    Gaussian in the score gap (OPPONENT_SPREAD points per standard
+    deviation), scaled so the nearest candidate's gap weighs 1 and the
+    weights never all underflow, times 1/(matches+1)."""
+    gap = abs(other - score)
+    return math.exp((nearest**2 - gap**2) / (2 * OPPONENT_SPREAD**2)) / (matches + 1)
 
 
 class CollectionNotFound(LookupError):
@@ -290,7 +321,7 @@ def _get_score(conn: sqlite3.Connection, collection_id: int, content_hash: str) 
         "SELECT score FROM elo_scores WHERE content_hash = ? AND collection_id = ?",
         (content_hash, collection_id),
     ).fetchone()
-    return float(row["score"]) if row else 1500.0
+    return float(row["score"]) if row else START_SCORE
 
 
 def _upsert_score(

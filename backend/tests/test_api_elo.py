@@ -31,6 +31,17 @@ def test_get_pair(client: TestClient, db: sqlite3.Connection) -> None:
     assert data["left"]["content_hash"] != data["right"]["content_hash"]
 
 
+
+def test_get_pair_leaves_out_the_excluded_images(client: TestClient, db: sqlite3.Connection) -> None:
+    cid, hashes = _seed_collection(client, db)
+    excluded = hashes[:3]
+    for _ in range(10):
+        resp = client.get(
+            f"/api/v1/collections/{cid}/elo/pair", params={"exclude": excluded}
+        )
+        data = resp.json()
+        assert {data["left"]["content_hash"], data["right"]["content_hash"]} == set(hashes[3:])
+
 def test_get_pair_too_few_images(client: TestClient, db: sqlite3.Connection) -> None:
     resp = client.post("/api/v1/collections", json={"name": "Empty"})
     cid = resp.json()["id"]

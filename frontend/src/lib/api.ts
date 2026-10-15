@@ -289,10 +289,18 @@ export async function deleteCollection(id: number): Promise<void> {
 
 // ELO Voting
 
-export function getEloPair(collectionId: number, filters: FilterState = {}, showNsfw = false): Promise<EloPair> {
+/** A pair to vote on; the `exclude`d images are left out where the
+ * collection is large enough. */
+export function getEloPair(
+	collectionId: number,
+	filters: FilterState = {},
+	showNsfw = false,
+	exclude: string[] = []
+): Promise<EloPair> {
 	const q = new URLSearchParams();
 	setFilters(q, filters);
 	if (showNsfw) q.set('show_nsfw', 'true');
+	for (const hash of exclude) q.append('exclude', hash);
 	const qs = q.toString();
 	return fetchJSON(`${BASE}/collections/${collectionId}/elo/pair${qs ? '?' + qs : ''}`);
 }

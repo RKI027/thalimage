@@ -43,6 +43,7 @@ def get_elo_pair(
     show_nsfw: bool = Query(False),
     elo_end: Literal["top", "bottom"] = Query("top"),
     elo_percent: Optional[int] = Query(None, ge=1, le=100),
+    exclude: list[str] = Query([]),
     db: sqlite3.Connection = Depends(get_db),
 ) -> EloPairResponse:
     scope = resolve_scope(db, collection_id)
@@ -59,6 +60,7 @@ def get_elo_pair(
             media_type=media_type,
             show_nsfw=show_nsfw,
             elo_cut=elo_cut(collection_id, elo_end, elo_percent),
+            exclude=exclude,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc

@@ -136,25 +136,27 @@ archived, narrowed by the date, aspect-ratio, media-type and ELO
 filters set on the collection. Unless you have chosen to show NSFW
 images, the gallery's NSFW rule applies too: images marked NSFW, and
 every image in a collection marked NSFW, are left out, so voting in an
-NSFW collection waits until NSFW images are shown. Those are sorted by how many matches each has already had,
-and the quarter with the fewest matches becomes the pool. Two images are
-then drawn from that pool at random.
+NSFW collection waits until NSFW images are shown.
 
-**This under-favours new images, and it is worth knowing about.** Match
-count decides whether an image enters the pool, but inside the pool
-every image is equally likely to be drawn. In a collection of 885
-images the pool is 221 images wide; if 24 of them have never been voted
-on, a particular new image comes up about once in every 110 pairs — no
-more often than one you have already seen five times. Adding a batch of
-images does not noticeably increase how often you see them.
+The first image of a pair is drawn at random from the images with the
+fewest matches. Voting therefore works through the collection in passes:
+images never voted on come up first, and an image already voted on
+leads a pair again only once the others have caught up with it. A batch of newly added images is covered within
+about as many pairs as it has images.
 
-Pairs are also not matched by score. Two images drawn from the pool may
-be far apart in rating, and a vote between them is largely predictable,
-which carries less information than a close contest would.
+The second image is chosen by rating. Every other candidate can be drawn,
+but those close in score to the first are much likelier: about 60% as
+likely at 100 points apart, one in seven at 200, and almost never at 400
+or more unless nothing closer exists. Among images equally close, fewer
+matches are preferred: one never voted on is twice as likely as one
+with a single match. Close contests are the votes that tell the
+ranking most; a vote between images far apart in score mostly confirms
+what the scores already said. Images never voted on count as 1500, so
+they first meet images from the middle of the ranking.
 
-Both are known limitations rather than intended behaviour. Weighting the
-draw by inverse match count, and choosing the second image by rating
-proximity, would address them.
+The pair on screen is kept out of the next one, so an image does not
+come straight back while it is still waiting for your vote. Only a
+collection too small to avoid it repeats an image.
 
 ## What "matches" counts
 
