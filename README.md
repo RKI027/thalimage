@@ -22,9 +22,11 @@ Self-hosted image browser and manager for AI-generated images. Privacy-first, lo
 
 Thalimage runs as a single container. CI publishes the image to GitHub
 Container Registry for each release tag (`v*`), as `:latest` and as the
-version, so a deployment is a pull rather than a build. A manual run of
-the workflow on any branch publishes `:dev` instead, for testing a branch
-on a deployment set to `THALIMAGE_TAG=dev`:
+version, so a deployment is a pull rather than a build. Every push to a
+pull request publishes `:dev` (and `:pr-<number>`) instead, for testing a
+branch on a deployment set to `THALIMAGE_TAG=dev`; the latest push wins.
+To publish `:dev` from a branch without a pull request, run the workflow
+by hand:
 
 ```
 gh workflow run docker.yml --ref <branch>
