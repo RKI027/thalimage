@@ -193,8 +193,8 @@
 		if (ctx?.type === 'collection') {
 			eloAvailable = true;
 			try {
-				const rankings = await getEloRankings(ctx.collectionId!, NEIGHBOR_LIMIT);
-				eloScores = new Map(rankings.map((r) => [r.content_hash, r.score]));
+				const rankings = await getEloRankings(ctx.collectionId!, { limit: NEIGHBOR_LIMIT, showNsfw: true });
+				eloScores = new Map(rankings.items.map((r) => [r.image.content_hash, r.score]));
 			} catch {
 				// No scores yet — defaults to uniform (all 1500).
 				eloScores = new Map();

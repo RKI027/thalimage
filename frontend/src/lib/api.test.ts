@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { displaySize, listingQuery, updateSource } from './api';
+import { displaySize, getEloPair, getEloRankings, listingQuery, updateSource } from './api';
 
 describe('listingQuery', () => {
 	it('is empty for a default listing', () => {
@@ -32,6 +32,11 @@ describe('listingQuery', () => {
 			tags: 'c'
 		});
 		expect(q.getAll('tags')).toEqual(['a b', 'c']);
+	});
+
+	it('carries the ELO cut', () => {
+		const q = listingQuery({ collection_id: 4, filters: { elo_end: 'bottom', elo_percent: 10 } });
+		expect(Object.fromEntries(q)).toEqual({ collection_id: '4', elo_end: 'bottom', elo_percent: '10' });
 	});
 
 	it('omits what is unset', () => {
@@ -69,5 +74,34 @@ describe('updateSource', () => {
 			vi.fn(async () => new Response(JSON.stringify({ detail: '/x is mounted read-only' }), { status: 409 }))
 		);
 		await expect(updateSource(1, { writable: true })).rejects.toThrow(/^API error 409: \/x is mounted read-only$/);
+	});
+});
+
+describe('ELO requests', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	/** Stubs fetch; the returned function gives the URL last requested. */
+	function requested(): () => string {
+		const fetchMock = vi.fn(async (_url: string) => new Response('{}'));
+		vi.stubGlobal('fetch', fetchMock);
+		return () => fetchMock.mock.lastCall![0];
+	}
+
+	it('draws a pair under the collection filters, ELO cut included', async () => {
+		const url = requested();
+		await getEloPair(3, { aspect_ratio: 'portrait', elo_end: 'top', elo_percent: 25 }, true);
+		const q = new URL(url(), 'http://x').searchParams;
+		expect(Object.fromEntries(q)).toEqual({
+			aspect_ratio_filter: 'portrait',
+			elo_end: 'top',
+			elo_percent: '25',
+			show_nsfw: 'true'
+		});
+	});
+
+	it('pages the rankings', async () => {
+		const url = requested();
+		await getEloRankings(3, { offset: 100, limit: 50, showNsfw: true });
+		expect(url()).toBe('/api/v1/collections/3/elo/rankings?offset=100&limit=50&show_nsfw=true');
 	});
 });

@@ -69,7 +69,9 @@ The cut takes the stated share rounded up, so the top 10% of 954 ranked
 images is 96 images, and the top 1% of a small ranking is at least one.
 When images at the edge share a score, which of them fall inside is
 decided by a fixed but arbitrary order, so the count stays exact.
-Images never voted on are never in the top or bottom part.
+Images never voted on are never in the top or bottom part. Archived
+images take their place in it but stay out of the grid, so the count
+can fall short of the share: 91 for a top 10% of 96 holding 5 archived.
 
 The filter applies to voting too, so voting can be confined to the top
 of a ranking to settle its order. The vote page marks that it is

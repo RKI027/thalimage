@@ -1,13 +1,30 @@
 <script lang="ts">
-	import type { FilterState } from '$lib/types';
+	import { withEloCut } from '$lib/eloCut';
+	import type { EloEnd, FilterState } from '$lib/types';
 
 	let {
 		filters = {},
+		allowElo = false,
 		onchange
 	}: {
 		filters?: FilterState;
+		/** Offer the ELO cut: only a collection has a ranking. */
+		allowElo?: boolean;
 		onchange?: (filters: FilterState) => void;
 	} = $props();
+
+	// The end chosen before a percentage is typed in; the filters only hold
+	// one together with its percentage.
+	let pendingEnd: EloEnd = $state('top');
+	const eloEnd = $derived(filters.elo_end ?? pendingEnd);
+
+	/** Applies the cut and returns the percentage kept (clamped, or none). */
+	function setEloCut(end: EloEnd, raw: string): number | undefined {
+		pendingEnd = end;
+		const next = withEloCut(filters, end, raw === '' ? undefined : Number(raw));
+		if (next.elo_percent !== filters.elo_percent || next.elo_end !== filters.elo_end) onchange?.(next);
+		return next.elo_percent;
+	}
 
 	function update(patch: Partial<FilterState>) {
 		const next = { ...filters, ...patch };
@@ -97,6 +114,38 @@
 		/>
 	</div>
 
+	{#if allowElo}
+		<div class="filter-group">
+			<label for="filter-elo-end">ELO</label>
+			<select
+				id="filter-elo-end"
+				class="control"
+				value={eloEnd}
+				onchange={(e) => setEloCut((e.target as HTMLSelectElement).value as EloEnd, String(filters.elo_percent ?? ''))}
+			>
+				<option value="top">Top</option>
+				<option value="bottom">Bottom</option>
+			</select>
+			<input
+				id="filter-elo-percent"
+				class="control elo-percent"
+				type="number"
+				min="1"
+				max="100"
+				placeholder="all"
+				aria-label="ELO share, in percent"
+				value={filters.elo_percent ?? ''}
+				onchange={(e) => {
+					// Show the value kept, which the prop alone would not
+					// refresh when clamping leaves the filters unchanged.
+					const input = e.target as HTMLInputElement;
+					input.value = String(setEloCut(eloEnd, input.value) ?? '');
+				}}
+			/>
+			<span class="unit">%</span>
+		</div>
+	{/if}
+
 	{#if Object.keys(filters).length > 0}
 		<button class="control" onclick={() => onchange?.({})}>✕ Clear</button>
 	{/if}
@@ -117,10 +166,15 @@
 		gap: 4px;
 	}
 
-	label {
+	label,
+	.unit {
 		font-size: 0.8rem;
 		color: #888;
 		white-space: nowrap;
+	}
+
+	.elo-percent {
+		width: 4.5em;
 	}
 
 	@media (max-width: 768px) {
