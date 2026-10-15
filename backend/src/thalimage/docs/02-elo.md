@@ -21,22 +21,68 @@ everything" are different questions.
 Voting is therefore not available on "All Images", which is virtual and
 has no collection row to attach scores to.
 
+## Which images are ranked
+
+A collection's ranking holds the images that have been voted on there,
+are still in the collection, and are not deleted. Archived images keep
+their place: setting an image aside does not move everyone else's rank.
+
+An image removed from a collection drops out of its ranking but keeps
+its score, which comes back if the image is added again. Images never
+voted on are not ranked at all; sorting a grid by ELO places them at the
+starting 1500.
+
+Images with equal scores share a rank: an image's rank is one plus the
+number of ranked images scored higher.
+
+## The rankings page
+
+**Rankings**, on a collection and on its vote page, lists the ranked
+images from the top: rank, score, matches won and lost. Opened from the
+vote page, its back link returns to voting. Opening an image walks the
+ranking itself: the viewer's previous and next follow the order of the
+list, and the back link returns to it. An archived image opens but has
+no place in the walk, which skips archived images as the gallery does.
+
+The rankings ignore the filters set on the collection. NSFW images are
+left out of the list unless you have chosen to show them, but still
+count in the ranks, so the ranks shown can skip a number.
+
 ## An image's standing
 
 The viewer's information panel shows where an image stands. Opened from
 a collection it has been voted in, it shows the score, the rank ("12th
-of 954": one plus the images scored higher, out of the collection's
-scored images that are not deleted) and the matches won and lost there;
-the compact panel shows only score and rank. The full panel also lists
-the image's score and rank in every other collection it has been voted
-in. Images with equal scores share a rank.
+of 954", out of the collection's ranked images) and the matches won and
+lost there; the compact panel shows only score and rank. The full panel
+also lists the image's score and rank in every other collection that
+ranks it.
+
+## Filtering by ELO
+
+A collection's filters include **ELO**: the top or bottom part of the
+ranking, as a percentage. It is a percentage of the whole ranking, not
+of what the other filters leave: "top 10%" picks the same images
+whatever else is set, and adding a filter on shape shows the portraits
+among them. The image count shows how many pass.
+
+The cut takes the stated share rounded up, so the top 10% of 954 ranked
+images is 96 images, and the top 1% of a small ranking is at least one.
+When images at the edge share a score, which of them fall inside is
+decided by a fixed but arbitrary order, so the count stays exact.
+Images never voted on are never in the top or bottom part. Archived
+images take their place in it but stay out of the grid, so the count
+can fall short of the share: 91 for a top 10% of 96 holding 5 archived.
+
+The filter applies to voting too, so voting can be confined to the top
+of a ranking to settle its order. The vote page marks that it is
+filtered.
 
 ## How pairs are chosen
 
 Candidates are every image in the collection that is not deleted and not
 archived, minus NSFW images unless you have chosen to show them, and
-narrowed by the date, aspect-ratio and media-type filters set on the
-collection. Those are sorted by how many matches each has already had,
+narrowed by the date, aspect-ratio, media-type and ELO filters set on
+the collection. Those are sorted by how many matches each has already had,
 and the quarter with the fewest matches becomes the pool. Two images are
 then drawn from that pool at random.
 

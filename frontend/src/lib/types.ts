@@ -130,7 +130,12 @@ export interface FilterState {
 	aspect_ratio?: string;
 	media_type?: string;
 	tags?: string[];
+	/** The top or bottom `elo_percent` of the collection's ELO ranking. */
+	elo_end?: EloEnd;
+	elo_percent?: number;
 }
+
+export type EloEnd = 'top' | 'bottom';
 
 export type SortField = 'name' | 'date_modified' | 'date_created' | 'size' | 'aspect_ratio' | 'elo';
 export type SortDirection = 'asc' | 'desc';
@@ -144,11 +149,21 @@ export interface EloPair {
 	right: ImageSummary;
 }
 
-export interface EloRanking {
-	content_hash: string;
-	filename: string;
+/** An image's line in a collection's ranking; equal scores share a rank. */
+export interface EloRanked {
+	image: ImageSummary;
+	rank: number;
 	score: number;
 	matches: number;
+	wins: number;
+	losses: number;
+}
+
+/** `total` counts the lines the listing can show; `ranked` every ranked image. */
+export interface EloRankingPage {
+	items: EloRanked[];
+	total: number;
+	ranked: number;
 }
 
 export interface DocSummary {

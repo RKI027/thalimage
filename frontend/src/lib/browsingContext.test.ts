@@ -52,6 +52,18 @@ describe('browsingContext', () => {
 		expect(m.backLabel({ type: 'all' })).toBe('← All Images');
 	});
 
+	it('sends Back to the page that opened the viewer, when it says so', async () => {
+		const m = await load();
+		const ctx = {
+			type: 'collection' as const,
+			collectionId: 4,
+			name: 'Cats',
+			back: { href: '/collections/4/rankings', label: 'Rankings' }
+		};
+		expect(m.backDestination(ctx)).toBe('/collections/4/rankings');
+		expect(m.backLabel(ctx)).toBe('← Rankings');
+	});
+
 	it('turns a context into the listing it shows (GEN-013)', async () => {
 		const m = await load();
 		const filters = { media_type: 'video' };

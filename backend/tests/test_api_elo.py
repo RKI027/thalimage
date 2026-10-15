@@ -56,9 +56,9 @@ def test_rankings(client: TestClient, db: sqlite3.Connection) -> None:
     )
     resp = client.get(f"/api/v1/collections/{cid}/elo/rankings")
     assert resp.status_code == 200
-    rankings = resp.json()
+    rankings = resp.json()["items"]
     assert len(rankings) == 2
-    assert rankings[0]["content_hash"] == hashes[0]
+    assert rankings[0]["image"]["content_hash"] == hashes[0]
     assert rankings[0]["score"] > rankings[1]["score"]
 
 
@@ -66,7 +66,7 @@ def test_rankings_empty(client: TestClient, db: sqlite3.Connection) -> None:
     cid, _ = _seed_collection(client, db)
     resp = client.get(f"/api/v1/collections/{cid}/elo/rankings")
     assert resp.status_code == 200
-    assert resp.json() == []
+    assert resp.json() == {"items": [], "total": 0, "ranked": 0}
 
 
 def test_sort_by_elo_orders_by_score(client: TestClient, db: sqlite3.Connection) -> None:

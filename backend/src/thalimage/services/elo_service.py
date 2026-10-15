@@ -2,13 +2,15 @@
 
 import random
 import sqlite3
-from typing import Any, Optional
+from typing import Optional
 
 from pydantic import BaseModel
 
+from thalimage.services.elo_ranking import EloCut, in_cut_sql, ranked_sql
 from thalimage.services.image_service import (
     ImageSummary,
     append_media_filters,
+    safe_sql,
     summary_columns_sql,
     summary_from_row,
 )
@@ -26,11 +28,13 @@ def get_pair(
     aspect_ratio_filter: Optional[str] = None,
     media_type: Optional[str] = None,
     show_nsfw: bool = False,
+    elo_cut: Optional[EloCut] = None,
 ) -> tuple[ImageSummary, ImageSummary]:
     """Select two images from a collection for comparison.
 
     For source_preset collections pass source_id; for manual collections leave it None.
-    The pool is the live, unarchived images that pass the given filters;
+    The pool is the live, unarchived images that pass the given filters,
+    the ELO cut among them;
     the pair is drawn uniformly from its least-matched quarter.
     """
     select = (
@@ -61,6 +65,10 @@ def get_pair(
         aspect_ratio_filter=aspect_ratio_filter,
         media_type=media_type,
     )
+    if elo_cut is not None:
+        sql, values = in_cut_sql(elo_cut, "i.content_hash")
+        q += f" AND {sql}"
+        params.extend(values)
     if not show_nsfw:
         q += " AND i.nsfw = 0"
     q += " ORDER BY matches ASC, RANDOM()"
@@ -159,29 +167,86 @@ def _in_collection(
     return row is not None
 
 
+class EloRanked(BaseModel):
+    """An image's line in a collection's ranking."""
+
+    image: ImageSummary
+    rank: int
+    score: float
+    matches: int
+    wins: int
+    losses: int
+
+
+class EloRankingPage(BaseModel):
+    """A page of a ranking. `total` counts the lines the listing could show
+    (NSFW images hidden or not); `ranked` counts every ranked image, which
+    the ranks run up to."""
+
+    items: list[EloRanked]
+    total: int
+    ranked: int
+
+
+def _record_sql(image: str) -> str:
+    """Wins and losses of the image that `image` names, in collection `?`."""
+    return f"""(SELECT COUNT(*) FROM votes v
+                WHERE v.collection_id = ? AND v.winner_hash = {image}) AS wins,
+               (SELECT COUNT(*) FROM votes v
+                WHERE v.collection_id = ? AND v.loser_hash = {image}) AS losses"""
+
+
 def get_rankings(
     conn: sqlite3.Connection,
     collection_id: int,
     *,
+    offset: int = 0,
     limit: int = 100,
-) -> list[dict[str, Any]]:
-    """Get ranked images by ELO score for a collection."""
+    show_nsfw: bool = False,
+) -> EloRankingPage:
+    """The collection's ranked images from the top. Equal scores share a
+    rank; the order among them follows the content hash, as a grid sorted
+    by ELO does. Hidden NSFW images keep their place in the ranks."""
+    ranked_cte = f"""WITH ranked AS (
+        SELECT content_hash, score, matches, RANK() OVER (ORDER BY score DESC) AS rank
+        FROM ({ranked_sql()}))"""
+    visible = "1" if show_nsfw else safe_sql("i.")
     rows = conn.execute(
-        """SELECT e.content_hash, e.score, e.matches, i.filename
-           FROM elo_scores e
-           JOIN images i ON e.content_hash = i.content_hash
-           WHERE e.collection_id = ?
-           ORDER BY e.score DESC
-           LIMIT ?
-        """,
-        (collection_id, limit),
+        f"""{ranked_cte}
+           SELECT {summary_columns_sql('i.')}, r.rank, r.score, r.matches,
+               {_record_sql('r.content_hash')}
+           FROM ranked r JOIN images i ON i.content_hash = r.content_hash
+           WHERE {visible}
+           ORDER BY r.score DESC, r.content_hash DESC
+           LIMIT ? OFFSET ?""",
+        (collection_id, collection_id, collection_id, limit, offset),
     ).fetchall()
-    return [dict(r) for r in rows]
+    total, ranked = conn.execute(
+        f"""{ranked_cte}
+           SELECT COUNT(*) FILTER (WHERE {visible}), COUNT(*)
+           FROM ranked r JOIN images i ON i.content_hash = r.content_hash""",
+        (collection_id,),
+    ).fetchone()
+    return EloRankingPage(
+        items=[
+            EloRanked(
+                image=summary_from_row(r),
+                rank=r["rank"],
+                score=r["score"],
+                matches=r["matches"],
+                wins=r["wins"],
+                losses=r["losses"],
+            )
+            for r in rows
+        ],
+        total=total,
+        ranked=ranked,
+    )
 
 
 class EloStanding(BaseModel):
     """An image's place in one collection's ELO ranking. `rank` counts the
-    collection's live scored images with a higher score, plus one, out of
+    collection's ranked images with a higher score, plus one, out of
     `ranked` such images."""
 
     collection_id: int
@@ -194,28 +259,25 @@ class EloStanding(BaseModel):
     losses: int
 
 
-_LIVE_SCORES = """SELECT e2.score FROM elo_scores e2
-    JOIN images i2 ON i2.content_hash = e2.content_hash
-    WHERE e2.collection_id = e.collection_id AND i2.deleted = 0"""
-
-
 def image_standings(conn: sqlite3.Connection, content_hash: str) -> list[EloStanding] | None:
-    """The image's standing in every collection it has a score in, by
+    """The image's standing in every collection that ranks it, by
     collection name; None if there is no such image."""
     if conn.execute(
         "SELECT 1 FROM images WHERE content_hash = ?", (content_hash,)
     ).fetchone() is None:
         return None
+    ranked = ranked_sql("e.collection_id")
     rows = conn.execute(
         f"""SELECT e.collection_id, c.name AS collection_name, e.score, e.matches,
-               (SELECT COUNT(*) FROM ({_LIVE_SCORES}) WHERE score > e.score) + 1 AS rank,
-               (SELECT COUNT(*) FROM ({_LIVE_SCORES})) AS ranked,
+               (SELECT COUNT(*) FROM ({ranked}) WHERE score > e.score) + 1 AS rank,
+               (SELECT COUNT(*) FROM ({ranked})) AS ranked,
                (SELECT COUNT(*) FROM votes v
                 WHERE v.collection_id = e.collection_id AND v.winner_hash = e.content_hash) AS wins,
                (SELECT COUNT(*) FROM votes v
                 WHERE v.collection_id = e.collection_id AND v.loser_hash = e.content_hash) AS losses
            FROM elo_scores e JOIN collections c ON c.id = e.collection_id
            WHERE e.content_hash = ?
+           AND e.content_hash IN (SELECT content_hash FROM ({ranked}))
            ORDER BY c.name, e.collection_id""",
         (content_hash,),
     ).fetchall()

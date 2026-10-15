@@ -2,7 +2,7 @@
 
 import sqlite3
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -13,6 +13,7 @@ from thalimage.core.thumbnails import thumbnail_path
 from thalimage.core.video import playable_copy_path
 from thalimage.deps import ContentHash, get_db, get_preview_dir, get_thumb_dir, get_video_dir
 from thalimage.services.collection_service import resolve_scope
+from thalimage.services.elo_ranking import elo_cut
 from thalimage.services.elo_service import EloStanding, image_standings
 from thalimage.services.file_changes import SourceNotWritable
 from thalimage.services.file_deletion import Copy, DeletionRefused, delete_image, image_copies
@@ -56,11 +57,14 @@ def get_images(
     media_type: Optional[str] = Query(None),
     tags: Optional[list[str]] = Query(None),
     show_nsfw: bool = Query(False),
+    elo_end: Literal["top", "bottom"] = Query("top"),
+    elo_percent: Optional[int] = Query(None, ge=1, le=100),
     db: sqlite3.Connection = Depends(get_db),
 ) -> ImagePage:
-    # ELO scores are keyed by the collection being viewed; capture it before the
-    # source-preset rewrite below nulls collection_id.
+    # ELO scores and rankings are keyed by the collection being viewed; capture
+    # it before the source-preset rewrite below nulls collection_id.
     elo_collection_id = collection_id if sort == "elo" else None
+    cut = elo_cut(collection_id, elo_end, elo_percent)
 
     # A collection becomes the filter that selects its images.
     if collection_id is not None:
@@ -85,6 +89,7 @@ def get_images(
             tags=tags,
             show_nsfw=show_nsfw,
             elo_collection_id=elo_collection_id,
+            elo_cut=cut,
         )
     except InvalidCursor as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -104,12 +109,15 @@ def get_image_neighbors(
     media_type: Optional[str] = Query(None),
     tags: Optional[list[str]] = Query(None),
     show_nsfw: bool = Query(False),
+    elo_end: Literal["top", "bottom"] = Query("top"),
+    elo_percent: Optional[int] = Query(None, ge=1, le=100),
     db: sqlite3.Connection = Depends(get_db),
 ) -> Neighbors:
     """The images around one image in a listing, for the viewer's prev/next:
     takes the listing's own sort and filters, and works wherever the image
     falls in it."""
     elo_collection_id = collection_id if sort == "elo" else None
+    cut = elo_cut(collection_id, elo_end, elo_percent)
     if collection_id is not None:
         scope = resolve_scope(db, collection_id)
         if scope is not None:
@@ -131,6 +139,7 @@ def get_image_neighbors(
             media_type=media_type,
             tags=tags,
             show_nsfw=show_nsfw,
+            elo_cut=cut,
         ),
     )
     if result is None:

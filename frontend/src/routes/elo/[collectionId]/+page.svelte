@@ -2,18 +2,19 @@
 	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { getEloRankings, getCollection, previewUrl, thumbUrl } from '$lib/api';
+	import { getCollection, previewUrl, thumbUrl } from '$lib/api';
+	import { eloCutLabel } from '$lib/eloCut';
 	import { EloRound } from '$lib/eloRound.svelte';
 	import { collectionFiltersKey } from '$lib/gallery.svelte';
 	import { isVideoFilename } from '$lib/media';
 	import { readStored } from '$lib/storage';
 	import { settingsStore } from '$lib/stores';
-	import type { ImageSummary, EloRanking, Collection, FilterState } from '$lib/types';
+	import type { ImageSummary, Collection, FilterState } from '$lib/types';
 	import SideBySideView from '$lib/components/views/SideBySideView.svelte';
 
 	let collection: Collection | null = $state(null);
-	let showRankings = $state(false);
-	let rankings: EloRanking[] = $state([]);
+	let filters: FilterState = $state({});
+	const cutLabel = $derived(eloCutLabel(filters));
 
 	const round = new EloRound(preload);
 
@@ -28,19 +29,7 @@
 		img.src = isVideoFilename(item.filename) ? thumbUrl(item.content_hash) : previewUrl(item.content_hash);
 	}
 
-	async function loadRankings() {
-		rankings = await getEloRankings(collectionId());
-		showRankings = true;
-	}
-
 	function onKeydown(e: KeyboardEvent) {
-		if (showRankings) {
-			if (e.key === 'Escape') {
-				showRankings = false;
-				e.preventDefault();
-			}
-			return;
-		}
 		if (e.key === 'ArrowLeft' || e.key === '1') {
 			e.preventDefault();
 			if (!e.repeat) round.vote('left');
@@ -61,11 +50,8 @@
 		const showNsfw = $settingsStore.show_nsfw;
 		untrack(() => {
 			const id = collectionId();
-			round.setScope({
-				collectionId: id,
-				filters: readStored<FilterState>(collectionFiltersKey(id), {}),
-				showNsfw
-			});
+			filters = readStored<FilterState>(collectionFiltersKey(id), {});
+			round.setScope({ collectionId: id, filters, showNsfw });
 			getCollection(id).then((c) => {
 				if (id === collectionId()) collection = c;
 			});
@@ -79,9 +65,14 @@
 <div class="elo-page">
 	<div class="top-bar">
 		<a href="/collections/{collectionId()}">← {collection?.name ?? 'Collection'}</a>
-		<span class="vote-count">{round.voteCount} votes this session</span>
+		<span class="vote-count">
+			{round.voteCount} votes this session
+			{#if cutLabel}
+				<span class="cut" title="Pairs come from this part of the ranking only, as the collection's ELO filter sets">ELO: {cutLabel}</span>
+			{/if}
+		</span>
 		<div class="actions">
-			<button class="control" onclick={loadRankings}>Rankings</button>
+			<a class="control" href="/collections/{collectionId()}/rankings?from=vote">Rankings</a>
 			<button class="control" onclick={() => round.loadPair()}>Skip</button>
 		</div>
 	</div>
@@ -91,43 +82,20 @@
 	{:else if round.loading && !round.left}
 		<div class="status">Loading…</div>
 	{:else if round.left && round.right}
-		{#if showRankings}
-			<div class="rankings">
-				<div class="rankings-header">
-					<h3>Rankings</h3>
-					<button class="control" onclick={() => (showRankings = false)}>Close</button>
-				</div>
-				{#if rankings.length === 0}
-					<p class="empty">No votes recorded yet.</p>
-				{:else}
-					<ol>
-						{#each rankings as r, i}
-							<li>
-								<span class="rank">#{i + 1}</span>
-								<span class="name">{r.filename}</span>
-								<span class="score">{r.score.toFixed(0)}</span>
-								<span class="matches">{r.matches} matches</span>
-							</li>
-						{/each}
-					</ol>
-				{/if}
-			</div>
-		{:else}
-			<SideBySideView
-				left={round.left}
-				right={round.right}
-				selectedSide={round.selectedSide}
-				onSelectLeft={() => round.vote('left')}
-				onSelectRight={() => round.vote('right')}
-			/>
-			<div class="controls">
-				<span class="hint desktop-hint">← or 1</span>
-				<span class="hint mobile-hint">Tap top image</span>
-				<span class="prompt">Which is better?</span>
-				<span class="hint desktop-hint">→ or 2</span>
-				<span class="hint mobile-hint">Tap bottom image</span>
-			</div>
-		{/if}
+		<SideBySideView
+			left={round.left}
+			right={round.right}
+			selectedSide={round.selectedSide}
+			onSelectLeft={() => round.vote('left')}
+			onSelectRight={() => round.vote('right')}
+		/>
+		<div class="controls">
+			<span class="hint desktop-hint">← or 1</span>
+			<span class="hint mobile-hint">Tap top image</span>
+			<span class="prompt">Which is better?</span>
+			<span class="hint desktop-hint">→ or 2</span>
+			<span class="hint mobile-hint">Tap bottom image</span>
+		</div>
 	{/if}
 </div>
 
@@ -152,6 +120,14 @@
 	.vote-count {
 		color: #888;
 		font-size: 0.85rem;
+	}
+
+	.cut {
+		margin-left: 8px;
+		padding: 2px 8px;
+		border-radius: 10px;
+		background: #2a3a55;
+		color: #9ec0ff;
 	}
 
 	.actions {
@@ -190,66 +166,6 @@
 		padding: 32px;
 		text-align: center;
 		color: #888;
-	}
-
-	.rankings {
-		flex: 1;
-		padding: 16px;
-		overflow-y: auto;
-		overscroll-behavior-y: contain;
-	}
-
-	.rankings-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		margin-bottom: 12px;
-	}
-
-	.rankings-header h3 {
-		margin: 0;
-	}
-
-	.empty {
-		color: #666;
-	}
-
-	ol {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-	}
-
-	ol li {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 8px;
-		border-bottom: 1px solid #2a2a2a;
-	}
-
-	.rank {
-		color: #888;
-		min-width: 30px;
-	}
-
-	.name {
-		flex: 1;
-		color: #ccc;
-	}
-
-	.score {
-		color: #6ea8fe;
-		font-weight: 600;
-		min-width: 50px;
-		text-align: right;
-	}
-
-	.matches {
-		color: #666;
-		font-size: 0.8rem;
-		min-width: 80px;
-		text-align: right;
 	}
 
 	.mobile-hint {

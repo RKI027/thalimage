@@ -13,7 +13,7 @@ import type {
 	ScanProgress,
 	SourceSummary,
 	EloPair,
-	EloRanking,
+	EloRankingPage,
 	FilterState,
 	SortField,
 	SortDirection,
@@ -65,14 +65,22 @@ export function listingQuery(params: ListingParams): URLSearchParams {
 	if (params.collection_id) q.set('collection_id', String(params.collection_id));
 	if (params.show_nsfw) q.set('show_nsfw', 'true');
 	if (params.filters) {
-		const f = params.filters;
-		if (f.date_from) q.set('date_from', f.date_from);
-		if (f.date_to) q.set('date_to', f.date_to);
-		if (f.aspect_ratio) q.set('aspect_ratio_filter', f.aspect_ratio);
-		if (f.media_type) q.set('media_type', f.media_type);
-		if (f.tags) f.tags.forEach((t) => q.append('tags', t));
+		setFilters(q, params.filters);
+		if (params.filters.tags) params.filters.tags.forEach((t) => q.append('tags', t));
 	}
 	return q;
+}
+
+/** The filters a listing and a vote pair share (pairs take no tags). */
+function setFilters(q: URLSearchParams, f: FilterState): void {
+	if (f.date_from) q.set('date_from', f.date_from);
+	if (f.date_to) q.set('date_to', f.date_to);
+	if (f.aspect_ratio) q.set('aspect_ratio_filter', f.aspect_ratio);
+	if (f.media_type) q.set('media_type', f.media_type);
+	if (f.elo_percent) {
+		q.set('elo_end', f.elo_end ?? 'top');
+		q.set('elo_percent', String(f.elo_percent));
+	}
 }
 
 export function listImages(
@@ -276,10 +284,7 @@ export async function deleteCollection(id: number): Promise<void> {
 
 export function getEloPair(collectionId: number, filters: FilterState = {}, showNsfw = false): Promise<EloPair> {
 	const q = new URLSearchParams();
-	if (filters.date_from) q.set('date_from', filters.date_from);
-	if (filters.date_to) q.set('date_to', filters.date_to);
-	if (filters.aspect_ratio) q.set('aspect_ratio_filter', filters.aspect_ratio);
-	if (filters.media_type) q.set('media_type', filters.media_type);
+	setFilters(q, filters);
 	if (showNsfw) q.set('show_nsfw', 'true');
 	const qs = q.toString();
 	return fetchJSON(`${BASE}/collections/${collectionId}/elo/pair${qs ? '?' + qs : ''}`);
@@ -297,8 +302,14 @@ export function recordEloVote(
 	});
 }
 
-export function getEloRankings(collectionId: number, limit = 100): Promise<EloRanking[]> {
-	return fetchJSON(`${BASE}/collections/${collectionId}/elo/rankings?limit=${limit}`);
+/** A page of the collection's ranking, from the top. */
+export function getEloRankings(
+	collectionId: number,
+	{ offset = 0, limit = 100, showNsfw = false }: { offset?: number; limit?: number; showNsfw?: boolean } = {}
+): Promise<EloRankingPage> {
+	const q = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+	if (showNsfw) q.set('show_nsfw', 'true');
+	return fetchJSON(`${BASE}/collections/${collectionId}/elo/rankings?${q}`);
 }
 
 // Tags

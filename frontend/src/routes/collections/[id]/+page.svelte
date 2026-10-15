@@ -133,6 +133,7 @@
 	{/snippet}
 	{#snippet desktopActions()}
 		{#if collection}
+			<a class="control" href="/collections/{collection.id}/rankings">Rankings</a>
 			<a class="control" href="/elo/{collection.id}">ELO Vote</a>
 		{/if}
 	{/snippet}
@@ -147,6 +148,7 @@
 	{/snippet}
 	{#snippet sheetActions()}
 		{#if collection}
+			<a class="control elo-sheet-link" href="/collections/{collection.id}/rankings">Rankings</a>
 			<a class="control elo-sheet-link" href="/elo/{collection.id}">ELO Vote</a>
 		{/if}
 	{/snippet}

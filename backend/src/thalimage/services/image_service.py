@@ -8,6 +8,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from thalimage.core.video import VIDEO_EXTENSIONS
+from thalimage.services.elo_ranking import EloCut, in_cut_sql
 from thalimage.services.locations import in_source_sql, resolve_paths
 
 
@@ -146,6 +147,7 @@ class ListingFilters:
     media_type: Optional[str] = None
     tags: Optional[list[str]] = None
     show_nsfw: bool = False
+    elo_cut: Optional[EloCut] = None
 
 
 def _apply_filters(q: str, p: list[object], f: ListingFilters) -> str:
@@ -171,21 +173,31 @@ def _apply_filters(q: str, p: list[object], f: ListingFilters) -> str:
             ")"
         )
         p.append(tag_name)
+    if f.elo_cut is not None:
+        sql, values = in_cut_sql(f.elo_cut)
+        q += f" AND {sql}"
+        p.extend(values)
     if not f.show_nsfw:
-        q += (
-            " AND nsfw = 0"
-            # Hidden if a member of an NSFW manual/static collection...
-            " AND content_hash NOT IN ("
-            "SELECT ci.content_hash FROM collection_images ci"
-            " JOIN collections c ON c.id = ci.collection_id WHERE c.nsfw = 1)"
-            # ...or if it lies in a source whose preset collection is NSFW
-            # (presets have no collection_images rows; they match by source).
-            " AND content_hash NOT IN ("
-            "SELECT l.content_hash FROM image_locations l"
-            " JOIN collections c ON c.source_id = l.source_id"
-            " WHERE c.type = 'source_preset' AND c.nsfw = 1)"
-        )
+        q += f" AND {safe_sql()}"
     return q
+
+
+def safe_sql(prefix: str = "") -> str:
+    """SQL condition: the image is shown while NSFW images are hidden.
+    `prefix` qualifies the images columns (e.g. "i.")."""
+    return (
+        f"{prefix}nsfw = 0"
+        # Hidden if a member of an NSFW manual/static collection...
+        f" AND {prefix}content_hash NOT IN ("
+        "SELECT ci.content_hash FROM collection_images ci"
+        " JOIN collections c ON c.id = ci.collection_id WHERE c.nsfw = 1)"
+        # ...or if it lies in a source whose preset collection is NSFW
+        # (presets have no collection_images rows; they match by source).
+        f" AND {prefix}content_hash NOT IN ("
+        "SELECT l.content_hash FROM image_locations l"
+        " JOIN collections c ON c.source_id = l.source_id"
+        " WHERE c.type = 'source_preset' AND c.nsfw = 1)"
+    )
 
 
 @dataclass(frozen=True)
@@ -235,6 +247,7 @@ def list_images(
     tags: Optional[list[str]] = None,
     show_nsfw: bool = False,
     elo_collection_id: Optional[int] = None,
+    elo_cut: Optional[EloCut] = None,
 ) -> ImagePage:
     """Cursor-paginated image listing.
 
@@ -251,6 +264,7 @@ def list_images(
         media_type=media_type,
         tags=tags,
         show_nsfw=show_nsfw,
+        elo_cut=elo_cut,
     )
     key = _sort_key(sort, elo_collection_id)
     return _page(conn, f, key, direction, cursor, limit)

@@ -19,6 +19,8 @@ export type BrowsingContext =
 			filters?: FilterState;
 			sort?: SortField;
 			dir?: SortDirection;
+			/** Where Back goes when not to the collection's grid. */
+			back?: { href: string; label: string };
 	  };
 
 const STORAGE_KEY = 'browsingContext';
@@ -58,13 +60,13 @@ export function getScrollPosition(): number {
 export function backDestination(ctx: BrowsingContext | null): string {
 	if (!ctx) return '/';
 	if (ctx.type === 'all') return ctx.sourceId ? `/?source_id=${ctx.sourceId}` : '/';
-	return `/collections/${ctx.collectionId}`;
+	return ctx.back?.href ?? `/collections/${ctx.collectionId}`;
 }
 
 export function backLabel(ctx: BrowsingContext | null): string {
 	if (!ctx) return '← Back';
 	if (ctx.type === 'all') return '← All Images';
-	return `← ${ctx.name}`;
+	return `← ${ctx.back?.label ?? ctx.name}`;
 }
 
 /** The listing a context shows, so the viewer can walk exactly that. */
