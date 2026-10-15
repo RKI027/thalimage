@@ -1,10 +1,29 @@
 """Source removal."""
 
 import sqlite3
+from pathlib import Path
 from typing import Optional
 
 from thalimage.services.collection_service import purge_collection
 from thalimage.services.locations import sync_images
+
+
+def relabel_source(conn: sqlite3.Connection, source_id: int, label: Optional[str]) -> bool:
+    """Give a source a new label, or none when it is blank. Its preset
+    collection is named after it: the label, else the folder's name.
+    False if there is no such source. Commits."""
+    row = conn.execute("SELECT path FROM sources WHERE id = ?", (source_id,)).fetchone()
+    if row is None:
+        return False
+    label = (label or "").strip() or None
+    with conn:
+        conn.execute("UPDATE sources SET label = ? WHERE id = ?", (label, source_id))
+        conn.execute(
+            "UPDATE collections SET name = ?, updated_at = datetime('now')"
+            " WHERE source_id = ? AND type = 'source_preset'",
+            (label or Path(row["path"]).name, source_id),
+        )
+    return True
 
 
 def delete_source(conn: sqlite3.Connection, source_id: int) -> Optional[list[str]]:

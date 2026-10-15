@@ -110,3 +110,52 @@ def test_scan_status_unknown_source_is_404(client: TestClient) -> None:
 def test_scan_status_never_scanned_is_idle(client: TestClient, image_dir: Path) -> None:
     source_id = client.post("/api/v1/sources", json={"path": str(image_dir)}).json()["id"]
     assert _last_status(client, source_id) == {"phase": "idle"}
+
+
+def _preset_name(client: TestClient, source_id: int) -> str:
+    return next(
+        c["name"] for c in client.get("/api/v1/collections").json()
+        if c["type"] == "source_preset" and c["source_id"] == source_id
+    )
+
+
+def test_relabel_source(client: TestClient, image_dir: Path) -> None:
+    source_id = client.post("/api/v1/sources", json={"path": str(image_dir), "label": "old"}).json()["id"]
+
+    resp = client.patch(f"/api/v1/sources/{source_id}", json={"label": "  new  "})
+
+    assert resp.status_code == 200
+    assert resp.json()["label"] == "new"
+    assert _preset_name(client, source_id) == "new"
+
+
+def test_relabel_leaves_writable_alone(client: TestClient, image_dir: Path) -> None:
+    source_id = client.post("/api/v1/sources", json={"path": str(image_dir), "writable": True}).json()["id"]
+
+    resp = client.patch(f"/api/v1/sources/{source_id}", json={"label": "new"})
+
+    assert resp.json()["writable"] is True
+
+
+def test_clearing_the_label_names_the_source_after_its_folder(
+    client: TestClient, image_dir: Path
+) -> None:
+    source_id = client.post("/api/v1/sources", json={"path": str(image_dir), "label": "old"}).json()["id"]
+
+    resp = client.patch(f"/api/v1/sources/{source_id}", json={"label": " "})
+
+    assert resp.json()["label"] is None
+    assert _preset_name(client, source_id) == image_dir.name
+
+
+def test_switching_writable_keeps_the_label(client: TestClient, image_dir: Path) -> None:
+    source_id = client.post("/api/v1/sources", json={"path": str(image_dir), "label": "kept"}).json()["id"]
+
+    resp = client.patch(f"/api/v1/sources/{source_id}", json={"writable": False})
+
+    assert resp.json()["label"] == "kept"
+    assert _preset_name(client, source_id) == "kept"
+
+
+def test_relabel_unknown_source_is_404(client: TestClient) -> None:
+    assert client.patch("/api/v1/sources/999", json={"label": "x"}).status_code == 404
