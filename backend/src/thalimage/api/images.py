@@ -1,6 +1,7 @@
 """Image browsing and serving endpoints."""
 
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -25,7 +26,7 @@ from thalimage.services.image_service import (
     Neighbors,
     SequenceItem,
     get_image,
-    list_images,
+    listing_page,
     neighbors,
     resolve_file_path,
     sequence,
@@ -45,10 +46,24 @@ IMMUTABLE = {"Cache-Control": "public, max-age=31536000, immutable"}
 MAX_PREVIEW_REQUEST = 16384
 
 
-@router.get("", response_model=ImagePage)
-def get_images(
-    cursor: Optional[str] = Query(None),
-    limit: int = Query(200, ge=1, le=1000),
+@dataclass(frozen=True)
+class Listing:
+    """A listing as a request names it: its sort, direction and filters."""
+
+    sort: str
+    direction: str
+    filters: ListingFilters
+    # The collection being viewed. ELO scores and rankings are keyed by it,
+    # and a source preset's is not in `filters`, which select by source.
+    browsed_collection_id: Optional[int]
+
+    @property
+    def elo_collection_id(self) -> Optional[int]:
+        """The collection to order by ELO in, when sorted by ELO."""
+        return self.browsed_collection_id if self.sort == "elo" else None
+
+
+def listing(
     sort: str = Query("name"),
     dir: str = Query("asc"),
     source_id: Optional[int] = Query(None),
@@ -62,10 +77,11 @@ def get_images(
     elo_end: Literal["top", "bottom"] = Query("top"),
     elo_percent: Optional[int] = Query(None, ge=1, le=100),
     db: sqlite3.Connection = Depends(get_db),
-) -> ImagePage:
-    # ELO scores and rankings are keyed by the collection being viewed; capture
-    # it before the source-preset rewrite below nulls collection_id.
-    elo_collection_id = collection_id if sort == "elo" else None
+) -> Listing:
+    """The query parameters every listing route reads, as a Listing."""
+    # Capture the collection viewed before the source-preset rewrite below
+    # nulls collection_id.
+    browsed_collection_id = collection_id
     cut = elo_cut(collection_id, elo_end, elo_percent)
 
     # A collection becomes the filter that selects its images.
@@ -75,13 +91,10 @@ def get_images(
             source_id = scope.source_id or source_id
             collection_id = scope.collection_id
 
-    try:
-        return list_images(
-            db,
-            cursor=cursor,
-            limit=limit,
-            sort=sort,
-            direction=dir,
+    return Listing(
+        sort=sort,
+        direction=dir,
+        filters=ListingFilters(
             source_id=source_id,
             collection_id=collection_id,
             date_from=date_from,
@@ -90,8 +103,28 @@ def get_images(
             media_type=media_type,
             tags=tags,
             show_nsfw=show_nsfw,
-            elo_collection_id=elo_collection_id,
             elo_cut=cut,
+        ),
+        browsed_collection_id=browsed_collection_id,
+    )
+
+
+@router.get("", response_model=ImagePage)
+def get_images(
+    cursor: Optional[str] = Query(None),
+    limit: int = Query(200, ge=1, le=1000),
+    q: Listing = Depends(listing),
+    db: sqlite3.Connection = Depends(get_db),
+) -> ImagePage:
+    try:
+        return listing_page(
+            db,
+            q.filters,
+            cursor=cursor,
+            limit=limit,
+            sort=q.sort,
+            direction=q.direction,
+            elo_collection_id=q.elo_collection_id,
         )
     except InvalidCursor as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -99,47 +132,18 @@ def get_images(
 
 @router.get("/sequence", response_model=list[SequenceItem])
 def get_image_sequence(
-    sort: str = Query("name"),
-    dir: str = Query("asc"),
-    source_id: Optional[int] = Query(None),
-    collection_id: Optional[int] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    aspect_ratio_filter: Optional[str] = Query(None),
-    media_type: Optional[str] = Query(None),
-    tags: Optional[list[str]] = Query(None),
-    show_nsfw: bool = Query(False),
-    elo_end: Literal["top", "bottom"] = Query("top"),
-    elo_percent: Optional[int] = Query(None, ge=1, le=100),
+    q: Listing = Depends(listing),
     db: sqlite3.Connection = Depends(get_db),
 ) -> list[SequenceItem]:
     """A whole listing in order, for the slideshow: takes the listing's own
     sort and filters, and scores each image in the collection browsed."""
-    score_collection_id = collection_id
-    elo_collection_id = collection_id if sort == "elo" else None
-    cut = elo_cut(collection_id, elo_end, elo_percent)
-    if collection_id is not None:
-        scope = resolve_scope(db, collection_id)
-        if scope is not None:
-            source_id = scope.source_id or source_id
-            collection_id = scope.collection_id
     return sequence(
         db,
-        sort=sort,
-        direction=dir,
-        elo_collection_id=elo_collection_id,
-        score_collection_id=score_collection_id,
-        filters=ListingFilters(
-            source_id=source_id,
-            collection_id=collection_id,
-            date_from=date_from,
-            date_to=date_to,
-            aspect_ratio_filter=aspect_ratio_filter,
-            media_type=media_type,
-            tags=tags,
-            show_nsfw=show_nsfw,
-            elo_cut=cut,
-        ),
+        sort=q.sort,
+        direction=q.direction,
+        elo_collection_id=q.elo_collection_id,
+        score_collection_id=q.browsed_collection_id,
+        filters=q.filters,
     )
 
 
@@ -147,48 +151,20 @@ def get_image_sequence(
 def get_image_neighbors(
     content_hash: ContentHash,
     window: int = Query(50, ge=1, le=500),
-    sort: str = Query("name"),
-    dir: str = Query("asc"),
-    source_id: Optional[int] = Query(None),
-    collection_id: Optional[int] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    aspect_ratio_filter: Optional[str] = Query(None),
-    media_type: Optional[str] = Query(None),
-    tags: Optional[list[str]] = Query(None),
-    show_nsfw: bool = Query(False),
-    elo_end: Literal["top", "bottom"] = Query("top"),
-    elo_percent: Optional[int] = Query(None, ge=1, le=100),
+    q: Listing = Depends(listing),
     db: sqlite3.Connection = Depends(get_db),
 ) -> Neighbors:
     """The images around one image in a listing, for the viewer's prev/next:
     takes the listing's own sort and filters, and works wherever the image
     falls in it."""
-    elo_collection_id = collection_id if sort == "elo" else None
-    cut = elo_cut(collection_id, elo_end, elo_percent)
-    if collection_id is not None:
-        scope = resolve_scope(db, collection_id)
-        if scope is not None:
-            source_id = scope.source_id or source_id
-            collection_id = scope.collection_id
     result = neighbors(
         db,
         content_hash,
         window=window,
-        sort=sort,
-        direction=dir,
-        elo_collection_id=elo_collection_id,
-        filters=ListingFilters(
-            source_id=source_id,
-            collection_id=collection_id,
-            date_from=date_from,
-            date_to=date_to,
-            aspect_ratio_filter=aspect_ratio_filter,
-            media_type=media_type,
-            tags=tags,
-            show_nsfw=show_nsfw,
-            elo_cut=cut,
-        ),
+        sort=q.sort,
+        direction=q.direction,
+        elo_collection_id=q.elo_collection_id,
+        filters=q.filters,
     )
     if result is None:
         raise HTTPException(404, "Image not found")
