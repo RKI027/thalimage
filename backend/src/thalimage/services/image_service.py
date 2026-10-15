@@ -200,6 +200,15 @@ def safe_sql(prefix: str = "") -> str:
     )
 
 
+# An image's ELO score in the collection bound to its placeholder; images
+# never voted on there score the default 1500.
+_ELO_SCORE_SQL = (
+    "COALESCE((SELECT e.score FROM elo_scores e"
+    " WHERE e.content_hash = images.content_hash"
+    " AND e.collection_id = ?), 1500.0)"
+)
+
+
 @dataclass(frozen=True)
 class _SortKey:
     expr: str  # SQL for the key; may hold one placeholder
@@ -213,9 +222,7 @@ def _sort_key(sort: str, elo_collection_id: Optional[int]) -> _SortKey:
     sort="elo" to order by that collection's ELO score (unscored = 1500)."""
     if sort == "elo" and elo_collection_id is not None:
         return _SortKey(
-            "COALESCE((SELECT e.score FROM elo_scores e"
-            " WHERE e.content_hash = images.content_hash"
-            " AND e.collection_id = ?), 1500.0)",
+            _ELO_SCORE_SQL,
             (elo_collection_id,),
             "elo_score",
             True,
@@ -371,6 +378,45 @@ def neighbors(
         position=position,
         total_count=after.total_count,
     )
+
+
+class SequenceItem(BaseModel):
+    """One image of a listing, as a slideshow walks it."""
+
+    content_hash: str
+    filename: str
+    score: Optional[float] = None  # ELO score in the collection browsed
+
+
+def sequence(
+    conn: sqlite3.Connection,
+    *,
+    sort: str = "name",
+    direction: str = "asc",
+    elo_collection_id: Optional[int] = None,
+    score_collection_id: Optional[int] = None,
+    filters: Optional[ListingFilters] = None,
+) -> list[SequenceItem]:
+    """The whole listing that sort, direction and filters define, in order.
+    Pass `score_collection_id` to give each image its ELO score there."""
+    if direction not in ("asc", "desc"):
+        direction = "asc"
+    key = _sort_key(sort, elo_collection_id)
+    params: list[object] = list(key.params)
+    score = "NULL"
+    if score_collection_id is not None:
+        score = _ELO_SCORE_SQL
+        params.append(score_collection_id)
+    sql = _apply_filters(
+        f"SELECT content_hash, filename, {score} AS score, {key.expr} AS {key.alias} {_LIVE}",
+        params,
+        filters or ListingFilters(),
+    )
+    sql += f" ORDER BY {key.alias} {direction}, content_hash {direction}"
+    return [
+        SequenceItem(content_hash=r["content_hash"], filename=r["filename"], score=r["score"])
+        for r in conn.execute(sql, params)
+    ]
 
 
 def get_image(conn: sqlite3.Connection, content_hash: str) -> Optional[ImageDetail]:

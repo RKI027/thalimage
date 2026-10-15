@@ -23,10 +23,12 @@ from thalimage.services.image_service import (
     InvalidCursor,
     ListingFilters,
     Neighbors,
+    SequenceItem,
     get_image,
     list_images,
     neighbors,
     resolve_file_path,
+    sequence,
     set_archived,
 )
 
@@ -93,6 +95,52 @@ def get_images(
         )
     except InvalidCursor as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@router.get("/sequence", response_model=list[SequenceItem])
+def get_image_sequence(
+    sort: str = Query("name"),
+    dir: str = Query("asc"),
+    source_id: Optional[int] = Query(None),
+    collection_id: Optional[int] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    aspect_ratio_filter: Optional[str] = Query(None),
+    media_type: Optional[str] = Query(None),
+    tags: Optional[list[str]] = Query(None),
+    show_nsfw: bool = Query(False),
+    elo_end: Literal["top", "bottom"] = Query("top"),
+    elo_percent: Optional[int] = Query(None, ge=1, le=100),
+    db: sqlite3.Connection = Depends(get_db),
+) -> list[SequenceItem]:
+    """A whole listing in order, for the slideshow: takes the listing's own
+    sort and filters, and scores each image in the collection browsed."""
+    score_collection_id = collection_id
+    elo_collection_id = collection_id if sort == "elo" else None
+    cut = elo_cut(collection_id, elo_end, elo_percent)
+    if collection_id is not None:
+        scope = resolve_scope(db, collection_id)
+        if scope is not None:
+            source_id = scope.source_id or source_id
+            collection_id = scope.collection_id
+    return sequence(
+        db,
+        sort=sort,
+        direction=dir,
+        elo_collection_id=elo_collection_id,
+        score_collection_id=score_collection_id,
+        filters=ListingFilters(
+            source_id=source_id,
+            collection_id=collection_id,
+            date_from=date_from,
+            date_to=date_to,
+            aspect_ratio_filter=aspect_ratio_filter,
+            media_type=media_type,
+            tags=tags,
+            show_nsfw=show_nsfw,
+            elo_cut=cut,
+        ),
+    )
 
 
 @router.get("/{content_hash}/neighbors", response_model=Neighbors)

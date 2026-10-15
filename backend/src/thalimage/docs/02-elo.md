@@ -112,6 +112,23 @@ The filter applies to voting too, so voting can be confined to the top
 of a ranking to settle its order. The vote page marks that it is
 filtered.
 
+## The weighted slideshow
+
+A slideshow plays the whole listing it was started from, with that
+listing's sort and filters: started from a collection filtered to the
+top 10%, it plays those images and no others. Shuffled, it shows each
+of them once before any repeats. Weighted by ELO (the ⚖ pill), it
+instead draws each next image from the whole listing, so better-ranked
+images come up more often and an image can return before others have
+had a turn.
+
+The odds follow the score: an image 300 points above another is drawn
+about twice as often, 600 points above about four and a half times as
+often. Images never voted on count as 1500. The last 20 images shown
+are drawn twenty times less often, so a favourite does not come
+straight back, but even in a small collection nothing is ever ruled
+out.
+
 ## How pairs are chosen
 
 Candidates are every image in the collection that is not deleted and not

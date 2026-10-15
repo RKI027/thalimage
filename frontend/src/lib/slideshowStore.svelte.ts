@@ -1,5 +1,5 @@
 import { readStored, removeStored, writeStored } from './storage';
-import type { ImageSummary, MetadataMode, OverlayMode, SlideshowMode, SlideshowStatus } from './types';
+import type { MetadataMode, OverlayMode, SequenceItem, SlideshowMode, SlideshowStatus } from './types';
 
 export interface SlideshowConfig {
 	interval: number;
@@ -14,7 +14,7 @@ const ELO_TEMPERATURE = 400;
 // never zero — satisfies "chance shouldn't drop to zero".
 const COOLDOWN_FACTOR = 0.05;
 // Maximum number of recent slides kept in the recency window. The effective
-// window is min(COOLDOWN_MAX, neighbors.length - 1).
+// window is min(COOLDOWN_MAX, items.length - 1).
 const COOLDOWN_MAX = 20;
 // How many shown slides ← can rewind through before the trail is trimmed.
 const HISTORY_MAX = 500;
@@ -60,14 +60,15 @@ function createSlideshowStore() {
 		readStored('slideshow:overlayMode', 'minimal' as OverlayMode)
 	);
 
+	// The listing walked, and the index in it of the image shown.
+	let items = $state.raw<SequenceItem[]>([]);
+	let current = $state(0);
+
 	// Internal runtime state (not reactive state — just bookkeeping)
-	let neighbors: ImageSummary[] = [];
-	let currentIndexRef = 0;
 	let onAdvanceCb: ((hash: string) => void) | null = null;
 
-	// ELO weighting: score map + whether the current context supports ELO.
-	// "All Images" has no collection row, so ELO is unavailable there.
-	let eloScores: Map<string, number> | null = null;
+	// ELO weighting is available where the items carry scores: in a
+	// collection. "All Images" has no collection row, so ELO is unavailable there.
 	let eloAvailable = false;
 
 	// Remember the last non-sequential choice so ⇄ restores it (random or elo).
@@ -79,7 +80,11 @@ function createSlideshowStore() {
 	let shuffleOrder: number[] | null = null;
 	let shufflePos = 0;
 
-	// Ordered trail of neighbour indices shown this session, with a cursor.
+	// Picks drawn past the tip of the trail, so the next slides are known
+	// (and can be preloaded) before they are shown.
+	let ahead: number[] = [];
+
+	// Ordered trail of listing indices shown this session, with a cursor.
 	// → replays forward through it (drawing a fresh pick only at the tip) and
 	// ← rewinds; it also feeds the elo recency window. Not used in sequential.
 	let history: number[] = [];
@@ -88,24 +93,24 @@ function createSlideshowStore() {
 	let timerId: ReturnType<typeof setInterval> | null = null;
 
 	function drawWeighted(): number {
-		const n = neighbors.length;
+		const n = items.length;
 		if (n === 1) return 0;
 
 		// Base weights via softmax over ELO (missing scores default to 1500).
 		let mean = 0;
 		const scores: number[] = new Array(n);
 		for (let i = 0; i < n; i++) {
-			const s = eloScores?.get(neighbors[i].content_hash) ?? 1500;
+			const s = items[i].score ?? 1500;
 			scores[i] = s;
 			mean += s;
 		}
 		mean /= n;
 
-		// Recency window: the last k shown slides are heavily suppressed but
-		// not excluded. k is capped so tiny collections always have ≥1 free
-		// candidate.
+		// Recency window: the last k slides shown or drawn ahead are heavily
+		// suppressed but not excluded. k is capped so tiny collections always
+		// have ≥1 free candidate.
 		const k = Math.max(1, Math.min(COOLDOWN_MAX, n - 1));
-		const recent = new Set(history.slice(-k));
+		const recent = new Set([...history, ...ahead].slice(-k));
 
 		const weights: number[] = new Array(n);
 		let total = 0;
@@ -143,48 +148,84 @@ function createSlideshowStore() {
 		historyPos = history.length - 1;
 	}
 
+	// Draw picks onto `ahead` until it holds n, per the active shuffle mode.
+	function fillAhead(n: number): void {
+		while (ahead.length < n) {
+			if (effectiveMode() === 'random') {
+				// initOrder builds shuffleOrder whenever random is active; rebuild
+				// defensively if it is ever missing.
+				if (!shuffleOrder) shuffleOrder = fisherYates(items.length, current);
+				shufflePos = (shufflePos + 1) % shuffleOrder.length;
+				ahead.push(shuffleOrder[shufflePos]);
+			} else {
+				ahead.push(drawWeighted());
+			}
+		}
+	}
+
 	// One step forward through the shuffle order: replay the visited trail if the
-	// cursor is behind the tip, otherwise draw a new pick per the active mode.
+	// cursor is behind the tip, otherwise take the next pick drawn ahead.
 	function stepForward(): number {
 		if (historyPos < history.length - 1) {
 			historyPos++;
-		} else if (effectiveMode() === 'random') {
-			// initOrder builds shuffleOrder whenever random is active; rebuild
-			// defensively if it is ever missing.
-			if (!shuffleOrder) shuffleOrder = fisherYates(neighbors.length, currentIndexRef);
-			shufflePos = (shufflePos + 1) % shuffleOrder.length;
-			pushHistory(shuffleOrder[shufflePos]);
 		} else {
-			pushHistory(drawWeighted());
+			fillAhead(1);
+			pushHistory(ahead.shift()!);
 		}
 		return history[historyPos];
 	}
 
 	function advance() {
-		if (!neighbors.length) return;
+		if (!items.length) return;
 
 		if (effectiveMode() === 'sequential') {
-			const nextIndex = currentIndexRef + 1;
-			if (nextIndex >= neighbors.length) {
+			const nextIndex = current + 1;
+			if (nextIndex >= items.length) {
 				// Stop at the end in sequential mode
 				stop();
 				return;
 			}
-			currentIndexRef = nextIndex;
+			current = nextIndex;
 		} else {
-			currentIndexRef = stepForward();
+			current = stepForward();
 		}
 
-		onAdvanceCb?.(neighbors[currentIndexRef].content_hash);
+		onAdvanceCb?.(items[current].content_hash);
 	}
 
-	// ← rewind: step back through the images actually shown this session. No-op
-	// at the start of the trail; the page only calls it in shuffle modes.
+	// ←: rewind through the images actually shown this session in shuffle
+	// modes, or step to the previous image of the listing in sequential.
+	// No-op at the start.
 	function back() {
-		if (!neighbors.length || historyPos <= 0) return;
-		historyPos--;
-		currentIndexRef = history[historyPos];
-		onAdvanceCb?.(neighbors[currentIndexRef].content_hash);
+		if (!items.length) return;
+		if (effectiveMode() === 'sequential') {
+			if (current <= 0) return;
+			current--;
+		} else {
+			if (historyPos <= 0) return;
+			historyPos--;
+			current = history[historyPos];
+		}
+		onAdvanceCb?.(items[current].content_hash);
+	}
+
+	// The next n slides advance() will show, nearest first.
+	function upcoming(n: number): SequenceItem[] {
+		if (!items.length) return [];
+		if (effectiveMode() === 'sequential') return items.slice(current + 1, current + 1 + n);
+		const trail = history.slice(historyPos + 1, historyPos + 1 + n);
+		const drawn = n - trail.length;
+		fillAhead(drawn);
+		return [...trail, ...ahead.slice(0, drawn)].map((i) => items[i]);
+	}
+
+	// The last n slides back() returns to, nearest first.
+	function recent(n: number): SequenceItem[] {
+		if (effectiveMode() === 'sequential') return items.slice(Math.max(0, current - n), current).reverse();
+		return history
+			.slice(Math.max(0, historyPos - n), historyPos)
+			.reverse()
+			.map((i) => items[i]);
 	}
 
 	function stop() {
@@ -220,25 +261,20 @@ function createSlideshowStore() {
 	function initOrder(idx: number): void {
 		shuffleOrder = null;
 		shufflePos = 0;
+		ahead = [];
 		history = [idx];
 		historyPos = 0;
 		if (effectiveMode() === 'random') {
-			shuffleOrder = fisherYates(neighbors.length, idx);
+			shuffleOrder = fisherYates(items.length, idx);
 			shufflePos = 0;
 		}
 	}
 
-	function enter(
-		nbrs: ImageSummary[],
-		idx: number,
-		onAdvance: (hash: string) => void,
-		opts?: { eloScores?: Map<string, number> | null; eloAvailable?: boolean }
-	): void {
-		neighbors = nbrs;
-		currentIndexRef = idx;
+	function enter(listing: SequenceItem[], idx: number, onAdvance: (hash: string) => void): void {
+		items = listing;
+		current = idx;
 		onAdvanceCb = onAdvance;
-		eloScores = opts?.eloScores ?? null;
-		eloAvailable = opts?.eloAvailable ?? false;
+		eloAvailable = listing.some((i) => i.score !== null);
 
 		// A persisted `elo` preference is honored as-is; `effectiveMode` (used by
 		// `initOrder`/`advance`) transparently walks it as `random` when this
@@ -251,13 +287,13 @@ function createSlideshowStore() {
 
 	function exit(): void {
 		stop();
-		neighbors = [];
-		currentIndexRef = 0;
+		items = [];
+		current = 0;
 		shuffleOrder = null;
 		shufflePos = 0;
+		ahead = [];
 		history = [];
 		historyPos = 0;
-		eloScores = null;
 		eloAvailable = false;
 		onAdvanceCb = null;
 		status = 'idle';
@@ -292,13 +328,6 @@ function createSlideshowStore() {
 		}
 	}
 
-	// Sync the current index once the page settles on a new image. Navigation is
-	// driven by advance()/back(), which own the shuffle order and history; this
-	// just keeps the ref aligned with whatever is actually on screen.
-	function updateCurrentIndex(idx: number): void {
-		currentIndexRef = idx;
-	}
-
 	function setInterval_(ms: number): void {
 		config = { ...config, interval: ms };
 		writeStored('slideshow:interval', ms);
@@ -331,7 +360,7 @@ function createSlideshowStore() {
 			writeStored('slideshow:lastWeighted', mode);
 		}
 		// Rebuild the order/cooldown for the new strategy.
-		if (neighbors.length) initOrder(currentIndexRef);
+		if (items.length) initOrder(current);
 		if (status === 'playing') startTimer();
 	}
 
@@ -363,9 +392,9 @@ function createSlideshowStore() {
 		get pendingStart() { return pendingStart; },
 		get config() { return config; },
 		get eloAvailable() { return eloAvailable; },
-		// True when ←/→ should walk the shuffle order/history rather than the
-		// underlying collection order (i.e. any non-sequential effective mode).
-		get isShuffle() { return effectiveMode() !== 'sequential'; },
+		// The image shown's place in the listing walked, and the listing's size.
+		get position() { return current; },
+		get total() { return items.length; },
 		get metadataMode() { return metadataMode; },
 		get overlayMode() { return overlayMode; },
 		scheduleStart,
@@ -378,8 +407,9 @@ function createSlideshowStore() {
 		resetTimer,
 		suspendTimer,
 		advance,
+		upcoming,
+		recent,
 		back,
-		updateCurrentIndex,
 		setInterval: setInterval_,
 		toggleShuffle,
 		toggleWeighted,

@@ -67,6 +67,14 @@ export interface Neighbors {
 	total_count: number;
 }
 
+/** One image of a listing, as a slideshow walks it. `score` is its ELO
+ * score in the collection browsed (null outside a collection). */
+export interface SequenceItem {
+	content_hash: string;
+	filename: string;
+	score: number | null;
+}
+
 export interface Source {
 	id: number;
 	path: string;
