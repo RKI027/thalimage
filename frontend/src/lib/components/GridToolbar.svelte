@@ -6,6 +6,7 @@
 	import ThumbSizeSlider from './ThumbSizeSlider.svelte';
 	import MobilePageHeader from './MobilePageHeader.svelte';
 	import OptionsSheet from './OptionsSheet.svelte';
+	import { activeFilterCount } from '$lib/filters';
 
 	let {
 		sort,
@@ -51,9 +52,20 @@
 		sheetActions?: Snippet;
 	} = $props();
 
-	let filtersOpen = $state(true);
+	let filtersOpen = $state(false);
 	let optionsOpen = $state(false);
+	let filtersEl: HTMLElement | undefined = $state();
+	const filterCount = $derived(activeFilterCount(filters));
+
+	function closeFiltersOutside(e: PointerEvent) {
+		if (filtersOpen && filtersEl && !filtersEl.contains(e.target as Node)) filtersOpen = false;
+	}
 </script>
+
+<svelte:window
+	onpointerdown={closeFiltersOutside}
+	onkeydown={(e) => { if (e.key === 'Escape') filtersOpen = false; }}
+/>
 
 <!-- Mobile single-row header -->
 <div class="mobile-only">
@@ -63,19 +75,34 @@
 <!-- Desktop toolbar -->
 <div class="toolbar desktop-only">
 	{#if desktopLeading}{@render desktopLeading()}{/if}
-	<button class="collapse-btn" onclick={() => (filtersOpen = !filtersOpen)} title="Toggle sort controls">⊟</button>
-	{#if filtersOpen}
-		<div class="filter-row">
-			<SortControls {sort} {dir} {allowElo} onchange={onSortChange} />
-			<FilterBar {filters} {allowElo} onchange={onFilterChange} />
-			<ThumbSizeSlider bind:size={thumbSize} />
+	<div class="group">
+		<SortControls {sort} {dir} {allowElo} onchange={onSortChange} />
+		<div class="filters" bind:this={filtersEl}>
+			<button
+				class="control"
+				class:active={filterCount > 0}
+				aria-expanded={filtersOpen}
+				onclick={() => (filtersOpen = !filtersOpen)}
+			>
+				Filters{#if filterCount > 0}<span class="badge">{filterCount}</span>{/if}
+			</button>
+			{#if filtersOpen}
+				<div class="filters-panel">
+					<FilterBar {filters} {allowElo} onchange={onFilterChange} />
+				</div>
+			{/if}
 		</div>
-	{/if}
-	{#if desktopActions}{@render desktopActions()}{/if}
-	<button class="control slideshow-btn" onclick={onStartSlideshow} {disabled}>Slideshow</button>
-	<span class="count">
-		{count} images{#if loading}<span class="loading-hint"> (loading…)</span>{/if}
-	</span>
+	</div>
+	<div class="group actions">
+		{#if desktopActions}{@render desktopActions()}{/if}
+		<button class="control" onclick={onStartSlideshow} {disabled}>Slideshow</button>
+	</div>
+	<!-- The count and slider keep their place at the right edge: the count's
+	     width is reserved, and loading dims it rather than adding text. -->
+	<div class="group view">
+		<span class="count" class:loading title={loading ? 'Loading…' : undefined}>{count} images</span>
+		<ThumbSizeSlider bind:size={thumbSize} />
+	</div>
 </div>
 
 <!-- Mobile options sheet -->
@@ -97,24 +124,53 @@
 	.toolbar {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		padding: 0 8px;
-		flex-shrink: 0;
-	}
-
-	.collapse-btn {
-		background: none;
-		border: 1px solid #444;
-		border-radius: 4px;
-		color: #888;
-		cursor: pointer;
-		font-size: 1rem;
+		flex-wrap: wrap;
+		gap: 4px 24px;
 		padding: 4px 8px;
 		flex-shrink: 0;
 	}
 
-	.slideshow-btn {
+	.group {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 		flex-shrink: 0;
+	}
+
+	/* On a narrow window the count and slider wrap together, still at the right. */
+	.actions,
+	.view {
+		margin-left: auto;
+	}
+
+	.filters {
+		position: relative;
+	}
+
+	.filters .active {
+		border-color: var(--control-focus);
+	}
+
+	.badge {
+		margin-left: 6px;
+		padding: 0 6px;
+		border-radius: 8px;
+		background: var(--control-primary-bg);
+		color: var(--control-primary-text);
+		font-size: 0.75rem;
+	}
+
+	.filters-panel {
+		position: absolute;
+		top: calc(100% + 4px);
+		left: 0;
+		z-index: 30;
+		min-width: 280px;
+		padding: 8px;
+		background: #1a1a1a;
+		border: 1px solid #444;
+		border-radius: 6px;
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
 	}
 
 	/* A sheet action spans the sheet rather than hugging its label. */
@@ -125,21 +181,17 @@
 		margin-top: 6px;
 	}
 
-	.filter-row {
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-	}
-
 	.count {
+		min-width: 8em;
+		text-align: right;
 		color: #888;
 		font-size: 0.85rem;
-		padding-right: 8px;
-		margin-left: auto;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
 	}
 
-	.loading-hint {
-		color: #666;
+	.count.loading {
+		opacity: 0.5;
 	}
 
 	.sheet-count {

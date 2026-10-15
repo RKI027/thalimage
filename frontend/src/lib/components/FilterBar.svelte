@@ -154,16 +154,17 @@
 <style>
 	.filter-bar {
 		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
+		flex-direction: column;
+		align-items: flex-start;
 		gap: 8px;
-		padding: 4px 8px;
+		padding: 4px;
 	}
 
 	.filter-group {
 		display: flex;
 		align-items: center;
 		gap: 4px;
+		width: 100%;
 	}
 
 	label,
@@ -173,24 +174,11 @@
 		white-space: nowrap;
 	}
 
-	.elo-percent {
-		width: 4.5em;
+	.filter-group label {
+		min-width: 60px;
 	}
 
-	@media (max-width: 768px) {
-		.filter-bar {
-			flex-direction: column;
-			align-items: flex-start;
-			padding: 4px;
-		}
-
-		.filter-group {
-			width: 100%;
-		}
-
-		.filter-group label {
-			min-width: 60px;
-		}
-
+	.elo-percent {
+		width: 4.5em;
 	}
 </style>
