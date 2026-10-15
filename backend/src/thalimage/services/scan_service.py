@@ -287,6 +287,8 @@ def _write_batch(
         touched: set[str] = set()
         for item in items:
             _upsert_image(conn, source_id, item)
+            if item.meta is not None:
+                _tag_from_file(conn, item.content_hash, item.meta)
             _upsert_metadata(conn, item.content_hash, item.meta)
             _upsert_location(conn, source_id, item)
             touched.add(item.content_hash)
@@ -337,6 +339,29 @@ def _upsert_location(conn: sqlite3.Connection, source_id: int, item: _Indexed) -
     )
 
 
+def _file_tag_names(meta: ImageMetadata) -> list[str]:
+    stars = [f"rating:{meta.rating}"] if meta.rating else []
+    return meta.keywords + stars
+
+
+def _tag_from_file(conn: sqlite3.Connection, h: str, meta: ImageMetadata) -> None:
+    """Tag an image with the keywords and rating in its file. Only names
+    not imported from it before are added: a tag the user removed stays
+    removed. A name matches an existing tag whatever its case."""
+    row = conn.execute("SELECT file_tags FROM image_metadata WHERE content_hash = ?", (h,)).fetchone()
+    imported = set(json.loads(row["file_tags"])) if row and row["file_tags"] else set()
+    for name in _file_tag_names(meta):
+        if name in imported:
+            continue
+        tag = conn.execute("SELECT id FROM tags WHERE name = ? COLLATE NOCASE", (name,)).fetchone()
+        tag_id = tag["id"] if tag else conn.execute(
+            "INSERT INTO tags (name) VALUES (?)", (name,)
+        ).lastrowid
+        conn.execute(
+            "INSERT OR IGNORE INTO image_tags (image_hash, tag_id) VALUES (?, ?)", (h, tag_id)
+        )
+
+
 def _upsert_metadata(
     conn: sqlite3.Connection, h: str, meta: Optional[ImageMetadata]
 ) -> None:
@@ -352,8 +377,8 @@ def _upsert_metadata(
     conn.execute(
         """INSERT INTO image_metadata
            (content_hash, ai_tool, prompt, negative_prompt,
-            raw_params, exif_data, png_text, extractor_version)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            raw_params, exif_data, png_text, file_tags, extractor_version)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(content_hash) DO UPDATE SET
             extractor_version=excluded.extractor_version,
             ai_tool=excluded.ai_tool,
@@ -362,6 +387,7 @@ def _upsert_metadata(
             raw_params=excluded.raw_params,
             exif_data=excluded.exif_data,
             png_text=excluded.png_text,
+            file_tags=excluded.file_tags,
             extracted_at=datetime('now')
         """,
         (
@@ -372,6 +398,7 @@ def _upsert_metadata(
             ai.raw_params if ai else None,
             json.dumps(meta.exif_data) if meta.exif_data else None,
             json.dumps(meta.png_text) if meta.png_text else None,
+            json.dumps(_file_tag_names(meta)),
             EXTRACTOR_VERSION,
         ),
     )

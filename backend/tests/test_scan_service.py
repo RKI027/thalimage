@@ -365,3 +365,81 @@ def test_images_from_an_older_extractor_are_read_again_once(tmp_path: Path) -> N
     settled = run_scan(conn, source_id, thumbs)
     assert (settled.added, settled.skipped) == (0, 1)
     conn.close()
+
+
+def _tagged_jpeg(path: Path, *keywords: str, rating: str | None = None) -> None:
+    from tests.test_metadata import _xmp
+
+    Image.new("RGB", (8, 8), "white").save(path, format="JPEG", xmp=_xmp(*keywords, rating=rating))
+
+
+def _tag_names(conn: sqlite3.Connection) -> set[str]:
+    return {r[0] for r in conn.execute(
+        "SELECT t.name FROM image_tags it JOIN tags t ON t.id = it.tag_id"
+    )}
+
+
+def test_scan_tags_images_with_their_file_keywords_and_rating(tmp_path: Path) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    _tagged_jpeg(img_dir / "a.jpg", "stable diffusion", "beach", rating="5")
+
+    run_scan(conn, source_id, thumbs)
+
+    assert _tag_names(conn) == {"stable diffusion", "beach", "rating:5"}
+    conn.close()
+
+
+def test_file_keywords_join_an_existing_tag_whatever_its_case(tmp_path: Path) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    conn.execute("INSERT INTO tags (name) VALUES ('Beach')")
+    conn.commit()
+    _tagged_jpeg(img_dir / "a.jpg", "beach")
+
+    run_scan(conn, source_id, thumbs)
+
+    assert _tag_names(conn) == {"Beach"}
+    assert conn.execute("SELECT COUNT(*) FROM tags").fetchone()[0] == 1
+    conn.close()
+
+
+def test_a_removed_file_tag_stays_removed_when_the_file_is_read_again(tmp_path: Path) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    _tagged_jpeg(img_dir / "a.jpg", "beach", "fox")
+    run_scan(conn, source_id, thumbs)
+    conn.execute(
+        "DELETE FROM image_tags WHERE tag_id = (SELECT id FROM tags WHERE name = 'beach')"
+    )
+    conn.execute("UPDATE image_metadata SET extractor_version = 0")
+    conn.commit()
+
+    again = run_scan(conn, source_id, thumbs)
+
+    assert again.added == 1
+    assert _tag_names(conn) == {"fox"}
+    conn.close()
+
+
+def test_a_re_read_adds_file_tags_not_imported_before(tmp_path: Path) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    _tagged_jpeg(img_dir / "a.jpg", "beach", rating="2")
+    run_scan(conn, source_id, thumbs)
+    # As an extractor that read keywords but not ratings would have left it.
+    conn.execute("DELETE FROM image_tags WHERE tag_id = (SELECT id FROM tags WHERE name = 'rating:2')")
+    conn.execute("UPDATE image_metadata SET extractor_version = 0, file_tags = '[\"beach\"]'")
+    conn.commit()
+
+    run_scan(conn, source_id, thumbs)
+
+    assert _tag_names(conn) == {"beach", "rating:2"}
+    conn.close()
+
+
+def test_the_same_file_twice_is_tagged_once(tmp_path: Path) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    _tagged_jpeg(img_dir / "a.jpg", "beach")
+    (img_dir / "b.jpg").write_bytes((img_dir / "a.jpg").read_bytes())
+
+    run_scan(conn, source_id, thumbs)
+
+    assert conn.execute("SELECT COUNT(*) FROM image_tags").fetchone()[0] == 1
+    conn.close()
