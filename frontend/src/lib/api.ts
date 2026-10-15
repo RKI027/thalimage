@@ -14,6 +14,7 @@ import type {
 	SourceSummary,
 	EloPair,
 	EloRankingPage,
+	EloStats,
 	FilterState,
 	SortField,
 	SortDirection,
@@ -310,6 +311,11 @@ export function getEloRankings(
 	const q = new URLSearchParams({ offset: String(offset), limit: String(limit) });
 	if (showNsfw) q.set('show_nsfw', 'true');
 	return fetchJSON(`${BASE}/collections/${collectionId}/elo/rankings?${q}`);
+}
+
+/** The collection's voting statistics, with head-to-heads for the top `top`. */
+export function getEloStats(collectionId: number, top = 20): Promise<EloStats> {
+	return fetchJSON(`${BASE}/collections/${collectionId}/elo/stats?top=${top}`);
 }
 
 // Tags

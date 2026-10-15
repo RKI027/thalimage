@@ -48,6 +48,41 @@ The rankings ignore the filters set on the collection. NSFW images are
 left out of the list unless you have chosen to show them, but still
 count in the ranks, so the ranks shown can skip a number.
 
+## Voting statistics
+
+The rankings page's **Stats** tab shows how voting has gone in the
+collection. It covers the images voting can draw: the collection's images
+that are not deleted and not archived, voted on or not. NSFW images count
+whatever the NSFW setting, since leaving them out would skew the figures;
+only their file names appear.
+
+**Match fairness.** The histogram counts images by matches played,
+against a balanced schedule: with the matches played so far spread
+evenly, every image would sit within one match of the average, shown as
+a band. The Gini coefficient sums the unevenness up in one number: 0
+when every image has played as often as every other, approaching 1 when
+a few images have played nearly every match. The Lorenz curve shows the
+same thing: the share of all matches played by the least-played images,
+against the share of images they are; an even schedule follows the
+diagonal. Matches by rank shows whether images at the top and the bottom
+are still being challenged.
+
+**Score and confidence.** The score histogram shows how far voting has
+spread the images from the starting 1500. Plotting score against matches
+shows how settled each score is: an image with few matches has a score
+one or two votes could still move a long way.
+
+**Pairs.** How many of the possible pairs have met at least once, and how
+many met more than once. The head-to-head grid shows the 20 best-ranked
+images voting can draw, each cell the record of the row's image against
+the column's. Archived images are left out, so the ranks on its edges
+can skip a number.
+
+Matches are the same counts the rankings show: every vote the image took
+part in there, including against images since removed or deleted. The
+pair figures count only meetings between two images that are both still
+covered.
+
 ## An image's standing
 
 The viewer's information panel shows where an image stands. Opened from

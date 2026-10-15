@@ -159,6 +159,30 @@ export interface EloRanked {
 	losses: number;
 }
 
+/** An image voting can draw; `score` and `rank` are null until voted on. */
+export interface CoveredImage {
+	content_hash: string;
+	filename: string;
+	matches: number;
+	score: number | null;
+	rank: number | null;
+}
+
+export interface Meeting {
+	winner: string;
+	loser: string;
+	count: number;
+}
+
+/** A collection's voting statistics; `top` is the head of the ranking
+ * among `images`, with `head_to_head` the results among those. */
+export interface EloStats {
+	images: CoveredImage[];
+	pairs: { met: number; possible: number; repeated: number; most_meetings: number };
+	top: CoveredImage[];
+	head_to_head: Meeting[];
+}
+
 /** `total` counts the lines the listing can show; `ranked` every ranked image. */
 export interface EloRankingPage {
 	items: EloRanked[];

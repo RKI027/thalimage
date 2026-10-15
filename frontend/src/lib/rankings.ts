@@ -24,3 +24,15 @@ export function rankingsContext(collectionId: number, name: string, pageUrl: str
 		back: { href: pageUrl, label: 'Rankings' }
 	};
 }
+
+export type RankingsView = 'list' | 'stats';
+
+/** The rankings page at `pathname` showing `view`, other parameters of
+ * `search` kept; the list is the default and needs no parameter. */
+export function rankingsViewHref(pathname: string, search: string, view: RankingsView): string {
+	const q = new URLSearchParams(search);
+	if (view === 'list') q.delete('view');
+	else q.set('view', view);
+	const qs = q.toString();
+	return qs ? `${pathname}?${qs}` : pathname;
+}

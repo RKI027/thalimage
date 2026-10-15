@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from thalimage.deps import get_db
 from thalimage.services.collection_service import resolve_scope
 from thalimage.services.elo_ranking import elo_cut
+from thalimage.services.elo_stats import EloStats, collection_stats
 from thalimage.services.elo_service import (
     CollectionNotFound,
     EloRankingPage,
@@ -92,3 +93,15 @@ def get_elo_rankings(
     db: sqlite3.Connection = Depends(get_db),
 ) -> EloRankingPage:
     return get_rankings(db, collection_id, offset=offset, limit=limit, show_nsfw=show_nsfw)
+
+
+@router.get("/stats", response_model=EloStats)
+def get_elo_stats(
+    collection_id: int,
+    top: int = Query(20, ge=1, le=50),
+    db: sqlite3.Connection = Depends(get_db),
+) -> EloStats:
+    stats = collection_stats(db, collection_id, top=top)
+    if stats is None:
+        raise HTTPException(404, "Collection not found")
+    return stats
