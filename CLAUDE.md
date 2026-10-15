@@ -20,6 +20,7 @@ The frontend needs Node 24 and the pnpm pinned in `frontend/package.json`.
 - `app.py` — FastAPI app factory: middleware, routers, SPA serving
 - `deps.py` — request dependencies; `get_db` opens a connection per request
 - `csrf.py` — refuses cross-site writes
+- `compression.py` — gzips text-like responses (never media or ranges)
 - `paths.py` — repository-relative paths (checkout only)
 - `version.py` — package version and build commit
 - `db/` — SQLite engine and the numbered migrations (`db/migrations/NNN_*.sql`)
