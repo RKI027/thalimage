@@ -273,8 +273,27 @@ def list_images(
         show_nsfw=show_nsfw,
         elo_cut=elo_cut,
     )
+    return listing_page(
+        conn, f,
+        cursor=cursor, limit=limit, sort=sort, direction=direction,
+        elo_collection_id=elo_collection_id,
+    )
+
+
+def listing_page(
+    conn: sqlite3.Connection,
+    filters: ListingFilters,
+    *,
+    cursor: Optional[str] = None,
+    limit: int = 200,
+    sort: str = "name",
+    direction: str = "asc",
+    elo_collection_id: Optional[int] = None,
+) -> ImagePage:
+    """A page of the listing that sort, direction and filters define; see
+    `list_images`."""
     key = _sort_key(sort, elo_collection_id)
-    return _page(conn, f, key, direction, cursor, limit)
+    return _page(conn, filters, key, direction, cursor, limit)
 
 
 def _page(
