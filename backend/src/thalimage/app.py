@@ -14,6 +14,7 @@ from starlette.types import Scope
 
 from thalimage.api import backups, collections, docs, elo, images, sources, tags, version
 from thalimage.api import settings as user_settings
+from thalimage.compression import TextCompression
 from thalimage.config import get_settings
 from thalimage.csrf import CrossSiteWriteGuard
 from thalimage.db.engine import connect, migrate
@@ -88,6 +89,9 @@ def create_app() -> FastAPI:
     )
 
     config = get_settings()
+
+    # Added first, so it runs innermost: compresses what the app answers.
+    app.add_middleware(TextCompression)
 
     # Reject requests with an unexpected Host header (DNS-rebinding defense).
     # Loopback is always allowed; operators add the hostnames clients use.
