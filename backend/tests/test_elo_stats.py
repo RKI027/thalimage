@@ -50,6 +50,23 @@ def test_every_image_voting_can_draw_with_its_matches(client: TestClient, db: sq
     assert images[h[3]]["score"] is None
 
 
+
+def test_marks_the_images_hidden_while_nsfw_is_hidden(client: TestClient, db: sqlite3.Connection) -> None:
+    h, cid = _seed(client, db)
+    db.execute("UPDATE images SET nsfw = 1 WHERE content_hash = ?", (h[0],))
+    db.commit()
+    other = int(client.post("/api/v1/collections", json={"name": "Spicy"}).json()["id"])
+    client.post(f"/api/v1/collections/{other}/images", json={"hashes": [h[1]]})
+    db.execute("UPDATE collections SET nsfw = 1 WHERE id = ?", (other,))
+    db.commit()
+
+    stats = _stats(client, cid)
+
+    assert {i["content_hash"]: i["nsfw"] for i in stats["images"]} == {
+        h[0]: True, h[1]: True, h[2]: False, h[3]: False
+    }
+    assert [i["nsfw"] for i in stats["top"]] == [True, True, False]
+
 def test_archived_deleted_and_removed_images_are_left_out(client: TestClient, db: sqlite3.Connection) -> None:
     h, cid = _seed(client, db)
     db.execute("UPDATE images SET archived = 1 WHERE content_hash = ?", (h[0],))

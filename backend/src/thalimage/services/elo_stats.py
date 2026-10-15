@@ -8,14 +8,17 @@ from typing import Optional
 from pydantic import BaseModel
 
 from thalimage.services.elo_ranking import member_sql, ranked_sql
+from thalimage.services.image_service import safe_sql
 
 
 class CoveredImage(BaseModel):
     """An image voting can draw. `matches` counts every vote it took part in
-    there; `score` and `rank` are None until it has been voted on."""
+    there; `score` and `rank` are None until it has been voted on; `nsfw`
+    says whether it is hidden while NSFW images are hidden."""
 
     content_hash: str
     filename: str
+    nsfw: bool
     matches: int
     score: Optional[float]
     rank: Optional[int]
@@ -49,7 +52,8 @@ class EloStats(BaseModel):
 
 # The images voting can draw: members, neither deleted nor archived.
 _COVERED = f"""covered AS (
-    SELECT i.content_hash, i.filename FROM images i JOIN collections c ON c.id = :cid
+    SELECT i.content_hash, i.filename, NOT ({safe_sql("i.")}) AS nsfw
+    FROM images i JOIN collections c ON c.id = :cid
     WHERE i.deleted = 0 AND i.archived = 0 AND {member_sql("c", "i.content_hash")})"""
 
 # Votes between two covered images.
@@ -71,7 +75,7 @@ def collection_stats(conn: sqlite3.Connection, collection_id: int, *, top: int =
             f"""WITH {_COVERED},
                ranked AS (SELECT content_hash, score, RANK() OVER (ORDER BY score DESC) AS rank
                           FROM ({ranked_sql(":cid")}))
-               SELECT cv.content_hash, cv.filename, COALESCE(e.matches, 0) AS matches,
+               SELECT cv.content_hash, cv.filename, cv.nsfw, COALESCE(e.matches, 0) AS matches,
                       r.score, r.rank
                FROM covered cv
                LEFT JOIN elo_scores e ON e.collection_id = :cid AND e.content_hash = cv.content_hash

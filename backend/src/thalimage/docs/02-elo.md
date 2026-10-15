@@ -37,8 +37,9 @@ number of ranked images scored higher.
 
 ## The rankings page
 
-**Rankings**, on a collection and on its vote page, lists the ranked
-images from the top: rank, score, matches won and lost. Opened from the
+**Rankings**, on a collection and on its vote page, opens on the voting
+statistics (below). Its **List** tab lists the ranked images from the
+top: rank, score, matches won and lost. Opened from the
 vote page, its back link returns to voting. Opening an image walks the
 ranking itself: the viewer's previous and next follow the order of the
 list, and the back link returns to it. An archived image opens but has
@@ -50,11 +51,11 @@ count in the ranks, so the ranks shown can skip a number.
 
 ## Voting statistics
 
-The rankings page's **Stats** tab shows how voting has gone in the
+The rankings page's **Stats** tab, where it opens, shows how voting has gone in the
 collection. It covers the images voting can draw: the collection's images
 that are not deleted and not archived, voted on or not. NSFW images count
 whatever the NSFW setting, since leaving them out would skew the figures;
-only their file names appear.
+while NSFW images are hidden, only their file names appear.
 
 **Match fairness.** The histogram counts images by matches played,
 against a balanced schedule: with the matches played so far spread
@@ -75,7 +76,8 @@ one or two votes could still move a long way.
 **Pairs.** How many of the possible pairs have met at least once, and how
 many met more than once. The head-to-head grid shows the 20 best-ranked
 images voting can draw, each cell the record of the row's image against
-the column's. Archived images are left out, so the ranks on its edges
+the column's; pointing at a cell shows both images and their record.
+Archived images are left out, so the ranks on its edges
 can skip a number.
 
 Matches are the same counts the rankings show: every vote the image took
