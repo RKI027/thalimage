@@ -315,3 +315,50 @@ def test_neighbors_endpoint(client: TestClient, db: sqlite3.Connection) -> None:
     assert resp.json()["total_count"] == 5
 
     assert client.get(f"/api/v1/images/{'f' * 64}/neighbors").status_code == 404
+
+
+def test_sequence_lists_the_whole_listing_in_order(
+    client: TestClient, db: sqlite3.Connection
+) -> None:
+    hashes = [insert_image(db, f"{i:064d}", filename=f"s{i}.png") for i in range(5)]
+    resp = client.get("/api/v1/images/sequence", params={"sort": "name", "dir": "desc"})
+    assert resp.status_code == 200
+    assert resp.json() == [
+        {"content_hash": h, "filename": f"s{i}.png", "score": None}
+        for i, h in reversed(list(enumerate(hashes)))
+    ]
+
+
+def test_sequence_scores_images_in_the_collection_browsed(
+    client: TestClient, db: sqlite3.Connection
+) -> None:
+    hashes = [insert_image(db, f"{i:064d}", filename=f"s{i}.png") for i in range(4)]
+    cid = client.post("/api/v1/collections", json={"name": "Seq"}).json()["id"]
+    client.post(f"/api/v1/collections/{cid}/images", json={"hashes": hashes[:3]})
+    client.post(
+        f"/api/v1/collections/{cid}/elo/vote",
+        json={"winner_hash": hashes[2], "loser_hash": hashes[0]},
+    )
+    items = client.get(
+        "/api/v1/images/sequence", params={"collection_id": cid, "sort": "elo", "dir": "desc"}
+    ).json()
+    assert [i["content_hash"] for i in items] == [hashes[2], hashes[1], hashes[0]]
+    assert items[0]["score"] > 1500
+    assert items[1]["score"] == 1500
+    assert items[2]["score"] < 1500
+
+
+def test_sequence_scores_images_in_a_source_preset(
+    client: TestClient, db: sqlite3.Connection
+) -> None:
+    from thalimage.services.collection_service import get_or_create_source_preset
+
+    hashes = [insert_image(db, f"{i:064d}", filename=f"s{i}.png") for i in range(2)]
+    preset = get_or_create_source_preset(db, 1, "test").id
+    client.post(
+        f"/api/v1/collections/{preset}/elo/vote",
+        json={"winner_hash": hashes[1], "loser_hash": hashes[0]},
+    )
+    items = client.get("/api/v1/images/sequence", params={"collection_id": preset}).json()
+    assert [i["content_hash"] for i in items] == hashes
+    assert items[0]["score"] < 1500 < items[1]["score"]
