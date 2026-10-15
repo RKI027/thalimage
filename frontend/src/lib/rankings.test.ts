@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rankingsBack, rankingsContext, rankingsViewHref } from './rankings';
+import { rankingsBack, rankingsContext, rankingsView, rankingsViewHref } from './rankings';
 
 describe('rankingsBack', () => {
 	it('returns to voting when opened from there', () => {
@@ -25,12 +25,20 @@ describe('rankingsContext', () => {
 	});
 });
 
+describe('rankingsView', () => {
+	it('shows the stats unless the list is asked for', () => {
+		expect(rankingsView(null)).toBe('stats');
+		expect(rankingsView('stats')).toBe('stats');
+		expect(rankingsView('list')).toBe('list');
+	});
+});
+
 describe('rankingsViewHref', () => {
 	it('switches tab, keeping where the page was opened from', () => {
-		expect(rankingsViewHref('/collections/4/rankings', '?from=vote', 'stats')).toBe(
-			'/collections/4/rankings?from=vote&view=stats'
+		expect(rankingsViewHref('/collections/4/rankings', '?from=vote', 'list')).toBe(
+			'/collections/4/rankings?from=vote&view=list'
 		);
-		expect(rankingsViewHref('/collections/4/rankings', '?from=vote&view=stats', 'list')).toBe(
+		expect(rankingsViewHref('/collections/4/rankings', '?from=vote&view=list', 'stats')).toBe(
 			'/collections/4/rankings?from=vote'
 		);
 	});

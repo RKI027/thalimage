@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { getCollection, getEloRankings, thumbUrl } from '$lib/api';
 	import { setBrowsingContext } from '$lib/browsingContext';
-	import { rankingsBack, rankingsContext, rankingsViewHref } from '$lib/rankings';
+	import { rankingsBack, rankingsContext, rankingsView, rankingsViewHref } from '$lib/rankings';
 	import type { RankingsView } from '$lib/rankings';
 	import EloStatsView from '$lib/components/stats/EloStatsView.svelte';
 	import { settingsStore } from '$lib/stores';
@@ -21,7 +21,7 @@
 
 	const collectionId = $derived(Number($page.params.id));
 	const back = $derived(rankingsBack(collectionId, collection?.name ?? 'Collection', $page.url.searchParams.get('from')));
-	const view: RankingsView = $derived($page.url.searchParams.get('view') === 'stats' ? 'stats' : 'list');
+	const view: RankingsView = $derived(rankingsView($page.url.searchParams.get('view')));
 	const tabHref = (v: RankingsView) => rankingsViewHref($page.url.pathname, $page.url.search, v);
 
 	async function load(offset: number) {
@@ -74,8 +74,8 @@
 		<a href={back.href}>{back.label}</a>
 		<h2>{collection?.name ?? ''} — Rankings</h2>
 		<nav class="tabs">
-			<a href={tabHref('list')} class:active={view === 'list'} aria-current={view === 'list' ? 'page' : undefined}>List</a>
 			<a href={tabHref('stats')} class:active={view === 'stats'} aria-current={view === 'stats' ? 'page' : undefined}>Stats</a>
+			<a href={tabHref('list')} class:active={view === 'list'} aria-current={view === 'list' ? 'page' : undefined}>List</a>
 		</nav>
 		<span class="count">{ranked} ranked</span>
 	</div>
