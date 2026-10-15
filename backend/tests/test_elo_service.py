@@ -228,3 +228,39 @@ def test_get_pair_includes_nsfw_when_requested(db: sqlite3.Connection) -> None:
         seen.add(right.content_hash)
 
     assert hashes[2] in seen
+
+
+def test_get_pair_hides_an_nsfw_collection_s_images(db: sqlite3.Connection) -> None:
+    """Hidden NSFW covers members of NSFW collections, as in the gallery: an
+    NSFW collection has no pairs until NSFW images are shown."""
+    cid, _ = _seed_collection_with_images(db, n=3)
+    db.execute("UPDATE collections SET nsfw = 1 WHERE id = ?", (cid,))
+    db.commit()
+
+    with pytest.raises(ValueError, match="at least 2"):
+        get_pair(db, cid)
+    assert get_pair(db, cid, show_nsfw=True)
+
+
+def test_get_pair_hides_images_from_another_nsfw_collection(db: sqlite3.Connection) -> None:
+    cid, hashes = _seed_collection_with_images(db, n=3)
+    db.execute("INSERT INTO collections (name, nsfw) VALUES ('Private', 1)")
+    db.execute(
+        "INSERT INTO collection_images (collection_id, content_hash)"
+        " SELECT id, ? FROM collections WHERE name = 'Private'",
+        (hashes[2],),
+    )
+    db.commit()
+
+    for _ in range(20):
+        left, right = get_pair(db, cid)
+        assert hashes[2] not in (left.content_hash, right.content_hash)
+
+
+def test_get_pair_hides_an_nsfw_source_preset_s_images(db: sqlite3.Connection) -> None:
+    cid, sid, _ = _seed_source_preset(db, n=3)
+    db.execute("UPDATE collections SET nsfw = 1 WHERE id = ?", (cid,))
+    db.commit()
+
+    with pytest.raises(ValueError, match="at least 2"):
+        get_pair(db, cid, source_id=sid)

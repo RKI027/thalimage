@@ -70,14 +70,15 @@ def get_pair(
         q += f" AND {sql}"
         params.extend(values)
     if not show_nsfw:
-        q += " AND i.nsfw = 0"
+        q += f" AND {safe_sql('i.')}"
     q += " ORDER BY matches ASC, RANDOM()"
 
     rows = conn.execute(q, params).fetchall()
 
     if len(rows) < 2:
         raise ValueError(
-            f"Collection {collection_id} needs at least 2 images for voting"
+            f"Collection {collection_id} needs at least 2 images for voting;"
+            f" its filters and the NSFW setting leave {len(rows)}"
         )
 
     # Pick from bottom quartile by match count

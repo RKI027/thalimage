@@ -115,9 +115,11 @@ filtered.
 ## How pairs are chosen
 
 Candidates are every image in the collection that is not deleted and not
-archived, minus NSFW images unless you have chosen to show them, and
-narrowed by the date, aspect-ratio, media-type and ELO filters set on
-the collection. Those are sorted by how many matches each has already had,
+archived, narrowed by the date, aspect-ratio, media-type and ELO
+filters set on the collection. Unless you have chosen to show NSFW
+images, the gallery's NSFW rule applies too: images marked NSFW, and
+every image in a collection marked NSFW, are left out, so voting in an
+NSFW collection waits until NSFW images are shown. Those are sorted by how many matches each has already had,
 and the quarter with the fewest matches becomes the pool. Two images are
 then drawn from that pool at random.
 
