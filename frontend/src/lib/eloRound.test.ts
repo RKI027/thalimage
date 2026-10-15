@@ -44,6 +44,16 @@ describe('EloRound', () => {
 		expect([round.left?.content_hash, round.right?.content_hash]).toEqual(['c', 'd']);
 	});
 
+	it('keeps the pair on screen out of the next one', async () => {
+		const round = new EloRound();
+		getEloPair.mockResolvedValueOnce(pair('a', 'b')).mockResolvedValueOnce(pair('c', 'd'));
+		round.setScope(scope(1));
+		await round.loadPair();
+		await flush();
+		expect(getEloPair).toHaveBeenNthCalledWith(1, 1, {}, false, []);
+		expect(getEloPair).toHaveBeenNthCalledWith(2, 1, {}, false, ['a', 'b']);
+	});
+
 	it('records one vote per pair however often it is asked (GEN-009)', async () => {
 		vi.useFakeTimers();
 		const round = new EloRound();

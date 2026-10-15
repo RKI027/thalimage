@@ -58,7 +58,7 @@ export class EloRound {
 
 		this.loading = true;
 		try {
-			const pair = await getEloPair(scope.collectionId, scope.filters, scope.showNsfw);
+			const pair = await getEloPair(scope.collectionId, scope.filters, scope.showNsfw, this.#onScreen());
 			if (key !== this.#scopeKey) return;
 			this.left = pair.left;
 			this.right = pair.right;
@@ -95,12 +95,17 @@ export class EloRound {
 		}, HIGHLIGHT_MS);
 	}
 
+	/** The hashes of the pair on screen, which the next pair leaves out. */
+	#onScreen(): string[] {
+		return [this.left, this.right].flatMap((item) => (item ? [item.content_hash] : []));
+	}
+
 	async #prefetch(): Promise<void> {
 		const scope = this.#scope;
 		if (!scope) return;
 		const key = this.#scopeKey;
 		try {
-			const pair = await getEloPair(scope.collectionId, scope.filters, scope.showNsfw);
+			const pair = await getEloPair(scope.collectionId, scope.filters, scope.showNsfw, this.#onScreen());
 			if (key !== this.#scopeKey) return;
 			this.#preload(pair.left);
 			this.#preload(pair.right);

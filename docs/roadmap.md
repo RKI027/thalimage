@@ -160,8 +160,8 @@ against new images. The analysis and the fixes to consider are in
 
 Published at `/docs`, sourced from `backend/src/thalimage/docs/*.md`:
 overview, ranking by vote, image delivery, scanning. The ELO bias above
-is documented there rather than silently fixed — the fix itself is still
-open.
+was documented there first, then fixed in
+[#10](https://github.com/RKI027/thalimage/issues/10).
 
 ## Phase 5.5 — Deployment ✓
 

@@ -154,6 +154,57 @@ def test_get_pair_favors_fewer_matches(db: sqlite3.Connection) -> None:
     assert seen[hashes[2]] + seen[hashes[3]] > seen[hashes[0]] + seen[hashes[1]]
 
 
+
+def _set_standing(
+    conn: sqlite3.Connection, cid: int, content_hash: str, *, score: float, matches: int
+) -> None:
+    conn.execute(
+        "INSERT INTO elo_scores (content_hash, collection_id, score, matches) VALUES (?, ?, ?, ?)",
+        (content_hash, cid, score, matches),
+    )
+    conn.commit()
+
+
+def test_get_pair_always_includes_an_image_with_the_fewest_matches(
+    db: sqlite3.Connection,
+) -> None:
+    cid, hashes = _seed_collection_with_images(db, n=20)
+    for h in hashes[1:]:
+        _set_standing(db, cid, h, score=1500.0, matches=1)
+
+    for _ in range(30):
+        left, right = get_pair(db, cid)
+        assert hashes[0] in (left.content_hash, right.content_hash)
+
+
+def test_get_pair_matches_the_opponent_by_score(db: sqlite3.Connection) -> None:
+    """The unvoted image (1500) leads every pair; its opponent is near it."""
+    cid, hashes = _seed_collection_with_images(db, n=6)
+    scores = [1480.0, 1550.0, 2100.0, 900.0, 2500.0]
+    for h, score in zip(hashes[1:], scores, strict=True):
+        _set_standing(db, cid, h, score=score, matches=1)
+    far = set(hashes[3:])
+
+    far_draws = 0
+    for _ in range(200):
+        left, right = get_pair(db, cid)
+        far_draws += bool(far & {left.content_hash, right.content_hash})
+    assert far_draws <= 1
+
+
+def test_get_pair_leaves_out_the_excluded_images(db: sqlite3.Connection) -> None:
+    cid, hashes = _seed_collection_with_images(db, n=6)
+    for _ in range(30):
+        left, right = get_pair(db, cid, exclude=hashes[:2])
+        assert not set(hashes[:2]) & {left.content_hash, right.content_hash}
+
+
+def test_get_pair_ignores_an_exclusion_that_leaves_too_few(db: sqlite3.Connection) -> None:
+    cid, hashes = _seed_collection_with_images(db, n=3)
+    left, right = get_pair(db, cid, exclude=hashes[:2])
+    assert left.content_hash != right.content_hash
+
+
 # --- Source preset and filter tests ---
 
 
