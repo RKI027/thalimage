@@ -78,6 +78,16 @@ describe('attachSwipe', () => {
 		expect(h.onSwipeLeft).not.toHaveBeenCalled();
 	});
 
+	it('leaves taps inside a disclosure summary to the summary', () => {
+		const summary = document.createElement('summary');
+		const heading = document.createElement('h3');
+		summary.append(heading);
+		el.append(summary);
+		attachSwipe(el, h);
+		gesture(el, [100, 100], [100, 100], 100, heading);
+		expect(h.onTap).not.toHaveBeenCalled();
+	});
+
 	it('stops listening after cleanup', () => {
 		const detach = attachSwipe(el, h);
 		detach();

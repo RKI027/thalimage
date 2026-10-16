@@ -39,7 +39,7 @@ export function attachSwipe(
 		// Let interactive controls handle their own pointer. Capturing here would
 		// retarget their click to this element (Svelte delegates pointerdown to the
 		// app root, so a child's stopPropagation runs too late to prevent it).
-		if ((e.target as Element | null)?.closest('button, a, input, select, textarea, [data-no-swipe]'))
+		if ((e.target as Element | null)?.closest('button, a, input, select, textarea, summary, [data-no-swipe]'))
 			return;
 		activePointer = e.pointerId;
 		startX = e.clientX;
