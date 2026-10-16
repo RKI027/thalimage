@@ -5,4 +5,6 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      # The 1st and 15th: roughly every two weeks
+      interval: cron
+      cronjob: "0 6 1,15 * *"
