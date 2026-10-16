@@ -63,7 +63,7 @@ def delete_source(conn: sqlite3.Connection, source_id: int) -> Optional[list[str
         ]
         if orphans:
             marks = ",".join("?" * len(orphans))
-            conn.execute(f"DELETE FROM image_metadata WHERE content_hash IN ({marks})", orphans)
+            conn.execute(f"DELETE FROM file_metadata WHERE content_hash IN ({marks})", orphans)
             conn.execute(f"DELETE FROM collection_images WHERE content_hash IN ({marks})", orphans)
             conn.execute(f"DELETE FROM elo_scores WHERE content_hash IN ({marks})", orphans)
             conn.execute(

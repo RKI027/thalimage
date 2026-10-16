@@ -62,8 +62,14 @@ them differs. The image lists under every source it
 lies in and keeps one set of tags, scores and collection memberships.
 It is opened from one of its copies; if that copy disappears, the app
 switches to another. The image only counts as deleted once no copy is
-left anywhere. Its prompt and other metadata are read from one of the
-copies.
+left anywhere.
+
+Each file keeps its own metadata: the prompt, parameters, EXIF and PNG
+text read from it. The image shows the metadata of the copy it is opened
+from, and its information panel notes when other files of the same
+image carry a different prompt, negative prompt or generation tool. A file's metadata stays with the
+image after the file is deleted or disappears, so removing a copy never
+loses it.
 
 ## When the way images are identified changes
 
@@ -75,9 +81,9 @@ identity:
 - An image whose file is unchanged since the last scan keeps its tags,
   votes, scores and collection memberships. Its thumbnail, previews and
   playable video copy follow it.
-- Images that turn out to hold the same picture become one. Their tags
-  and collection memberships combine and their votes move to it; a vote
-  between the two is dropped. The scores of the collections concerned
+- Images that turn out to hold the same picture become one. Their tags,
+  collection memberships and each file's metadata combine and their
+  votes move to it; a vote between the two is dropped. The scores of the collections concerned
   are recomputed from their votes, in the order they were cast.
 - A file that changed since the last scan counts as new content, as it
   always has.
@@ -111,9 +117,9 @@ explains the difference, each opening onto the files concerned:
   can tick copies and delete them from disk, after a confirmation that
   lists every file with its sidecars (see below). Each image keeps at
   least one copy, and a file that changed since the last scan is refused
-  until you rescan. When a deleted copy's sidecar differs from every
-  sidecar of the copies kept, the confirmation warns that its content
-  will be lost.
+  until you rescan. A deleted copy's metadata stays with the image. When
+  a deleted copy's sidecar differs from every sidecar of the copies
+  kept, the confirmation warns that its content will be lost.
 - **Files not indexed**: files the last scan could not read or decode,
   and subfolders it could not list, with the reason. A new file that
   fails is not counted at all; one indexed before keeps its earlier

@@ -174,3 +174,37 @@ def test_018_marks_videos_current_and_stills_for_re_extraction(tmp_path: Path) -
     )}
     assert rows == {"still": (1, None), "clip": (2, None)}
     conn.close()
+
+
+def test_020_keys_metadata_by_the_file_that_gave_it(tmp_path: Path) -> None:
+    conn = _db_at(tmp_path, 19)
+    conn.execute("INSERT INTO sources (id, path) VALUES (1, '/a')")
+    # "old" is still keyed by its whole-file hash; "rekeyed" already has its
+    # picture hash, which says nothing about the file its metadata came from.
+    for h in ("old", "rekeyed"):
+        _image(conn, h)
+        conn.execute(
+            "INSERT INTO image_locations (source_id, relative_path, content_hash, filename,"
+            " file_size, file_modified, hash_version) VALUES (1, ?, ?, ?, 1, '2024-01-01', ?)",
+            (h, h, h, 0 if h == "old" else 1),
+        )
+        conn.execute(
+            "INSERT INTO image_metadata (content_hash, prompt, file_tags, extractor_version)"
+            " VALUES (?, 'a lighthouse', '[\"beach\"]', 2)",
+            (h,),
+        )
+    conn.commit()
+
+    migrate(conn, target=20)
+
+    assert [tuple(r) for r in conn.execute(
+        "SELECT file_hash, content_hash, prompt FROM file_metadata"
+    )] == [("old", "old", "a lighthouse")]
+    assert {r[0]: r[1] for r in conn.execute(
+        "SELECT content_hash, file_hash FROM image_locations"
+    )} == {"old": "old", "rekeyed": None}
+    assert {r[0]: r[1] for r in conn.execute("SELECT content_hash, file_tags FROM images")} == {
+        "old": '["beach"]',
+        "rekeyed": '["beach"]',
+    }
+    conn.close()

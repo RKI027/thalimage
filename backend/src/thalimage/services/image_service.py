@@ -58,6 +58,8 @@ class ImageDetail(ImageSummary):
     exif_data: Optional[str] = None
     png_text: Optional[str] = None
     folder_tags: list[str] = []
+    # Other files of this image with a different tool, prompt or negative prompt.
+    other_versions: int = 0
 
 
 class InvalidCursor(ValueError):
@@ -450,15 +452,43 @@ def sequence(
     ]
 
 
+# The file version whose metadata an image shows: its primary location's,
+# else the one read last (its file may be gone). Binds the image key once.
+_SHOWN_VERSION = """
+    SELECT m.file_hash FROM file_metadata m
+    WHERE m.content_hash = :key
+    ORDER BY m.file_hash IS (
+        SELECT l.file_hash FROM image_locations l JOIN images i
+          ON l.source_id = i.source_id AND l.relative_path = i.relative_path
+        WHERE i.content_hash = :key) DESC,
+      m.extracted_at DESC
+    LIMIT 1
+"""
+
+# The image's other file versions whose generation tool, prompt or negative
+# prompt differ from the shown one's. The rest of a file's metadata (EXIF,
+# PNG text, and the raw parameters, which hold all PNG text) changes
+# whenever a tool writes keywords or a comment into it, which tags already
+# carry; and settings such as the seed cannot differ for the same picture.
+_DIFFERING_VERSIONS = f"""
+    SELECT COUNT(*) FROM file_metadata o, file_metadata shown
+    WHERE shown.file_hash = ({_SHOWN_VERSION})
+      AND o.content_hash = :key AND o.file_hash != shown.file_hash
+      AND (o.ai_tool IS NOT shown.ai_tool OR o.prompt IS NOT shown.prompt
+           OR o.negative_prompt IS NOT shown.negative_prompt)
+"""
+
+
 def get_image(conn: sqlite3.Connection, content_hash: str) -> Optional[ImageDetail]:
     """Get full image details including metadata. Returns archived images too."""
     row = conn.execute(
-        """SELECT i.*, m.ai_tool, m.prompt, m.negative_prompt,
-                  m.raw_params, m.exif_data, m.png_text
+        f"""SELECT i.*, m.ai_tool, m.prompt, m.negative_prompt,
+                  m.raw_params, m.exif_data, m.png_text,
+                  ({_DIFFERING_VERSIONS}) AS other_versions
            FROM images i
-           LEFT JOIN image_metadata m ON i.content_hash = m.content_hash
-           WHERE i.content_hash = ? AND i.deleted = 0""",
-        (content_hash,),
+           LEFT JOIN file_metadata m ON m.file_hash = ({_SHOWN_VERSION})
+           WHERE i.content_hash = :key AND i.deleted = 0""",
+        {"key": content_hash},
     ).fetchone()
 
     if row is None:

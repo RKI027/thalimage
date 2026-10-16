@@ -54,6 +54,8 @@ export interface ImageDetail extends ImageSummary {
 	png_text: string | null;
 	/** `folder:<dir>` per folder holding a copy; derived, so read-only. */
 	folder_tags: string[];
+	/** Other files of this image with a different tool, prompt or negative prompt. */
+	other_versions: number;
 }
 
 export interface ImagePage {
