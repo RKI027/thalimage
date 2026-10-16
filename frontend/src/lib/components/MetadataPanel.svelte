@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { formatSize } from '$lib/format';
 	import type { EloStanding, ImageDetail, MetadataMode, Tag } from '$lib/types';
-	import { getImageTags, addImageTag, removeImageTag, listTags, createTag, getImageElo } from '$lib/api';
+	import { getImageTags, addImageTag, removeImageTag, listTags, createTag, getImageElo, getImageSidecars } from '$lib/api';
+	import { distinctSidecars, type DistinctSidecar } from '$lib/sidecars';
 	import { rankText, splitStandings } from '$lib/eloStanding';
 
 	/** `collectionId` is the collection being browsed: its ELO standing comes first. */
@@ -14,6 +15,8 @@
 	let standings = $state<EloStanding[]>([]);
 	const elo = $derived(splitStandings(standings, collectionId));
 
+	let sidecars = $state<DistinctSidecar[]>([]);
+
 	let tags = $state<Tag[]>([]);
 	let tagInput = $state('');
 	let tagSuggestions = $state<Tag[]>([]);
@@ -25,6 +28,18 @@
 			getImageElo(image.content_hash)
 				.then((s) => (standings = s))
 				.catch(() => (standings = []));
+		}
+	});
+
+	$effect(() => {
+		sidecars = [];
+		if (mode === 'full' && image) {
+			const hash = image.content_hash;
+			getImageSidecars(hash)
+				.then((s) => {
+					if (image.content_hash === hash) sidecars = distinctSidecars(s);
+				})
+				.catch(() => {});
 		}
 	});
 
@@ -170,6 +185,20 @@
 				{/if}
 			{/if}
 
+			{#if sidecars.length > 0}
+				<details class="sidecars">
+					<summary><h3>Sidecars ({sidecars.length})</h3></summary>
+					{#each sidecars as sidecar (sidecar.names[0])}
+						<h4 class="mono">{sidecar.names.join(', ')}</h4>
+						{#if sidecar.text !== null}
+							<pre class="wrap mono">{sidecar.text}</pre>
+						{:else}
+							<p class="note">{formatSize(sidecar.size)}, not shown</p>
+						{/if}
+					{/each}
+				</details>
+			{/if}
+
 			<section class="tags-section">
 				<h3>Tags</h3>
 				<div class="tag-list">
@@ -275,6 +304,33 @@
 	.mono {
 		font-family: monospace;
 		font-size: 0.8rem;
+	}
+
+	.sidecars {
+		margin-bottom: 16px;
+	}
+
+	.sidecars summary {
+		cursor: pointer;
+	}
+
+	.sidecars summary h3 {
+		display: inline;
+	}
+
+	.sidecars h4 {
+		word-break: break-all;
+	}
+
+	.sidecars pre {
+		margin: 0;
+		color: #ccc;
+	}
+
+	.note {
+		margin: 0;
+		font-size: 0.8rem;
+		color: #888;
 	}
 
 	.tags-section {

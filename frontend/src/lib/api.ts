@@ -5,6 +5,7 @@ import type {
 	ImagePage,
 	ImageDetail,
 	ImageCopy,
+	SidecarContent,
 	EloStanding,
 	Source,
 	Collection,
@@ -131,6 +132,10 @@ export function getImageElo(hash: string): Promise<EloStanding[]> {
 /** Every file holding the image, in every source. */
 export function getImageCopies(hash: string): Promise<ImageCopy[]> {
 	return fetchJSON(`${BASE}/images/${hash}/copies`);
+}
+
+export function getImageSidecars(hash: string): Promise<SidecarContent[]> {
+	return fetchJSON(`${BASE}/images/${hash}/sidecars`);
 }
 
 /** Delete every copy of the image from disk. Refused as a whole if any may not be deleted. */

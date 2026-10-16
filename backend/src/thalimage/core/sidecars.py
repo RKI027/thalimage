@@ -47,3 +47,18 @@ def digest(path: Path) -> str:
         for block in iter(lambda: f.read(1 << 16), b""):
             h.update(block)
     return h.hexdigest()
+
+
+MAX_TEXT_BYTES = 256 * 1024
+
+
+def text_of(sidecar: Path) -> str | None:
+    """The sidecar's text; None when it is over MAX_TEXT_BYTES or not UTF-8."""
+    with open(sidecar, "rb") as f:
+        data = f.read(MAX_TEXT_BYTES + 1)
+    if len(data) > MAX_TEXT_BYTES:
+        return None
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
