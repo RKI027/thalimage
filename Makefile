@@ -6,7 +6,7 @@ install:
 	cd backend && uv sync
 
 test:
-	cd backend && uv run pytest -q
+	cd backend && uv run pytest -q -n auto
 
 # Line + branch coverage of the backend, with the lines missed.
 cov:
