@@ -1,11 +1,14 @@
+> **Archived** 2026-10-16. Every item not done below became a GitHub
+> issue (#80–#99, plus the earlier #10, #14, #25–#29, #35), grouped by
+> `area:` label with their dependencies. The backlog is in [GitHub issues](https://github.com/RKI027/thalimage/issues).
+> Kept for the record of what each phase delivered. The design
+> decisions the code still follows are in [`docs/design.md`](../design.md).
+
 # Thalimage Roadmap
 
-What is done, what is next, and the backlog. Everything here describes
-the code as it is now; superseded plans say so where they stand. New
-work is tracked in [GitHub issues](https://github.com/RKI027/thalimage/issues);
-items move there from this file as they are picked up.
-Records of earlier work are in [`archive/`](archive/README.md); full
-review runs, with their resolution ledgers, are in [`review/`](review/).
+What was done, what was next, and the backlog, up to 2026-10-16.
+Records of earlier work are in this directory ([index](README.md)); full
+review runs, with their resolution ledgers, are in [`review/`](../review/).
 
 ## Done (MVP — Sprints 1-5)
 - Source folder scanning with metadata extraction

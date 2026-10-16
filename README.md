@@ -286,7 +286,8 @@ In development the frontend runs separately and proxies `/api` to the backend on
 
 - In-app user documentation at `/docs`, written in `backend/src/thalimage/docs/*.md` and shipped with the package
 - `CLAUDE.md` — architecture, code layout and conventions for contributors
-- `docs/roadmap.md` — current roadmap and backlog
+- `docs/design.md` — design decisions the code follows, and why
+- [GitHub issues](https://github.com/RKI027/thalimage/issues) — the backlog, grouped by `area:` label
 - `docs/review/` — full-review runs, each with a `RESOLUTION.md` ledger
 - `docs/archive/` — earlier plans, fix logs and reviews, kept for history (indexed in its `README.md`)
 - `LICENSE` — proprietary; all rights reserved

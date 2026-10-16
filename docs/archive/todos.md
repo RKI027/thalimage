@@ -1,5 +1,5 @@
 > **Archived.** Every item below is resolved (Phases 1–2.5). Kept as a fix log.
-> The live backlog now lives under "Unsorted" in [`docs/roadmap.md`](../roadmap.md).
+> The backlog is in [GitHub issues](https://github.com/RKI027/thalimage/issues).
 
 # Phase 1 / MCP
 
