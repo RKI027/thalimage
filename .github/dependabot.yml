@@ -8,3 +8,7 @@ updates:
       # The 1st and 15th: roughly every two weeks
       interval: cron
       cronjob: "0 6 1,15 * *"
+    # Holds back version updates until a release is a week old, giving a
+    # compromised release time to be caught; security updates are not delayed
+    cooldown:
+      default-days: 7
