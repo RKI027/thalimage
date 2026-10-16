@@ -1,5 +1,6 @@
 """Image browsing and serving endpoints."""
 
+import logging
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +34,8 @@ from thalimage.services.image_service import (
     sequence,
     set_archived,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/images", tags=["images"])
 
@@ -221,8 +224,11 @@ def get_image_video(
     if file_path is None:
         raise HTTPException(404, "Image not found")
     copy = playable_copy_path(video_dir, content_hash)
-    if copy.exists():
-        return FileResponse(copy, media_type="video/mp4", headers=IMMUTABLE)
+    try:
+        if copy.exists():
+            return FileResponse(copy, media_type="video/mp4", headers=IMMUTABLE)
+    except OSError:
+        logger.exception("Could not check the playable copy %s", copy)
     p = Path(file_path)
     if not p.exists():
         raise HTTPException(404, "File not found on disk")

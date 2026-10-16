@@ -4,6 +4,8 @@ from pathlib import Path
 
 import json
 
+import pytest
+
 from fastapi.testclient import TestClient
 
 from thalimage.deps import get_scan_manager
@@ -90,7 +92,7 @@ def test_trigger_scan_while_running_is_409(client: TestClient, image_dir: Path) 
 
 
 def test_failed_scan_reports_error(
-    client: TestClient, image_dir: Path, monkeypatch
+    client: TestClient, image_dir: Path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     def boom(*args: object, **kwargs: object) -> None:
         raise RuntimeError("disk on fire")
@@ -101,6 +103,8 @@ def test_failed_scan_reports_error(
     status = _last_status(client, source_id)
     assert status["phase"] == "error"
     assert status["message"] == "disk on fire"
+    (record,) = [r for r in caplog.records if r.exc_info]
+    assert "disk on fire" in str(record.exc_info[1])
 
 
 def test_scan_status_unknown_source_is_404(client: TestClient) -> None:

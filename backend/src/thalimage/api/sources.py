@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import sqlite3
 from pathlib import Path
 from typing import Optional
@@ -26,6 +27,8 @@ from thalimage.services.scan_manager import ScanManager
 from thalimage.services.scan_service import run_scan
 from thalimage.services.source_service import delete_source, relabel_source
 from thalimage.services.source_summary import SourceSummary, source_summary
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 
@@ -230,6 +233,7 @@ async def trigger_scan(
                 errors=result.errors,
             )
         except Exception as exc:
+            logger.exception("Scan of source %d failed", source_id)
             scan_manager.fail(source_id, message=str(exc))
         finally:
             worker_conn.close()
