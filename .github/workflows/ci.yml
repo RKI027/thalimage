@@ -26,8 +26,10 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
-      # The video tests (requires_ffmpeg) skip without it.
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      # The video tests (requires_ffmpeg) skip without it. A static build
+      # (ffmpeg and ffprobe) installs in seconds, where apt takes ~17 s.
+      # Pinned to a commit: the latest tag still runs on Node 20.
+      - uses: federicocarboni/setup-ffmpeg@8073ccb51e517ed576e6871c7f2360c6de4ebb7c # main, 2026-06-01
 
       - run: make install
       - run: make fe-install
