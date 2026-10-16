@@ -1,8 +1,8 @@
 > **Archived** 2026-10-16. Every item not done below became a GitHub
 > issue (#80–#99, plus the earlier #10, #14, #25–#29, #35), grouped by
 > `area:` label with their dependencies. The backlog is in [GitHub issues](https://github.com/RKI027/thalimage/issues).
-> Kept for the record of what each phase delivered and the design
-> decisions behind it.
+> Kept for the record of what each phase delivered. The design
+> decisions the code still follows are in [`docs/design.md`](../design.md).
 
 # Thalimage Roadmap
 

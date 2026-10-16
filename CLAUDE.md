@@ -59,6 +59,7 @@ The frontend needs Node 24 and the pnpm pinned in `frontend/package.json`.
 
 ## Documentation
 
+- `docs/design.md` — design decisions the code follows, and why
 - GitHub issues — the backlog, grouped by `area:` label, with
   dependencies as "blocked by" links and "Depends on" lines
 - `docs/review/` — full-review runs, each with a `RESOLUTION.md` ledger
