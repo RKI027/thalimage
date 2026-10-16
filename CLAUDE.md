@@ -51,7 +51,8 @@ The frontend needs Node 24 and the pnpm pinned in `frontend/package.json`.
   sidecar + app), `serve.json`, `.env.example`
 - `.github/workflows/docker.yml` — builds and publishes
   `ghcr.io/rki027/thalimage` for `v*` tags, and as `:dev` on every PR push
-  (or when run by hand on a branch); `ci.yml` runs `check.sh`
+  (or when run by hand on a branch), then redeploys the test stack;
+  `ci.yml` runs `check.sh`
 - Runs on a homelab host (Portainer). The database must sit on local disk
   (`THALIMAGE_DB_DIR`): SQLite in WAL mode stalls on NFS
 - See the Deployment section of `README.md` for the operational details

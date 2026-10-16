@@ -1,25 +1,22 @@
 # Stage 1: build the SPA bundle
 FROM node:24-slim AS frontend-build
 
-# Stamped into the bundle by buildCommit() in vite.config.ts, so a stale
-# frontend can be spotted against the commit the backend reports.
-ARG THALIMAGE_COMMIT=""
-ENV THALIMAGE_COMMIT=$THALIMAGE_COMMIT
-
 # Installs the pnpm version pinned by packageManager in package.json.
 RUN corepack enable pnpm
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
+# Stamped into the bundle by buildCommit() in vite.config.ts, so a stale
+# frontend can be spotted against the commit the backend reports.
+# Declared late: every RUN after it is rebuilt when the commit changes.
+ARG THALIMAGE_COMMIT=""
+ENV THALIMAGE_COMMIT=$THALIMAGE_COMMIT
 RUN pnpm build
 
 
 # Stage 2: runtime
 FROM python:3.11-slim AS runtime
-
-ARG THALIMAGE_COMMIT=""
-ENV THALIMAGE_COMMIT=$THALIMAGE_COMMIT
 
 # ffmpeg/ffprobe back video thumbnails and probing (core/video.py);
 # gosu drops privileges in the entrypoint.
@@ -51,6 +48,9 @@ COPY --from=frontend-build /app/frontend/build /app/frontend/build
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Declared late: every RUN after it is rebuilt when the commit changes.
+ARG THALIMAGE_COMMIT=""
+ENV THALIMAGE_COMMIT=$THALIMAGE_COMMIT
 ENV THALIMAGE_DATA_DIR=/data
 ENV THALIMAGE_FRONTEND_DIR=/app/frontend/build
 ENV THALIMAGE_HOST=0.0.0.0
