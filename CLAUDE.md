@@ -59,7 +59,8 @@ The frontend needs Node 24 and the pnpm pinned in `frontend/package.json`.
 
 ## Documentation
 
-- `docs/roadmap.md` — **current** roadmap and backlog
+- GitHub issues — the backlog, grouped by `area:` label, with
+  dependencies as "blocked by" links and "Depends on" lines
 - `docs/review/` — full-review runs, each with a `RESOLUTION.md` ledger
 - `docs/archive/` — archived plans, fix logs and reviews (indexed in its README)
 - `backend/src/thalimage/docs/` — in-app user documentation
