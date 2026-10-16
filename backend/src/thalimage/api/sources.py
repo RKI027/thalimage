@@ -11,7 +11,13 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse  # type: ignore[import-untyped]
 
 from thalimage.db.engine import connect
-from thalimage.deps import get_db, get_scan_manager, get_thumb_dir, get_video_dir
+from thalimage.deps import (
+    get_db,
+    get_preview_dir,
+    get_scan_manager,
+    get_thumb_dir,
+    get_video_dir,
+)
 from thalimage.services.collection_service import get_or_create_source_preset
 from thalimage.services.file_changes import SourceNotWritable, check_folder_accepts_writes
 from thalimage.services.file_deletion import DeletionRefused, UnknownCopy, delete_copies
@@ -184,6 +190,7 @@ async def trigger_scan(
     source_id: int,
     db: sqlite3.Connection = Depends(get_db),
     thumb_dir: Path = Depends(get_thumb_dir),
+    preview_dir: Path = Depends(get_preview_dir),
     video_dir: Path = Depends(get_video_dir),
     scan_manager: ScanManager = Depends(get_scan_manager),
 ) -> dict[str, str]:
@@ -212,6 +219,7 @@ async def trigger_scan(
                 worker_conn,
                 source_id,
                 thumb_dir,
+                preview_dir=preview_dir,
                 video_dir=video_dir,
                 progress_callback=on_progress,
             )

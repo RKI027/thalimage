@@ -13,8 +13,9 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from thalimage.core.hasher import content_hash
+from thalimage.core.derived_files import DerivedDirs, link_derived, remove_derived
 from thalimage.core.metadata import EXTRACTOR_VERSION, ImageMetadata, extract_metadata
+from thalimage.core.picture_hash import HASH_VERSION, picture_hash
 from thalimage.core.scanner import SourceUnavailable, scan_directory
 from thalimage.core.thumbnails import generate_thumbnail
 from thalimage.core.video import (
@@ -24,6 +25,7 @@ from thalimage.core.video import (
     is_video,
 )
 from thalimage.services.folders import is_folder_tag
+from thalimage.services.identity import rekey_image
 from thalimage.services.locations import EARLIEST_CREATED, sync_images
 from thalimage.services.playable_copies import prepare_playable_copies
 
@@ -64,6 +66,9 @@ class _Indexed:
     aspect_ratio: float
     format: str
     meta: Optional[ImageMetadata]  # None for videos: no AI metadata
+    # The file is unchanged since the last scan, which keyed it with an
+    # older hash: its image takes the new key rather than becoming new.
+    rekey: bool = False
 
 
 def run_scan(
@@ -71,6 +76,7 @@ def run_scan(
     source_id: int,
     thumb_dir: Path,
     *,
+    preview_dir: Optional[Path] = None,
     video_dir: Optional[Path] = None,
     progress_callback: Optional[Callable[..., None]] = None,
 ) -> ScanResult:
@@ -95,12 +101,14 @@ def run_scan(
     # Step 1: list files
     listing = scan_directory(source_path, recursive=bool(source["recursive"]))
 
+    dirs = DerivedDirs(thumbs=thumb_dir, previews=preview_dir, videos=video_dir)
+
     # What the last scan found here, by relative path, with the extractor
-    # version its metadata came from.
+    # version its metadata came from and the hash version that keyed it.
     known = {
         row["relative_path"]: row
         for row in conn.execute(
-            "SELECT l.content_hash, l.relative_path, l.file_modified, l.file_size,"
+            "SELECT l.content_hash, l.relative_path, l.file_modified, l.file_size, l.hash_version,"
             " COALESCE(m.extractor_version, 0) AS extractor_version"
             " FROM image_locations l"
             " LEFT JOIN image_metadata m ON m.content_hash = l.content_hash"
@@ -134,17 +142,26 @@ def run_scan(
         previous = known.get(relative)
         try:
             stat = file_path.stat()
-            # Step 2: skip unchanged files whose metadata is current
+            # Step 2: skip unchanged files whose metadata and key are current
+            # What the last scan recorded, if the file has not changed since.
+            unchanged = (
+                previous if previous is not None and unchanged_since_scan(stat, previous) else None
+            )
             if (
-                previous is not None
-                and unchanged_since_scan(stat, previous)
-                and previous["extractor_version"] >= EXTRACTOR_VERSION
+                unchanged is not None
+                and unchanged["extractor_version"] >= EXTRACTOR_VERSION
+                and unchanged["hash_version"] >= HASH_VERSION
             ):
                 kept.add(relative)
                 result.skipped += 1
             else:
                 # Step 3: read the file
-                item = _index_file(file_path, relative, stat, thumb_dir)
+                rekey_from = (
+                    unchanged["content_hash"]
+                    if unchanged is not None and unchanged["hash_version"] < HASH_VERSION
+                    else None
+                )
+                item = _index_file(file_path, relative, stat, dirs, rekey_from)
                 kept.add(relative)
                 pending.append(item)
                 result.added += 1
@@ -164,7 +181,7 @@ def run_scan(
         if pending and (
             len(pending) >= BATCH_FILES or time.monotonic() - last_write >= BATCH_SECONDS
         ):
-            _write_batch(conn, source_id, pending, known)
+            _write_batch(conn, source_id, pending, dirs)
             pending = []
             last_write = time.monotonic()
 
@@ -176,7 +193,7 @@ def run_scan(
                 errors=result.errors,
             )
 
-    _write_batch(conn, source_id, pending, known)
+    _write_batch(conn, source_id, pending, dirs)
 
     # Step 5: drop the locations of files that are gone. Nothing under a
     # folder that could not be listed counts as gone: its contents are unknown.
@@ -187,11 +204,13 @@ def run_scan(
         if relative not in kept and not any(relative.startswith(p) for p in unreadable)
     ]
     with conn:
+        # Their current keys: re-keying this scan may have changed them.
+        gone_keys = [_location_key(conn, source_id, relative) for relative in gone]
         conn.executemany(
             "DELETE FROM image_locations WHERE source_id = ? AND relative_path = ?",
             [(source_id, relative) for relative in gone],
         )
-        sync_images(conn, (known[relative]["content_hash"] for relative in gone))
+        sync_images(conn, (k for k in gone_keys if k is not None))
         conn.execute("DELETE FROM scan_failures WHERE source_id = ?", (source_id,))
         conn.executemany(
             "INSERT INTO scan_failures (source_id, relative_path, reason) VALUES (?, ?, ?)",
@@ -237,25 +256,33 @@ def _iso(timestamp: float) -> str:
 
 
 def _index_file(
-    file_path: Path, relative: str, stat: os.stat_result, thumb_dir: Path
+    file_path: Path,
+    relative: str,
+    stat: os.stat_result,
+    dirs: DerivedDirs,
+    rekey_from: Optional[str] = None,
 ) -> _Indexed:
-    """Hash a file, read its dimensions and metadata, write its thumbnail."""
+    """Hash a file, read its dimensions and metadata, write its thumbnail.
+    With `rekey_from`, the key its image had until now: its derived files
+    are linked to the new key first, so none is made again."""
     birthtime = _birthtime(stat)
-    h = content_hash(file_path)
+    h = picture_hash(file_path)
+    if rekey_from is not None:
+        link_derived(dirs, rekey_from, h)
 
     meta: Optional[ImageMetadata]
     if is_video(file_path):
         if not ffmpeg_available():
             raise _SkipFile("ffmpeg not available")
         info = extract_video_info(file_path)
-        extract_video_thumbnail(file_path, thumb_dir, h)
+        extract_video_thumbnail(file_path, dirs.thumbs, h)
         width, height = int(info["width"]), int(info["height"])
         aspect = width / height if height else 1.0
         fmt = file_path.suffix.lstrip(".").upper()
         meta = None
     else:
         meta = extract_metadata(file_path)
-        generate_thumbnail(file_path, thumb_dir, h)
+        generate_thumbnail(file_path, dirs.thumbs, h)
         width, height = meta.file_info.width, meta.file_info.height
         aspect = meta.file_info.aspect_ratio
         fmt = meta.file_info.format
@@ -272,6 +299,7 @@ def _index_file(
         aspect_ratio=aspect,
         format=fmt,
         meta=meta,
+        rekey=rekey_from is not None,
     )
 
 
@@ -279,25 +307,41 @@ def _write_batch(
     conn: sqlite3.Connection,
     source_id: int,
     items: list[_Indexed],
-    known: dict[str, sqlite3.Row],
+    dirs: DerivedDirs,
 ) -> None:
-    """Write indexed files in one short transaction."""
+    """Write indexed files in one short transaction, then drop the derived
+    files of the keys it retired."""
     if not items:
         return
+    retired: set[str] = set()
     with conn:
         touched: set[str] = set()
         for item in items:
+            previous = _location_key(conn, source_id, item.relative_path)
+            if item.rekey and previous is not None and previous != item.content_hash:
+                rekey_image(conn, previous, item.content_hash)
+                retired.add(previous)
             _upsert_image(conn, source_id, item)
             if item.meta is not None:
                 _tag_from_file(conn, item.content_hash, item.meta)
             _upsert_metadata(conn, item.content_hash, item.meta)
             _upsert_location(conn, source_id, item)
             touched.add(item.content_hash)
-            previous = known.get(item.relative_path)
             if previous is not None:
                 # The path may have held other content until now.
-                touched.add(previous["content_hash"])
-        sync_images(conn, touched)
+                touched.add(previous)
+        sync_images(conn, touched - retired)
+    for key in retired:
+        remove_derived(dirs, key)
+
+
+def _location_key(conn: sqlite3.Connection, source_id: int, relative: str) -> Optional[str]:
+    """The key of the image at a location, if the location is known."""
+    row = conn.execute(
+        "SELECT content_hash FROM image_locations WHERE source_id = ? AND relative_path = ?",
+        (source_id, relative),
+    ).fetchone()
+    return row["content_hash"] if row else None
 
 
 def _upsert_image(conn: sqlite3.Connection, source_id: int, item: _Indexed) -> None:
@@ -327,16 +371,17 @@ def _upsert_location(conn: sqlite3.Connection, source_id: int, item: _Indexed) -
     conn.execute(
         """INSERT INTO image_locations
            (source_id, relative_path, content_hash, filename,
-            file_size, file_modified, file_created)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
+            file_size, file_modified, file_created, hash_version)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(source_id, relative_path) DO UPDATE SET
             content_hash=excluded.content_hash,
+            hash_version=excluded.hash_version,
             filename=excluded.filename,
             file_size=excluded.file_size,
             file_modified=excluded.file_modified,
             file_created=""" + EARLIEST_CREATED.format(new="excluded.file_created", old="file_created"),
         (source_id, item.relative_path, item.content_hash, item.filename,
-         item.file_size, item.file_modified, item.file_created),
+         item.file_size, item.file_modified, item.file_created, HASH_VERSION),
     )
 
 

@@ -3,13 +3,19 @@
 A scan walks a source folder, finds images and videos, and records what
 it finds. Re-scanning is safe and cheap: a file whose path, size and
 modification time are unchanged since the last scan is skipped without
-being read — unless metadata extraction has improved since it was read,
-in which case it is read once more to pick that up.
+being read — unless metadata extraction or the way images are
+identified has improved since it was read, in which case it is read
+once more to pick that up.
 
 ## What happens to each new or changed file
 
-1. **Hashing.** The file is read and hashed with SHA-256. This hash is
-   the image's identity everywhere in the app.
+1. **Hashing.** The file is read and its picture or video data hashed
+   with SHA-256, leaving out the metadata stored beside it (EXIF, XMP,
+   comments, keywords). This hash is the image's identity everywhere in
+   the app, so a tool writing keywords or a rating into a file leaves it
+   the same image. JPEG, PNG, WebP, TIFF, AVIF/HEIC, MP4 and MOV files
+   are read this way; other formats (GIF, BMP, MKV, WebM, AVI) are
+   hashed whole, so for them a metadata edit makes a new image.
 2. **Metadata extraction.** Dimensions and format come from the file
    header. For AI-generated images, the generation parameters embedded
    by tools such as Automatic1111 and ComfyUI are parsed out where
@@ -48,14 +54,35 @@ current and nothing needs syncing; the scan only makes sure it exists.
 It is named after the source's label, or its folder when it has none;
 rename the source in Settings to rename the preset.
 
-## The same file in several places
+## The same picture in several places
 
-Two identical files are one image, wherever they are: in two folders of
-one source, or in two sources. The image lists under every source it
+Files holding the same picture are one image, wherever they are: in two
+folders of one source, or in two sources, and even when the metadata in
+them differs. The image lists under every source it
 lies in and keeps one set of tags, scores and collection memberships.
 It is opened from one of its copies; if that copy disappears, the app
 switches to another. The image only counts as deleted once no copy is
-left anywhere.
+left anywhere. Its prompt and other metadata are read from one of the
+copies.
+
+## When the way images are identified changes
+
+Images used to be identified by a hash of the whole file, metadata
+included. The first scan after upgrading reads every file once more, as
+it does when metadata extraction improves, and gives each image its new
+identity:
+
+- An image whose file is unchanged since the last scan keeps its tags,
+  votes, scores and collection memberships. Its thumbnail, previews and
+  playable video copy follow it.
+- Images that turn out to hold the same picture become one. Their tags
+  and collection memberships combine and their votes move to it; a vote
+  between the two is dropped. The scores of the collections concerned
+  are recomputed from their votes, in the order they were cast.
+- A file that changed since the last scan counts as new content, as it
+  always has.
+
+Links to an image saved before the upgrade no longer open it.
 
 ## Folder tags
 

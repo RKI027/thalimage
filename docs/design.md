@@ -27,6 +27,28 @@ is described for users in
   when the tab closes. A direct link to an image opens without the
   listing it came from.
 
+## Identity
+
+- **An image is keyed by its picture hash** (#106,
+  `core/picture_hash.py`): the bytes of its picture or video data,
+  without the metadata beside them, so tools writing keywords into files
+  do not make new images. The containers are parsed, never decoded:
+  decoders can disagree on pixels across versions. The parsers are ours,
+  not ExifTool's, so a third-party release cannot shift every key; the
+  fixtures were checked against ExifTool's `ImageDataHash`.
+- **Keys were rewritten, not kept beside a new column.** The key stays a
+  content hash everywhere, at the cost of one re-keying scan that moves
+  every row, renames derived files and breaks saved image links.
+  `image_locations.hash_version` records which hash keyed each location;
+  raising `HASH_VERSION` re-keys on the next scan.
+- **Only an unchanged file is re-keyed.** Its old key certainly named
+  these bytes. A file that changed since the last scan cannot be matched
+  to its old key and counts as new content.
+- **Merging replays ELO** rather than combining scores: `elo_scores`
+  holds running scores, so the merged image's votes are replayed in order
+  (`replay_scores`), and only in the collections they touched, so a
+  change of formula does not shift scores elsewhere.
+
 ## Deployment
 
 - **Tailnet only.** The app runs on a Tailscale sidecar's network
