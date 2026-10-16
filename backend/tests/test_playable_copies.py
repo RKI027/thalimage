@@ -238,3 +238,56 @@ def test_avif_images_are_scanned(client: TestClient, image_dir: Path) -> None:
 def video_dir(tmp_path: Path) -> Path:
     return tmp_path / "videos"
 
+
+
+def _refuse(monkeypatch: pytest.MonkeyPatch, refused: Path) -> None:
+    """Make checking whether `refused` exists fail, as an NFS mount can."""
+    real_exists = Path.exists
+
+    def exists(self: Path, *args: object, **kwargs: object) -> bool:
+        if self == refused:
+            raise PermissionError(13, "Permission denied", str(self))
+        return real_exists(self)
+
+    monkeypatch.setattr(Path, "exists", exists)
+
+
+@requires_ffmpeg
+def test_a_copy_that_cannot_be_checked_is_counted_and_the_others_made(
+    client: TestClient,
+    db: sqlite3.Connection,
+    videos: Path,
+    video_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _make_video(videos / "vp8.webm", ["-c:v", "libvpx"])
+    source_id, _ = scan_source(client, videos)
+    vp9, vp8 = _hash(client, source_id, "vp9.webm"), _hash(client, source_id, "vp8.webm")
+    for h in (vp9, vp8):
+        playable_copy_path(video_dir, h).unlink()
+    db.execute("UPDATE images SET needs_playable_copy = NULL")
+    db.commit()
+    _refuse(monkeypatch, playable_copy_path(video_dir, vp9))
+
+    errors = prepare_playable_copies(db, source_id, video_dir)
+
+    assert errors == 1
+    assert playable_copy_path(video_dir, vp8).is_file()
+    probed = db.execute(
+        "SELECT content_hash FROM images WHERE needs_playable_copy IS NOT NULL"
+    ).fetchall()
+    assert {vp9, vp8, _hash(client, source_id, "h264.mp4")} <= {r[0] for r in probed}
+
+
+@requires_ffmpeg
+def test_the_viewer_plays_the_original_when_the_copy_cannot_be_checked(
+    client: TestClient, videos: Path, video_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_id, _ = scan_source(client, videos)
+    webm = _hash(client, source_id, "vp9.webm")
+    _refuse(monkeypatch, playable_copy_path(video_dir, webm))
+
+    resp = client.get(f"/api/v1/images/{webm}/video")
+
+    assert resp.status_code == 200
+    assert resp.content == (videos / "vp9.webm").read_bytes()

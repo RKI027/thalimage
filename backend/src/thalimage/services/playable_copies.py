@@ -39,18 +39,21 @@ def prepare_playable_copies(
         (source_id,),
     ).fetchall()
 
+    errors = 0
     # A video is probed once; one whose copy is missing is probed again,
     # since what the copy needs is not stored.
-    to_probe = [
-        v for v in videos
-        if v["needs_playable_copy"] is None
-        or (
-            v["needs_playable_copy"]
-            and not playable_copy_path(video_dir, v["content_hash"]).exists()
-        )
-    ]
+    to_probe = []
+    for v in videos:
+        try:
+            if v["needs_playable_copy"] is None or (
+                v["needs_playable_copy"]
+                and not playable_copy_path(video_dir, v["content_hash"]).exists()
+            ):
+                to_probe.append(v)
+        except OSError:
+            logger.exception("Could not check the playable copy of %s", v["relative_path"])
+            errors += 1
 
-    errors = 0
     to_copy: list[tuple[str, Path, list[str]]] = []
     if progress_callback and to_probe:
         progress_callback(phase="checking", total=len(to_probe), current=0)
@@ -68,8 +71,12 @@ def prepare_playable_copies(
                     "UPDATE images SET needs_playable_copy = ? WHERE content_hash = ?",
                     (args is not None, v["content_hash"]),
                 )
-        if args is not None and not playable_copy_path(video_dir, v["content_hash"]).exists():
-            to_copy.append((v["content_hash"], path, args))
+        try:
+            if args is not None and not playable_copy_path(video_dir, v["content_hash"]).exists():
+                to_copy.append((v["content_hash"], path, args))
+        except OSError:
+            logger.exception("Could not check the playable copy of %s", path)
+            errors += 1
         if progress_callback:
             progress_callback(current=checked)
 
