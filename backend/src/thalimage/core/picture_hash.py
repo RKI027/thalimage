@@ -26,6 +26,11 @@ from typing import Optional
 
 from thalimage.core.hasher import content_hash
 
+# The version of what the picture hash covers. Raise it when that changes
+# (a format gains a parser, a parser takes other bytes): scans then read
+# every file again and re-key its image.
+HASH_VERSION = 1
+
 # A byte range of the file, [start, end).
 Range = tuple[int, int]
 

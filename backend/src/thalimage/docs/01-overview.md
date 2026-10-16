@@ -11,10 +11,12 @@ answers live somewhere other than the source code.
 
 ## Core ideas
 
-**Images are identified by content, not by path.** Every file is hashed
-with SHA-256, and that hash is its identity. Move a file, rename it, or
-keep the same image in two folders, and it is still one image with one
-set of tags, votes and scores.
+**Images are identified by content, not by path.** The picture or video
+data in every file is hashed with SHA-256, leaving out the metadata
+stored beside it, and that hash is its identity. Move a file, rename it,
+let another tool write keywords into it, or keep the same image in two
+folders, and it is still one image with one set of tags, votes and
+scores.
 
 **Collections are the universal container.** Browsing always happens
 inside one: a preset that tracks a source folder, a collection you

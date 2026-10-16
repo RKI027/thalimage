@@ -320,7 +320,7 @@ def test_unreadable_file_keeps_its_image(tmp_path: Path, monkeypatch) -> None:
     def boom(path: Path) -> str:
         raise PermissionError(13, "Permission denied", str(path))
 
-    monkeypatch.setattr("thalimage.services.scan_service.content_hash", boom)
+    monkeypatch.setattr("thalimage.services.scan_service.picture_hash", boom)
     result = run_scan(conn, source_id, thumbs)
 
     assert result.errors == 1
