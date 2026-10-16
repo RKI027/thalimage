@@ -33,6 +33,9 @@ gh workflow run docker.yml --ref <branch>
 ```
 
 Redeploy with "re-pull image" (or `docker compose pull`) to pick it up.
+After publishing `:dev`, the workflow does this itself: it joins the
+tailnet as an ephemeral `tag:ci` node and calls the stack's Portainer
+webhook (secrets `TS_OAUTH_ID`, `TS_AUDIENCE`, `DEPLOY_WEBHOOK_URL`).
 
 The stack below runs in Portainer on a homelab host, with the images and
 the data directory on an NFS share and the database on the host's local
