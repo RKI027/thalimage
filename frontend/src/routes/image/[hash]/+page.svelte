@@ -491,7 +491,7 @@
 		<div class="image-page" bind:this={pageEl}>
 			<div class="top-bar" class:visible={topBarVisible}>
 				<a href={back}>{backText}</a>
-				<span class="filename">{image.filename}</span>
+				<span class="filename" title={image.filename}>{image.filename}</span>
 				<div class="nav-buttons">
 					<button class="control" disabled={currentIndex <= 0} onclick={() => navigate(-1)}>← Prev</button>
 					<span class="position">
@@ -677,13 +677,22 @@
 		flex-shrink: 0;
 	}
 
+	/* Long names truncate so the buttons stay on screen */
 	.filename {
+		flex: 1 1 auto;
+		min-width: 0;
+		margin: 0 12px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		text-align: center;
 		color: #ccc;
 		font-size: 0.9rem;
 	}
 
 	.nav-buttons {
 		display: flex;
+		flex-shrink: 0;
 		align-items: center;
 		gap: 8px;
 	}
