@@ -16,6 +16,12 @@ is described for users in
 - **Sources are scan targets.** Users manage them in Settings and browse
   them through their presets; voting, tagging and every other feature
   work on collections, never on raw sources.
+- **Folders are data, not browsing structure** (#29). The disk layout
+  does not become sub-presets; each image gets `folder:<dir>` tags
+  derived on read from its current locations (source left out), so
+  they follow moved files and need no syncing. Past locations are not
+  kept: they would only add noise. Searches, saved searches and the tag
+  hierarchy build on these tags.
 - **The browsing context lives per tab** (`lib/browsingContext.ts`, in
   session storage): clean `/image/{hash}` URLs, survives a reload, lost
   when the tab closes. A direct link to an image opens without the

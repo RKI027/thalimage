@@ -23,6 +23,7 @@ from thalimage.core.video import (
     ffmpeg_available,
     is_video,
 )
+from thalimage.services.folders import is_folder_tag
 from thalimage.services.locations import EARLIEST_CREATED, sync_images
 from thalimage.services.playable_copies import prepare_playable_copies
 
@@ -341,7 +342,8 @@ def _upsert_location(conn: sqlite3.Connection, source_id: int, item: _Indexed) -
 
 def _file_tag_names(meta: ImageMetadata) -> list[str]:
     stars = [f"rating:{meta.rating}"] if meta.rating else []
-    return meta.keywords + stars
+    # Folder tags come from where the file is, never from what it says.
+    return [k for k in meta.keywords if not is_folder_tag(k)] + stars
 
 
 def _tag_from_file(conn: sqlite3.Connection, h: str, meta: ImageMetadata) -> None:

@@ -154,6 +154,9 @@
 			<section class="tags-section">
 				<h3>Tags</h3>
 				<div class="tag-list">
+					{#each image.folder_tags as name (name)}
+						<span class="tag-pill folder" title="From where the file is; changes when it moves">{name}</span>
+					{/each}
 					{#each tags as tag (tag.id)}
 						<span class="tag-pill" class:nsfw={tag.name.toLowerCase() === 'nsfw'}>
 							{tag.name}
@@ -355,6 +358,11 @@
 		color: #8db4d8;
 		font-size: 0.78rem;
 		border: 1px solid #3a5570;
+	}
+
+	.tag-pill.folder {
+		background: none;
+		border-style: dashed;
 	}
 
 	.tag-pill.nsfw {

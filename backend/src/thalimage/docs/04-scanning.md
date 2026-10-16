@@ -57,6 +57,22 @@ It is opened from one of its copies; if that copy disappears, the app
 switches to another. The image only counts as deleted once no copy is
 left anywhere.
 
+## Folder tags
+
+The folder a file sits in, within its source, gives the image a
+`folder:` tag: `portraits/2024/a.png` is tagged `folder:portraits/2024`.
+An image with copies in several folders has one such tag per folder; a
+file directly in the source folder has none. The source itself is not
+part of the tag.
+
+Folder tags follow the files: they always reflect where the copies are
+now, so moving a file and scanning again changes them. They show in the
+image's information panel but cannot be added or removed by hand, and no
+other tag can be named `folder:…`.
+
+Filtering on a folder tag also matches its sub-folders: `folder:portraits`
+finds the images in `portraits`, `portraits/2024` and so on.
+
 ## Why a source has fewer images than files
 
 Each source in Settings sets the files indexed in it against the images
