@@ -226,6 +226,15 @@ export interface ImageCopy {
 	sidecars: string[];
 }
 
+/** A sidecar of one copy, read from disk; `text` is null when it is binary or too large. */
+export interface SidecarContent {
+	source_id: number;
+	/** Relative to the source. */
+	relative_path: string;
+	size: number;
+	text: string | null;
+}
+
 /** An image's place in one collection's ELO ranking. */
 export interface EloStanding {
 	collection_id: number;

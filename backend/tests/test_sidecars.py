@@ -130,3 +130,38 @@ def test_deleting_an_image_deletes_every_copy_s_sidecars(
     assert resp.json() == {"deleted": 2, "sidecars": 2, "failed": []}
     assert not (image_dir / "a.txt").exists()
     assert not (image_dir / "sub" / "a-copy.txt").exists()
+
+
+def _contents(client: TestClient, content_hash: str) -> list[dict]:
+    resp = client.get(f"/api/v1/images/{content_hash}/sidecars")
+    assert resp.status_code == 200
+    return resp.json()
+
+
+def test_the_sidecars_of_every_copy_are_read(
+    client: TestClient, duplicated: tuple[int, str]
+) -> None:
+    source_id, content_hash = duplicated
+
+    assert _contents(client, content_hash) == [
+        {"source_id": source_id, "relative_path": "a.txt", "size": 9, "text": "steps: 20"},
+        {"source_id": source_id, "relative_path": str(Path("sub") / "a-copy.txt"),
+         "size": 9, "text": "steps: 30"},
+    ]
+
+
+def test_binary_or_large_sidecars_are_listed_without_their_text(
+    client: TestClient, image_dir: Path
+) -> None:
+    (image_dir / "a.bin").write_bytes(b"\xff\xfe\x00")
+    (image_dir / "a.png.json").write_text("x" * (256 * 1024 + 1))
+    source_id, hashes = scan_source(client, image_dir)
+
+    assert _contents(client, hashes[0]) == [
+        {"source_id": source_id, "relative_path": "a.bin", "size": 3, "text": None},
+        {"source_id": source_id, "relative_path": "a.png.json", "size": 256 * 1024 + 1, "text": None},
+    ]
+
+
+def test_the_sidecars_of_an_unknown_image_are_a_404(client: TestClient) -> None:
+    assert client.get(f"/api/v1/images/{'0' * 64}/sidecars").status_code == 404

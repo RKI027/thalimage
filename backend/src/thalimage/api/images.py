@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from thalimage.core.sidecars import text_of
 from thalimage.core.previews import PREVIEW_SIZES, generate_preview, nearest_size
 from thalimage.core.thumbnails import thumbnail_path
 from thalimage.core.video import playable_copy_path
@@ -303,6 +304,41 @@ def get_image_copies(
     if copies is None:
         raise HTTPException(404, "Image not found")
     return copies
+
+
+class SidecarContent(BaseModel):
+    """A sidecar of one copy; `text` is None when it is binary or too large."""
+
+    source_id: int
+    relative_path: str
+    size: int
+    text: Optional[str]
+
+
+@router.get("/{content_hash}/sidecars", response_model=list[SidecarContent])
+def get_image_sidecars(
+    content_hash: ContentHash,
+    db: sqlite3.Connection = Depends(get_db),
+) -> list[SidecarContent]:
+    """What the sidecars of every copy say, read from disk. A sidecar
+    that cannot be read is left out."""
+    copies = image_copies(db, content_hash)
+    if copies is None:
+        raise HTTPException(404, "Image not found")
+    contents = []
+    for c in copies:
+        for relative in c.sidecars:
+            path = Path(c.source_path) / relative
+            try:
+                contents.append(SidecarContent(
+                    source_id=c.source_id,
+                    relative_path=relative,
+                    size=path.stat().st_size,
+                    text=text_of(path),
+                ))
+            except OSError:
+                continue
+    return contents
 
 
 class ImageDeleteFailure(BaseModel):

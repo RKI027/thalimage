@@ -111,6 +111,11 @@ unless another image or video in the same folder is named the same
 (`img.jpg` beside `img.png` and `img.txt`); the sidecar then stays
 until the last of them is deleted.
 
+The full information panel in the viewer lists an image's sidecars under
+**Sidecars**, collapsed until you open it, with the text of each. Copies
+whose sidecars say the same thing are shown once. Binary files and files
+over 256 KiB are listed by name and size only.
+
 ## Deleting an image
 
 **Delete…** in the image viewer removes every copy of the image from
