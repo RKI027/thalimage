@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import type { ImageSummary } from '$lib/types';
+	import { needsMoreImages } from '$lib/gridPaging';
 	import ImageCard from './ImageCard.svelte';
 
 	let {
@@ -39,13 +41,21 @@
 		if (!containerEl) return;
 		scrollTop = containerEl.scrollTop;
 		onScrollCallback?.(scrollTop);
-
-		// Pre-fetch at 70% scroll through loaded items
-		const scrollRatio = (scrollTop + viewportHeight) / totalHeight;
-		if (scrollRatio > 0.7 && images.length < totalCount && onLoadMore) {
-			onLoadMore();
-		}
 	}
+
+	// Checked whenever a page lands or the view moves, not only on scroll: a
+	// page can arrive while the viewport is still past the loaded images.
+	$effect(() => {
+		const position = {
+			loaded: images.length,
+			total: totalCount,
+			columns,
+			cellSize,
+			scrollTop,
+			viewportHeight
+		};
+		if (onLoadMore && needsMoreImages(position)) untrack(() => onLoadMore());
+	});
 
 	function onResize(entries: ResizeObserverEntry[]) {
 		const entry = entries[0];
