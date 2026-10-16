@@ -151,6 +151,40 @@
 				</section>
 			{/if}
 
+			<section class="tags-section">
+				<h3>Tags</h3>
+				<div class="tag-list">
+					{#each tags as tag (tag.id)}
+						<span class="tag-pill" class:nsfw={tag.name.toLowerCase() === 'nsfw'}>
+							{tag.name}
+							<button class="tag-remove" onclick={() => removeTag(tag)} aria-label="Remove tag {tag.name}">×</button>
+						</span>
+					{/each}
+				</div>
+				<div class="tag-input-wrap">
+					<input
+						class="control tag-input"
+						type="text"
+						placeholder="Add tag…"
+						value={tagInput}
+						oninput={onTagInput}
+						onkeydown={onTagInputKeydown}
+					/>
+					{#if tagSuggestions.length > 0}
+						<ul class="tag-suggestions">
+							{#each tagSuggestions as suggestion (suggestion.id)}
+								<li>
+									<button onclick={() => selectTag(suggestion)}>
+										{suggestion.name}
+										{#if suggestion.name.toLowerCase() === 'nsfw'}<span class="nsfw-badge">NSFW</span>{/if}
+									</button>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</div>
+			</section>
+
 			{#if image.ai_tool || image.prompt}
 				<section>
 					<h3>AI Parameters</h3>
@@ -198,40 +232,6 @@
 					{/each}
 				</details>
 			{/if}
-
-			<section class="tags-section">
-				<h3>Tags</h3>
-				<div class="tag-list">
-					{#each tags as tag (tag.id)}
-						<span class="tag-pill" class:nsfw={tag.name.toLowerCase() === 'nsfw'}>
-							{tag.name}
-							<button class="tag-remove" onclick={() => removeTag(tag)} aria-label="Remove tag {tag.name}">×</button>
-						</span>
-					{/each}
-				</div>
-				<div class="tag-input-wrap">
-					<input
-						class="control tag-input"
-						type="text"
-						placeholder="Add tag…"
-						value={tagInput}
-						oninput={onTagInput}
-						onkeydown={onTagInputKeydown}
-					/>
-					{#if tagSuggestions.length > 0}
-						<ul class="tag-suggestions">
-							{#each tagSuggestions as suggestion (suggestion.id)}
-								<li>
-									<button onclick={() => selectTag(suggestion)}>
-										{suggestion.name}
-										{#if suggestion.name.toLowerCase() === 'nsfw'}<span class="nsfw-badge">NSFW</span>{/if}
-									</button>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</div>
-			</section>
 		</div>
 	{/if}
 </aside>
