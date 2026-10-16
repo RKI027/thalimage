@@ -4,9 +4,10 @@ import sqlite3
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from thalimage.deps import ContentHash, get_db
+from thalimage.services.folders import is_folder_tag
 from thalimage.services.tag_service import (
     Tag,
     add_image_tag,
@@ -22,12 +23,23 @@ from thalimage.services.tag_service import (
 router = APIRouter(tags=["tags"])
 
 
+def _not_a_folder_tag(name: Optional[str]) -> Optional[str]:
+    """Refuse the names folder tags use: those tags follow the files."""
+    if name is not None and is_folder_tag(name):
+        raise ValueError("folder: tags come from where files are and cannot be created")
+    return name
+
+
 class TagCreate(BaseModel):
     name: str
+
+    _name = field_validator("name")(_not_a_folder_tag)
 
 
 class TagUpdate(BaseModel):
     name: Optional[str] = None
+
+    _name = field_validator("name")(_not_a_folder_tag)
 
 
 class ImageTagBody(BaseModel):

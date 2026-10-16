@@ -389,6 +389,16 @@ def test_scan_tags_images_with_their_file_keywords_and_rating(tmp_path: Path) ->
     conn.close()
 
 
+def test_file_keywords_named_like_folder_tags_are_not_imported(tmp_path: Path) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    _tagged_jpeg(img_dir / "a.jpg", "beach", "folder:holidays", "FOLDER:x")
+
+    run_scan(conn, source_id, thumbs)
+
+    assert _tag_names(conn) == {"beach"}
+    conn.close()
+
+
 def test_file_keywords_join_an_existing_tag_whatever_its_case(tmp_path: Path) -> None:
     conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
     conn.execute("INSERT INTO tags (name) VALUES ('Beach')")

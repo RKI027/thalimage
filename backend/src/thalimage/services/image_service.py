@@ -9,6 +9,12 @@ from pydantic import BaseModel
 
 from thalimage.core.video import VIDEO_EXTENSIONS
 from thalimage.services.elo_ranking import EloCut, in_cut_sql
+from thalimage.services.folders import (
+    folder_tags,
+    in_folder_params,
+    in_folder_sql,
+    tagged_folder,
+)
 from thalimage.services.locations import in_source_sql, resolve_paths
 
 
@@ -51,6 +57,7 @@ class ImageDetail(ImageSummary):
     raw_params: Optional[str] = None
     exif_data: Optional[str] = None
     png_text: Optional[str] = None
+    folder_tags: list[str] = []
 
 
 class InvalidCursor(ValueError):
@@ -166,6 +173,11 @@ def _apply_filters(q: str, p: list[object], f: ListingFilters) -> str:
         media_type=f.media_type,
     )
     for tag_name in f.tags or []:
+        folder = tagged_folder(tag_name)
+        if folder is not None:
+            q += f" AND {in_folder_sql()}"
+            p.extend(in_folder_params(folder))
+            continue
         q += (
             " AND EXISTS ("
             "SELECT 1 FROM image_tags it JOIN tags t ON t.id = it.tag_id"
@@ -452,7 +464,7 @@ def get_image(conn: sqlite3.Connection, content_hash: str) -> Optional[ImageDeta
     if row is None:
         return None
 
-    return ImageDetail(**dict(row))
+    return ImageDetail(**dict(row), folder_tags=folder_tags(conn, content_hash))
 
 
 def set_archived(

@@ -52,6 +52,8 @@ export interface ImageDetail extends ImageSummary {
 	raw_params: string | null;
 	exif_data: string | null;
 	png_text: string | null;
+	/** `folder:<dir>` per folder holding a copy; derived, so read-only. */
+	folder_tags: string[];
 }
 
 export interface ImagePage {
