@@ -55,7 +55,7 @@ def test_migrate_runs_initial(tmp_path: Path) -> None:
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()
     }
-    expected = {"sources", "images", "image_metadata", "collections",
+    expected = {"sources", "images", "file_metadata", "collections",
                 "collection_images", "votes", "elo_scores", "schema_version"}
     assert expected.issubset(tables)
     conn.close()
@@ -80,10 +80,9 @@ def test_migrate_recovers_from_partial_alter_table(tmp_path: Path) -> None:
     """A migration that already added columns but didn't record its version
     completes cleanly on the next run (columns are skipped, not re-added)."""
     conn = connect(tmp_path / "test.db")
-    # Get to the fully migrated state
-    migrate(conn)
+    migrate(conn, target=7)
     # Simulate broken state: version reset to 6 but nsfw columns already exist
-    conn.execute("DELETE FROM schema_version WHERE version > 6")
+    conn.execute("DELETE FROM schema_version WHERE version = 7")
     conn.commit()
     assert current_version(conn) == 6
 

@@ -124,7 +124,7 @@ def test_scan_extracts_metadata(tmp_path: Path) -> None:
 
     run_scan(conn, source_id, thumb_dir)
 
-    meta = conn.execute("SELECT * FROM image_metadata").fetchone()
+    meta = conn.execute("SELECT * FROM file_metadata").fetchone()
     assert meta is not None
     assert meta["content_hash"] is not None
 
@@ -199,7 +199,7 @@ def test_video_is_indexed_with_a_thumbnail(tmp_path: Path, sample_mp4: Path) -> 
     row = conn.execute("SELECT * FROM images").fetchone()
     assert (row["width"], row["height"], row["format"]) == (64, 48, "MP4")
     assert (thumbs / row["content_hash"][:2] / f"{row['content_hash']}.webp").exists()
-    assert conn.execute("SELECT COUNT(*) FROM image_metadata").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM file_metadata").fetchone()[0] == 1
     conn.close()
 
 
@@ -345,7 +345,7 @@ def test_scan_stores_the_generation_prompt(tmp_path: Path) -> None:
 
     run_scan(conn, source_id, thumbs)
 
-    row = conn.execute("SELECT ai_tool, prompt, negative_prompt FROM image_metadata").fetchone()
+    row = conn.execute("SELECT ai_tool, prompt, negative_prompt FROM file_metadata").fetchone()
     assert tuple(row) == ("AUTOMATIC1111", "a lighthouse", "fog")
     conn.close()
 
@@ -355,12 +355,12 @@ def test_images_from_an_older_extractor_are_read_again_once(tmp_path: Path) -> N
     _a1111_png(img_dir / "gen.png")
     run_scan(conn, source_id, thumbs)
     # As 0.5.0 left it: the row exists, extracted by version 0, prompt empty.
-    conn.execute("UPDATE image_metadata SET extractor_version = 0, prompt = NULL")
+    conn.execute("UPDATE file_metadata SET extractor_version = 0, prompt = NULL")
     conn.commit()
 
     again = run_scan(conn, source_id, thumbs)
     assert (again.added, again.skipped) == (1, 0)
-    assert conn.execute("SELECT prompt FROM image_metadata").fetchone()[0] == "a lighthouse"
+    assert conn.execute("SELECT prompt FROM file_metadata").fetchone()[0] == "a lighthouse"
 
     settled = run_scan(conn, source_id, thumbs)
     assert (settled.added, settled.skipped) == (0, 1)
@@ -419,7 +419,7 @@ def test_a_removed_file_tag_stays_removed_when_the_file_is_read_again(tmp_path: 
     conn.execute(
         "DELETE FROM image_tags WHERE tag_id = (SELECT id FROM tags WHERE name = 'beach')"
     )
-    conn.execute("UPDATE image_metadata SET extractor_version = 0")
+    conn.execute("UPDATE file_metadata SET extractor_version = 0")
     conn.commit()
 
     again = run_scan(conn, source_id, thumbs)
@@ -435,7 +435,8 @@ def test_a_re_read_adds_file_tags_not_imported_before(tmp_path: Path) -> None:
     run_scan(conn, source_id, thumbs)
     # As an extractor that read keywords but not ratings would have left it.
     conn.execute("DELETE FROM image_tags WHERE tag_id = (SELECT id FROM tags WHERE name = 'rating:2')")
-    conn.execute("UPDATE image_metadata SET extractor_version = 0, file_tags = '[\"beach\"]'")
+    conn.execute("UPDATE file_metadata SET extractor_version = 0")
+    conn.execute("UPDATE images SET file_tags = '[\"beach\"]'")
     conn.commit()
 
     run_scan(conn, source_id, thumbs)

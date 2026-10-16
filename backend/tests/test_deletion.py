@@ -101,7 +101,7 @@ def test_delete_source_removes_its_data_and_nothing_else(
     assert _count(db, "SELECT COUNT(*) FROM collections WHERE id = ?", preset_a) == 0
     for table, col in (
         ("images", "content_hash"),
-        ("image_metadata", "content_hash"),
+        ("file_metadata", "content_hash"),
         ("collection_images", "content_hash"),
         ("elo_scores", "content_hash"),
         ("image_tags", "image_hash"),
@@ -115,7 +115,7 @@ def test_delete_source_removes_its_data_and_nothing_else(
     # ...and everything of source B does.
     in_b = ",".join("?" * len(b))
     assert _count(db, f"SELECT COUNT(*) FROM images WHERE content_hash IN ({in_b})", *b) == 3
-    assert _count(db, f"SELECT COUNT(*) FROM image_metadata WHERE content_hash IN ({in_b})", *b) == 3
+    assert _count(db, f"SELECT COUNT(*) FROM file_metadata WHERE content_hash IN ({in_b})", *b) == 3
     assert _count(db, "SELECT COUNT(*) FROM collection_images WHERE collection_id = ?", manual) == 3
     assert _count(db, "SELECT COUNT(*) FROM votes WHERE collection_id = ?", manual) == 1
     assert _count(db, "SELECT COUNT(*) FROM votes WHERE collection_id = ?", preset_b) == 1

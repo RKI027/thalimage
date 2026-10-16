@@ -44,6 +44,10 @@ is described for users in
 - **Only an unchanged file is re-keyed.** Its old key certainly named
   these bytes. A file that changed since the last scan cannot be matched
   to its old key and counts as new content.
+- **A picture edited in place is a new image.** A crop or filter changes
+  the picture hash, and the bytes alone cannot tell it from an unrelated
+  picture saved under the same name. Keeping the image across such edits
+  needs a perceptual hash and its threshold (#121).
 - **Merging replays ELO** rather than combining scores: `elo_scores`
   holds running scores, so the merged image's votes are replayed in order
   (`replay_scores`), and only in the collections they touched, so a

@@ -188,9 +188,15 @@
 				</div>
 			</section>
 
-			{#if image.ai_tool || image.prompt}
+			{#if image.ai_tool || image.prompt || image.other_versions > 0}
 				<section>
 					<h3>AI Parameters</h3>
+					{#if image.other_versions > 0}
+						<p class="note">
+							{image.other_versions === 1 ? 'Another file' : `${image.other_versions} other files`} of this
+							image {image.other_versions === 1 ? 'has' : 'have'} a different prompt.
+						</p>
+					{/if}
 					<dl>
 						{#if image.ai_tool}
 							<dt>Tool</dt><dd>{image.ai_tool}</dd>
