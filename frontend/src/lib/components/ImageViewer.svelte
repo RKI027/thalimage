@@ -8,17 +8,24 @@
 		hash,
 		filename,
 		loop = false,
-		videoEl = $bindable(null)
+		videoEl = $bindable(null),
+		onloaded
 	}: {
 		hash: string;
 		filename: string;
 		loop?: boolean;
 		videoEl?: HTMLVideoElement | null;
+		/** Called with the hash once its media has loaded or failed to. */
+		onloaded?: (hash: string) => void;
 	} = $props();
 
 	const isVideo = $derived(isVideoFilename(filename));
 
 	let loaded = $state(false);
+	function settle() {
+		loaded = true;
+		onloaded?.(hash);
+	}
 	// Reset the loading state whenever the source changes.
 	$effect(() => {
 		void hash;
@@ -49,16 +56,16 @@
 			{loop}
 			preload="metadata"
 			playsinline
-			onloadeddata={() => (loaded = true)}
-			onerror={() => (loaded = true)}
+			onloadeddata={settle}
+			onerror={settle}
 			style="max-width: 100%; max-height: 100%; object-fit: contain;"
 		></video>
 	{:else}
 		<img
 			src={previewUrl(hash)}
 			alt={filename}
-			onload={() => (loaded = true)}
-			onerror={() => (loaded = true)}
+			onload={settle}
+			onerror={settle}
 			style="max-width: 100%; max-height: 100%; object-fit: contain;"
 		/>
 	{/if}

@@ -6,7 +6,6 @@
 		getImage,
 		getNeighbors,
 		archiveImage,
-		previewUrl,
 		getSequence,
 		getImageCopies,
 		deleteImage
@@ -16,7 +15,7 @@
 	import type { ImageCopy, ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
 	import { copyPath, readOnlySources } from '$lib/imageCopies';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
-	import { createSlidePreloader } from '$lib/slidePreloader';
+	import { createSlidePreloader, neighborsToPreload } from '$lib/slidePreloader';
 	import { attachSwipe } from '$lib/swipe';
 	import { isVideoFilename } from '$lib/media';
 	import { readStored, writeStored } from '$lib/storage';
@@ -353,19 +352,17 @@
 		}
 	});
 
-	// Preload nearby images so manual navigation and slideshow advance are
-	// instant and don't eat into the slideshow timer. Videos are skipped — their
-	// full files are too large to prefetch eagerly.
+	// Preload nearby images so manual navigation is instant. Videos are
+	// skipped — their full files are too large to prefetch eagerly.
+	let shownHash = $state<string | null>(null);
+	const preloadNeighbors = createSlidePreloader();
 	$effect(() => {
-		const idx = currentIndex;
-		if (inSlideshow || idx < 0 || neighbors.length === 0) return;
-		for (const offset of [1, 2, -1]) {
-			const n = neighbors[idx + offset];
-			if (!n) continue;
-			if (isVideoFilename(n.filename)) continue;
-			const img = new Image();
-			img.src = previewUrl(n.content_hash);
+		if (inSlideshow) {
+			preloadNeighbors([]);
+			return;
 		}
+		const shownLoaded = shownHash !== null && shownHash === neighbors[currentIndex]?.content_hash;
+		preloadNeighbors(neighborsToPreload(neighbors, currentIndex, shownLoaded));
 	});
 
 	// In a slideshow, keep the slides around the one shown loaded instead.
@@ -576,6 +573,7 @@
 					filename={image.filename}
 					loop={videoLoop}
 					bind:videoEl
+					onloaded={(hash) => (shownHash = hash)}
 				/>
 				<!-- Desktop: metadata side panel. Hidden on mobile via CSS. -->
 				<div class="metadata-side">

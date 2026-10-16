@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSlidePreloader } from './slidePreloader';
+import { createSlidePreloader, neighborsToPreload } from './slidePreloader';
 
 const slide = (hash: string, filename = `${hash}.png`) => ({ content_hash: hash, filename, score: null });
 
@@ -19,5 +19,26 @@ describe('createSlidePreloader', () => {
 		keep([slide('b')]);
 		keep([slide('a')]);
 		expect(loaded).toEqual(['a', 'b', 'a']);
+	});
+});
+
+describe('neighborsToPreload', () => {
+	const listing = ['a', 'b', 'c', 'd', 'e'];
+
+	it('holds only the next image while the one shown loads', () => {
+		expect(neighborsToPreload(listing, 2, false)).toEqual(['d']);
+	});
+
+	it('adds the one after and the previous once the image shown has loaded', () => {
+		expect(neighborsToPreload(listing, 2, true)).toEqual(['d', 'e', 'b']);
+	});
+
+	it('skips the neighbours past either end of the listing', () => {
+		expect(neighborsToPreload(listing, 0, true)).toEqual(['b', 'c']);
+		expect(neighborsToPreload(listing, 4, true)).toEqual(['d']);
+	});
+
+	it('holds nothing off the listing', () => {
+		expect(neighborsToPreload(listing, -1, true)).toEqual([]);
 	});
 });
