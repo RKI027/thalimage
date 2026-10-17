@@ -114,6 +114,20 @@
 		/>
 	</div>
 
+	<div class="filter-group">
+		<label for="filter-archived">Archived</label>
+		<select
+			id="filter-archived"
+			class="control"
+			title="Archived images are left out of browsing; list them here to find and unarchive them"
+			value={filters.archived ? 'only' : ''}
+			onchange={(e) => update({ archived: (e.target as HTMLSelectElement).value === 'only' || undefined })}
+		>
+			<option value="">Hidden</option>
+			<option value="only">Only</option>
+		</select>
+	</div>
+
 	{#if allowElo}
 		<div class="filter-group">
 			<label for="filter-elo-end">ELO</label>

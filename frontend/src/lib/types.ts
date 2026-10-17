@@ -150,6 +150,8 @@ export interface FilterState {
 	/** The top or bottom `elo_percent` of the collection's ELO ranking. */
 	elo_end?: EloEnd;
 	elo_percent?: number;
+	/** List the archived images instead of the browsable ones. */
+	archived?: boolean;
 }
 
 export type EloEnd = 'top' | 'bottom';

@@ -156,6 +156,41 @@ def test_unarchive_restores_to_gallery(client: TestClient, image_dir: Path) -> N
     assert resp.json()["total_count"] == len(hashes)
 
 
+def test_archived_filter_lists_only_archived_images(
+    client: TestClient, db: sqlite3.Connection
+) -> None:
+    hashes = [insert_image(db, f"{i:064d}", filename=f"a{i}.png") for i in range(4)]
+    for h in (hashes[1], hashes[3]):
+        client.patch(f"/api/v1/images/{h}/archive", json={"archived": True})
+
+    resp = client.get("/api/v1/images", params={"archived": True})
+    assert [i["content_hash"] for i in resp.json()["items"]] == [hashes[1], hashes[3]]
+    assert resp.json()["total_count"] == 2
+
+    from thalimage.services.collection_service import get_or_create_source_preset
+
+    preset = get_or_create_source_preset(db, 1, "test")
+    resp = client.get("/api/v1/images", params={"archived": True, "collection_id": preset.id})
+    assert resp.json()["total_count"] == 2
+
+
+def test_archived_filter_applies_to_neighbors_and_sequence(
+    client: TestClient, db: sqlite3.Connection
+) -> None:
+    hashes = [insert_image(db, f"{i:064d}", filename=f"a{i}.png") for i in range(4)]
+    for h in (hashes[0], hashes[2], hashes[3]):
+        client.patch(f"/api/v1/images/{h}/archive", json={"archived": True})
+
+    resp = client.get(f"/api/v1/images/{hashes[2]}/neighbors", params={"archived": True})
+    data = resp.json()
+    assert [i["content_hash"] for i in data["before"]] == [hashes[0]]
+    assert [i["content_hash"] for i in data["after"]] == [hashes[3]]
+    assert (data["position"], data["total_count"]) == (1, 3)
+
+    resp = client.get("/api/v1/images/sequence", params={"archived": True})
+    assert [i["content_hash"] for i in resp.json()] == [hashes[0], hashes[2], hashes[3]]
+
+
 def test_archive_not_found(client: TestClient) -> None:
     resp = client.patch(f"/api/v1/images/{ABSENT_HASH}/archive", json={"archived": True})
     assert resp.status_code == 404

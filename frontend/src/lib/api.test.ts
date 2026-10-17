@@ -17,7 +17,8 @@ describe('listingQuery', () => {
 				date_to: '2024-01-31',
 				aspect_ratio: 'portrait',
 				media_type: 'video',
-				tags: ['a b', 'c']
+				tags: ['a b', 'c'],
+				archived: true
 			}
 		});
 		expect(Object.fromEntries(q)).toEqual({
@@ -29,7 +30,8 @@ describe('listingQuery', () => {
 			date_to: '2024-01-31',
 			aspect_ratio_filter: 'portrait',
 			media_type: 'video',
-			tags: 'c'
+			tags: 'c',
+			archived: 'true'
 		});
 		expect(q.getAll('tags')).toEqual(['a b', 'c']);
 	});
@@ -89,7 +91,8 @@ describe('ELO requests', () => {
 
 	it('draws a pair under the collection filters, ELO cut included', async () => {
 		const url = requested();
-		await getEloPair(3, { aspect_ratio: 'portrait', elo_end: 'top', elo_percent: 25 }, true);
+		// Voting never draws archived images, whatever the collection's grid shows.
+		await getEloPair(3, { aspect_ratio: 'portrait', elo_end: 'top', elo_percent: 25, archived: true }, true);
 		const q = new URL(url(), 'http://x').searchParams;
 		expect(Object.fromEntries(q)).toEqual({
 			aspect_ratio_filter: 'portrait',

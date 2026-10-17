@@ -157,10 +157,15 @@ class ListingFilters:
     tags: Optional[list[str]] = None
     show_nsfw: bool = False
     elo_cut: Optional[EloCut] = None
+    # List the archived images instead of the browsable ones.
+    archived: bool = False
 
 
 def _apply_filters(q: str, p: list[object], f: ListingFilters) -> str:
     """Append the WHERE clauses for `f` to `q`, adding values to `p`."""
+    # A literal, not a parameter: the browsable listing's partial indexes
+    # (archived = 0) only serve a query that states the value.
+    q += f" AND archived = {int(f.archived)}"
     if f.source_id is not None:
         q += f" AND {in_source_sql()}"
         p.append(f.source_id)
@@ -249,7 +254,7 @@ def _sort_key(sort: str, elo_collection_id: Optional[int]) -> _SortKey:
 _NUMERIC_SORT_COLUMNS = frozenset({"file_size", "aspect_ratio"})
 
 
-_LIVE = "FROM images WHERE deleted = 0 AND archived = 0"
+_LIVE = "FROM images WHERE deleted = 0"
 
 
 def list_images(

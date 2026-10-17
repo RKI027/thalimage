@@ -70,11 +70,13 @@ export function listingQuery(params: ListingParams): URLSearchParams {
 	if (params.filters) {
 		setFilters(q, params.filters);
 		if (params.filters.tags) params.filters.tags.forEach((t) => q.append('tags', t));
+		if (params.filters.archived) q.set('archived', 'true');
 	}
 	return q;
 }
 
-/** The filters a listing and a vote pair share (pairs take no tags). */
+/** The filters a listing and a vote pair share (pairs take no tags, and
+ * never draw archived images). */
 function setFilters(q: URLSearchParams, f: FilterState): void {
 	if (f.date_from) q.set('date_from', f.date_from);
 	if (f.date_to) q.set('date_to', f.date_to);
