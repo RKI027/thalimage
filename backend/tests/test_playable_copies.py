@@ -291,3 +291,16 @@ def test_the_viewer_plays_the_original_when_the_copy_cannot_be_checked(
 
     assert resp.status_code == 200
     assert resp.content == (videos / "vp9.webm").read_bytes()
+
+
+@requires_ffmpeg
+def test_deleting_several_images_deletes_their_copies(
+    client: TestClient, videos: Path, video_dir: Path
+) -> None:
+    source_id, _ = scan_source(client, videos)
+    client.patch(f"/api/v1/sources/{source_id}", json={"writable": True})
+    webm = _hash(client, source_id, "vp9.webm")
+
+    client.post("/api/v1/images/delete", json={"hashes": [webm]})
+
+    assert not playable_copy_path(video_dir, webm).exists()

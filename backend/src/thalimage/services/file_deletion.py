@@ -90,9 +90,7 @@ def delete_copies(conn: sqlite3.Connection, source_id: int, paths: list[str]) ->
 def image_copies(conn: sqlite3.Connection, content_hash: str) -> list[Copy] | None:
     """Every file holding a live image, by source then path; None if there
     is no such image."""
-    if conn.execute(
-        "SELECT 1 FROM images WHERE content_hash = ? AND deleted = 0", (content_hash,)
-    ).fetchone() is None:
+    if not is_live(conn, content_hash):
         return None
     rows = conn.execute(
         """SELECT l.source_id, s.path AS source_path, l.relative_path, s.writable
@@ -108,18 +106,31 @@ def image_copies(conn: sqlite3.Connection, content_hash: str) -> list[Copy] | No
     return copies
 
 
+def is_live(conn: sqlite3.Connection, content_hash: str) -> bool:
+    """Whether the image is known and not deleted."""
+    return conn.execute(
+        "SELECT 1 FROM images WHERE content_hash = ? AND deleted = 0", (content_hash,)
+    ).fetchone() is not None
+
+
 def delete_image(conn: sqlite3.Connection, content_hash: str) -> DeletionResult | None:
     """Delete every copy of an image, in every source, from disk; None if
-    there is no such image.
+    there is no such image. See delete_images."""
+    if not is_live(conn, content_hash):
+        return None
+    return delete_images(conn, [content_hash])
+
+
+def delete_images(conn: sqlite3.Connection, hashes: list[str]) -> DeletionResult:
+    """Delete every copy of these images, in every source, from disk;
+    unknown images are skipped.
 
     Refused as a whole unless every source holding a copy is writable
     (SourceNotWritable) and no copy changed since it was scanned
-    (DeletionRefused). Once its last copy is gone the image is marked
+    (DeletionRefused). Once its last copy is gone an image is marked
     deleted, keeping its tags, scores, votes and collections.
     """
-    copies = image_copies(conn, content_hash)
-    if copies is None:
-        return None
+    copies = [c for h in dict.fromkeys(hashes) for c in image_copies(conn, h) or []]
     roots = {c.source_id: writable_root(conn, c.source_id) for c in copies}
     targets = [
         _Target(

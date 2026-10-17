@@ -1,4 +1,4 @@
-import type { ImageCopy } from './types';
+import type { ImageCopy, ImageDeletion } from './types';
 
 /** The copy's full path on the server. */
 export function copyPath(copy: ImageCopy): string {
@@ -18,4 +18,13 @@ export function hashNamed(copy: ImageCopy, hash: string): ImageCopy {
 	const dot = name.lastIndexOf('.');
 	const extension = dot > 0 ? name.slice(dot) : '';
 	return { ...copy, relative_path: `${folder}${hash}${extension}` };
+}
+
+/** The files a delete left on disk, and why; empty when it removed them all. */
+export function deletionFailures(result: ImageDeletion): string {
+	if (result.failed.length === 0) return '';
+	return (
+		`Deleted ${result.deleted}; these could not be deleted: ` +
+		result.failed.map((f) => `${f.relative_path} (${f.error})`).join(', ')
+	);
 }

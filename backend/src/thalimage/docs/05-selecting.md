@@ -28,6 +28,11 @@ The bar that appears while selecting offers:
   already in it stay as they are.
 - **Remove from collection**, in a collection you curated: the images
   leave this collection only; their tags and scores elsewhere are kept.
+- **Delete from disk…**: every copy of every selected image, with their
+  sidecars, after a confirmation that lists each file. It follows the
+  rules of deleting one image, described in *Scanning*: if any image
+  may not be deleted, none is. A file that then fails to be removed is
+  named in the confirmation, and its image stays.
 
 Each action applies to every selected image or, if it fails, to none.
 Afterwards the selection is forgotten and the grid reloads, since

@@ -163,3 +163,44 @@ def test_a_failed_removal_keeps_the_image(
 
 def test_deleting_an_unknown_image_is_a_404(client: TestClient) -> None:
     assert _delete(client, "0" * 64).status_code == 404
+
+
+def _delete_several(client: TestClient, hashes: list[str]):  # type: ignore[no-untyped-def]
+    return client.post("/api/v1/images/delete", json={"hashes": hashes})
+
+
+def _b_jpg(client: TestClient, source_id: int) -> str:
+    items = client.get("/api/v1/images", params={"source_id": source_id}).json()["items"]
+    return next(i["content_hash"] for i in items if i["filename"] == "b.jpg")
+
+
+def test_deleting_several_images_removes_every_copy_of_each(
+    client: TestClient, image_dir: Path, tmp_path: Path, two_sources: tuple[int, int, str]
+) -> None:
+    first, _, a = two_sources
+    b = _b_jpg(client, first)
+
+    resp = _delete_several(client, [a, b, "0" * 64])
+
+    assert resp.status_code == 200
+    # An unknown image is skipped.
+    assert resp.json() == {"deleted": 4, "sidecars": 0, "failed": []}
+    assert not (image_dir / "b.jpg").exists()
+    assert not (tmp_path / "other" / "a.png").exists()
+    assert client.get(f"/api/v1/images/{a}").status_code == 404
+    assert client.get(f"/api/v1/images/{b}").status_code == 404
+
+
+def test_one_image_that_may_not_be_deleted_refuses_them_all(
+    client: TestClient, image_dir: Path, tmp_path: Path, two_sources: tuple[int, int, str]
+) -> None:
+    first, second, a = two_sources
+    b = _b_jpg(client, first)
+    client.patch(f"/api/v1/sources/{second}", json={"writable": False})
+
+    resp = _delete_several(client, [b, a])
+
+    assert resp.status_code == 409
+    assert "not marked writable" in resp.json()["detail"]
+    assert (image_dir / "b.jpg").exists()
+    assert (tmp_path / "other" / "a.png").exists()
