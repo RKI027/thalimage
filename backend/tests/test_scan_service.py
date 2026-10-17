@@ -539,3 +539,47 @@ def test_a_sidecar_that_cannot_be_read_is_kept_and_counted_as_an_error(
     assert result.errors == 1
     assert _sidecar_counts(result) == (0, 0, 0)
     conn.close()
+
+
+def test_scan_stores_the_perceptual_hash_of_a_still(tmp_path: Path) -> None:
+    from thalimage.core.perceptual_hash import perceptual_hash
+
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    Image.effect_mandelbrot((64, 64), (-2, -1.5, 1, 1.5), 50).save(img_dir / "a.png")
+
+    run_scan(conn, source_id, thumbs)
+
+    stored = conn.execute("SELECT perceptual_hash FROM images").fetchone()[0]
+    assert stored == perceptual_hash(img_dir / "a.png")
+    conn.close()
+
+
+@requires_ffmpeg
+def test_a_video_has_no_perceptual_hash_and_is_not_read_again(
+    tmp_path: Path, sample_mp4: Path
+) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    sample_mp4.rename(img_dir / "clip.mp4")
+
+    run_scan(conn, source_id, thumbs)
+
+    assert conn.execute("SELECT perceptual_hash FROM images").fetchone()[0] is None
+    assert run_scan(conn, source_id, thumbs).skipped == 1
+    conn.close()
+
+
+def test_images_scanned_before_the_perceptual_hash_get_one_once(tmp_path: Path) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    Image.effect_mandelbrot((64, 64), (-2, -1.5, 1, 1.5), 50).save(img_dir / "a.png")
+    run_scan(conn, source_id, thumbs)
+    # As a scan before the perceptual hash left it.
+    conn.execute("UPDATE images SET perceptual_hash = NULL, perceptual_hash_version = 0")
+    conn.commit()
+
+    again = run_scan(conn, source_id, thumbs)
+    assert (again.added, again.skipped) == (1, 0)
+    assert conn.execute("SELECT perceptual_hash FROM images").fetchone()[0] is not None
+
+    settled = run_scan(conn, source_id, thumbs)
+    assert (settled.added, settled.skipped) == (0, 1)
+    conn.close()

@@ -54,6 +54,17 @@ is described for users in
   the picture hash, and the bytes alone cannot tell it from an unrelated
   picture saved under the same name. Keeping the image across such edits
   needs a perceptual hash and its threshold (#121).
+- **Near-identical pictures are found by a perceptual hash** (#121,
+  `core/perceptual_hash.py`): a 64-bit DCT hash (pHash), stored per
+  image and compared by the share of differing bits. It decodes the
+  picture, unlike the identity hash: it only has to come close, so
+  decoder differences do not matter. Measured on a library of generated
+  images, it held every resize, re-encode, blur and colour change and
+  most 5% crops within 0.15, and 10% crops within 0.25; 2 of 45,150
+  unrelated pairs came within 0.15. dHash held crops slightly better but
+  brought unrelated pairs closer; 256-bit hashes broke on crops. Our own
+  code on Pillow, not `imagehash`, which pulls numpy, scipy and
+  PyWavelets. Videos get none.
 - **Merging replays ELO** rather than combining scores: `elo_scores`
   holds running scores, so the merged image's votes are replayed in order
   (`replay_scores`), and only in the collections they touched, so a
