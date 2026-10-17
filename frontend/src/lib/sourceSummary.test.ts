@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { summaryHeadline, summaryLines } from './sourceSummary';
 import type { SourceSummary } from './types';
 
-const empty: SourceSummary = { files: 0, images: 0, duplicates: [], archived: [], failures: [] };
+const empty: SourceSummary = { files: 0, images: 0, duplicates: [], archived: [], failures: [], orphans: [] };
 
 describe('summaryHeadline', () => {
 	it('sets files against images', () => {
@@ -59,5 +59,15 @@ describe('summaryLines', () => {
 			{ kind: 'failures', label: '1 file not indexed (the last scan failed on it)' },
 			{ kind: 'archived', label: '2 archived images (not shown when browsing)' }
 		]);
+	});
+
+	it('lists the orphan files last', () => {
+		const lines = summaryLines({
+			...empty,
+			archived: [{ content_hash: 'c', relative_path: 'c.png' }],
+			orphans: ['readme.txt']
+		});
+		expect(lines.map((l) => l.kind)).toEqual(['archived', 'orphans']);
+		expect(lines[1].label).toBe('1 orphan file (no image or video is named after it)');
 	});
 });

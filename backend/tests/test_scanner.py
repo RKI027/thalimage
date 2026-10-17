@@ -45,6 +45,40 @@ def test_scan_ignores_non_image_files(image_dir: Path) -> None:
     assert "readme.txt" not in names
 
 
+@pytest.mark.parametrize("recursive", [True, False])
+def test_scan_lists_the_other_files_apart(image_dir: Path, recursive: bool) -> None:
+    (image_dir / "sub" / "c.txt").write_text("steps: 20")
+
+    listing = scan_directory(image_dir, recursive=recursive)
+
+    expected = [image_dir / "readme.txt"] + ([image_dir / "sub" / "c.txt"] if recursive else [])
+    assert listing.others == expected
+
+
+@pytest.mark.parametrize("recursive", [True, False])
+def test_scan_skips_system_files(image_dir: Path, recursive: bool) -> None:
+    for name in (".DS_Store", "._a.png", "Thumbs.db", "thumbs.db@SynoEAStream", "Desktop.ini"):
+        (image_dir / name).write_bytes(b"x")
+
+    listing = scan_directory(image_dir, recursive=recursive)
+
+    assert {p.name for p in listing.files} >= {"a.png", "b.jpg"}
+    assert "._a.png" not in {p.name for p in listing.files}
+    assert listing.others == [image_dir / "readme.txt"]
+
+
+def test_scan_skips_system_folders(image_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    for folder in ("@eaDir/a.png", "#recycle", ".Trashes"):
+        (image_dir / folder).mkdir(parents=True)
+        (image_dir / folder / "SYNOPHOTO_THUMB_XL.jpg").write_bytes(b"x")
+    _deny(monkeypatch, image_dir / "#recycle")
+
+    listing = scan_directory(image_dir, recursive=True)
+
+    assert {p.name for p in listing.files} == {"a.png", "b.jpg", "c.png"}
+    assert listing.unreadable == []
+
+
 def test_scan_empty_directory(tmp_path: Path) -> None:
     listing = scan_directory(tmp_path, recursive=True)
     assert listing.files == []

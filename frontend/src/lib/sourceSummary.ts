@@ -1,7 +1,7 @@
 import { differsFromFirst } from './copySelection';
 import type { SourceSummary } from './types';
 
-export type SummaryKind = 'duplicates' | 'failures' | 'archived';
+export type SummaryKind = 'duplicates' | 'failures' | 'archived' | 'orphans';
 
 function count(n: number, one: string, many: string): string {
 	return `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
@@ -37,6 +37,12 @@ export function summaryLines(s: SourceSummary): { kind: SummaryKind; label: stri
 		lines.push({
 			kind: 'archived',
 			label: `${count(s.archived.length, 'archived image', 'archived images')} (not shown when browsing)`
+		});
+	}
+	if (s.orphans.length > 0) {
+		lines.push({
+			kind: 'orphans',
+			label: `${count(s.orphans.length, 'orphan file', 'orphan files')} (no image or video is named after ${s.orphans.length === 1 ? 'it' : 'them'})`
 		});
 	}
 	return lines;

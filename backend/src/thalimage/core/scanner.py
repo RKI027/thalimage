@@ -1,6 +1,7 @@
 """Image scanning and discovery."""
 
 import os
+from fnmatch import fnmatchcase
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -13,6 +14,20 @@ IMAGE_EXTENSIONS: set[str] = {
 SUPPORTED_EXTENSIONS: set[str] = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 
 
+# What operating systems and NAS software leave in folders: never indexed,
+# never sidecars. Matched case-insensitively against the name.
+IGNORED_FILES = (".ds_store", "._*", "thumbs.db", "desktop.ini", "*@synoeastream")
+IGNORED_FOLDERS = ("@eadir", "#recycle", ".trash*", "$recycle.bin")
+
+
+def _ignored(name: str, patterns: tuple[str, ...]) -> bool:
+    return any(fnmatchcase(name.lower(), p) for p in patterns)
+
+
+def is_media(path: Path) -> bool:
+    return path.suffix.lower() in SUPPORTED_EXTENSIONS
+
+
 class SourceUnavailable(OSError):
     """The source folder is missing, not a directory, or cannot be listed."""
 
@@ -20,13 +35,16 @@ class SourceUnavailable(OSError):
 @dataclass
 class Listing:
     files: list[Path] = field(default_factory=list)
+    # Every other file: sidecars, and files no media file names.
+    others: list[Path] = field(default_factory=list)
     # Directories below the root that could not be listed. Their contents
     # are unknown, not absent, so nothing under them may be marked deleted.
     unreadable: list[Path] = field(default_factory=list)
 
 
 def scan_directory(root: Path, *, recursive: bool = True) -> Listing:
-    """Find all supported image/video files under root, sorted.
+    """Find all supported image/video files under root, sorted, and the
+    other files beside them, leaving out system files and folders.
 
     Raises SourceUnavailable when root itself cannot be read: an unmounted
     or unreadable folder must fail the scan, not look like an empty one.
@@ -37,12 +55,14 @@ def scan_directory(root: Path, *, recursive: bool = True) -> Listing:
     listing = Listing()
     if recursive:
         errors: list[OSError] = []
-        for dir_path_str, _, file_names in os.walk(root, onerror=errors.append):
+        for dir_path_str, dir_names, file_names in os.walk(root, onerror=errors.append):
             dir_path = Path(dir_path_str)
+            dir_names[:] = [d for d in dir_names if not _ignored(d, IGNORED_FOLDERS)]
             for name in file_names:
+                if _ignored(name, IGNORED_FILES):
+                    continue
                 fp = dir_path / name
-                if fp.suffix.lower() in SUPPORTED_EXTENSIONS:
-                    listing.files.append(fp)
+                (listing.files if is_media(fp) else listing.others).append(fp)
         for err in errors:
             failed = Path(err.filename) if err.filename else root
             if failed == root:
@@ -52,11 +72,13 @@ def scan_directory(root: Path, *, recursive: bool = True) -> Listing:
         try:
             with os.scandir(root) as entries:
                 for entry in entries:
-                    if entry.is_file() and Path(entry.name).suffix.lower() in SUPPORTED_EXTENSIONS:
-                        listing.files.append(Path(entry.path))
+                    if entry.is_file() and not _ignored(entry.name, IGNORED_FILES):
+                        fp = Path(entry.path)
+                        (listing.files if is_media(fp) else listing.others).append(fp)
         except OSError as err:
             raise SourceUnavailable(f"Cannot read source folder {root}: {err}") from err
 
     listing.files.sort()
+    listing.others.sort()
     listing.unreadable.sort()
     return listing

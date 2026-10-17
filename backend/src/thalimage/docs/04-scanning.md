@@ -7,6 +7,13 @@ being read — unless metadata extraction or the way images are
 identified has improved since it was read, in which case it is read
 once more to pick that up.
 
+Files and folders that operating systems and NAS software leave behind
+are never looked at: `.DS_Store` and `._*` files (macOS), `Thumbs.db` and
+`desktop.ini` (Windows), `*@SynoEAStream` files and `@eaDir` folders
+(Synology), and the `#recycle`, `.Trash*` and `$RECYCLE.BIN` trash
+folders. Images inside them, such as Synology's own thumbnails, are not
+indexed.
+
 ## What happens to each new or changed file
 
 1. **Hashing.** The file is read and its picture or video data hashed
@@ -130,6 +137,12 @@ explains the difference, each opening onto the files concerned:
   entry. Every scan replaces this list.
 - **Archived images**: indexed, but left out of browsing.
 
+Below those, **Orphan files** lists the files in the source that are
+neither images nor videos and that no image or video in their folder is
+named after (see sidecars below): the sidecar of a file that was deleted
+or renamed, but also any other file, such as a `README`.
+They are not indexed and do not count among the files.
+
 ## When a source cannot be read
 
 If the source folder is missing, is not a folder, or cannot be read —
@@ -168,6 +181,11 @@ ComfyUI workflow `.json`. Deleting a file deletes its sidecars too,
 unless another image or video in the same folder is named the same
 (`img.jpg` beside `img.png` and `img.txt`); the sidecar then stays
 until the last of them is deleted.
+
+Each scan records every sidecar with a digest of its content, so it
+notices a sidecar added, changed or removed even when the image beside
+it is unchanged. The scan's completion message counts them. A sidecar
+whose size and modification time are unchanged is not read again.
 
 The full information panel in the viewer lists an image's sidecars under
 **Sidecars**, collapsed until you open it, with the text of each. Copies

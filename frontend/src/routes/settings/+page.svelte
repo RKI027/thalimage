@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { listSources, createSource, deleteSource, triggerScan, subscribeScanProgress, getVersion, getSourceSummary, updateSource } from '$lib/api';
 	import { collectionsStore, settingsStore } from '$lib/stores';
+	import { scanDoneMessage } from '$lib/scanStatus';
 	import BackupSettings from '$lib/components/BackupSettings.svelte';
 	import SourceBreakdown from '$lib/components/SourceBreakdown.svelte';
 	import type { Source, SourceSummary, VersionInfo } from '$lib/types';
@@ -93,7 +94,7 @@
 				} else if (p.phase === 'converting') {
 					scanStatus[id] = `Making videos playable on iOS ${p.current}/${p.total}…`;
 				} else if (p.phase === 'complete') {
-					scanStatus[id] = `Done: ${p.added} added, ${p.skipped} skipped, ${p.errors} errors`;
+					scanStatus[id] = scanDoneMessage(p);
 					unsubscribe();
 					refresh();
 					collectionsStore.refresh();

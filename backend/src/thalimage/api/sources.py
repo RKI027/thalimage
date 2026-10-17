@@ -231,6 +231,9 @@ async def trigger_scan(
                 added=result.added,
                 skipped=result.skipped,
                 errors=result.errors,
+                sidecars_added=result.sidecars_added,
+                sidecars_changed=result.sidecars_changed,
+                sidecars_removed=result.sidecars_removed,
             )
         except Exception as exc:
             logger.exception("Scan of source %d failed", source_id)

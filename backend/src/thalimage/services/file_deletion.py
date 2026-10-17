@@ -178,4 +178,9 @@ def _remove_sidecar(
         result.failed.append((t.source_id, path, str(exc)))
         return
     record_change(conn, t.source_id, "delete", path, outcome="done")
+    with conn:
+        conn.execute(
+            "DELETE FROM sidecars WHERE source_id = ? AND relative_path = ?",
+            (t.source_id, path),
+        )
     result.sidecars.append(path)
