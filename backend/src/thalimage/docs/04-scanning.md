@@ -7,6 +7,13 @@ being read — unless metadata extraction or the way images are
 identified has improved since it was read, in which case it is read
 once more to pick that up.
 
+Files and folders that operating systems and NAS software leave behind
+are never looked at: `.DS_Store` and `._*` files (macOS), `Thumbs.db` and
+`desktop.ini` (Windows), `*@SynoEAStream` files and `@eaDir` folders
+(Synology), and the `#recycle`, `.Trash*` and `$RECYCLE.BIN` trash
+folders. Images inside them, such as Synology's own thumbnails, are not
+indexed.
+
 ## What happens to each new or changed file
 
 1. **Hashing.** The file is read and its picture or video data hashed
@@ -133,7 +140,7 @@ explains the difference, each opening onto the files concerned:
 Below those, **Orphan files** lists the files in the source that are
 neither images nor videos and that no image or video in their folder is
 named after (see sidecars below): the sidecar of a file that was deleted
-or renamed, but also any other file, such as a `README` or `.DS_Store`.
+or renamed, but also any other file, such as a `README`.
 They are not indexed and do not count among the files.
 
 ## When a source cannot be read

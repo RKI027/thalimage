@@ -1,6 +1,7 @@
 """Image scanning and discovery."""
 
 import os
+from fnmatch import fnmatchcase
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -11,6 +12,16 @@ IMAGE_EXTENSIONS: set[str] = {
 }
 
 SUPPORTED_EXTENSIONS: set[str] = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
+
+
+# What operating systems and NAS software leave in folders: never indexed,
+# never sidecars. Matched case-insensitively against the name.
+IGNORED_FILES = (".ds_store", "._*", "thumbs.db", "desktop.ini", "*@synoeastream")
+IGNORED_FOLDERS = ("@eadir", "#recycle", ".trash*", "$recycle.bin")
+
+
+def _ignored(name: str, patterns: tuple[str, ...]) -> bool:
+    return any(fnmatchcase(name.lower(), p) for p in patterns)
 
 
 def is_media(path: Path) -> bool:
@@ -33,7 +44,7 @@ class Listing:
 
 def scan_directory(root: Path, *, recursive: bool = True) -> Listing:
     """Find all supported image/video files under root, sorted, and the
-    other files beside them.
+    other files beside them, leaving out system files and folders.
 
     Raises SourceUnavailable when root itself cannot be read: an unmounted
     or unreadable folder must fail the scan, not look like an empty one.
@@ -44,9 +55,12 @@ def scan_directory(root: Path, *, recursive: bool = True) -> Listing:
     listing = Listing()
     if recursive:
         errors: list[OSError] = []
-        for dir_path_str, _, file_names in os.walk(root, onerror=errors.append):
+        for dir_path_str, dir_names, file_names in os.walk(root, onerror=errors.append):
             dir_path = Path(dir_path_str)
+            dir_names[:] = [d for d in dir_names if not _ignored(d, IGNORED_FOLDERS)]
             for name in file_names:
+                if _ignored(name, IGNORED_FILES):
+                    continue
                 fp = dir_path / name
                 (listing.files if is_media(fp) else listing.others).append(fp)
         for err in errors:
@@ -58,7 +72,7 @@ def scan_directory(root: Path, *, recursive: bool = True) -> Listing:
         try:
             with os.scandir(root) as entries:
                 for entry in entries:
-                    if entry.is_file():
+                    if entry.is_file() and not _ignored(entry.name, IGNORED_FILES):
                         fp = Path(entry.path)
                         (listing.files if is_media(fp) else listing.others).append(fp)
         except OSError as err:
