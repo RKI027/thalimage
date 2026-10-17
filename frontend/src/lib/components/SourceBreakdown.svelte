@@ -1,6 +1,13 @@
 <script lang="ts">
 	import { deleteCopies } from '$lib/api';
-	import { allButFirst, canSelect, toggled, unmatchedSidecars } from '$lib/copySelection';
+	import {
+		allButFirst,
+		canSelect,
+		differsFromFirst,
+		toggled,
+		unmatchedSidecars,
+		unmatchedVersions
+	} from '$lib/copySelection';
 	import { summaryHeadline, summaryLines } from '$lib/sourceSummary';
 	import type { SourceSummary } from '$lib/types';
 	import ConfirmDialog from './ConfirmDialog.svelte';
@@ -30,6 +37,7 @@
 		)
 	);
 	const unmatched = $derived(unmatchedSidecars(summary.duplicates, selected));
+	const unmatchedCopies = $derived(unmatchedVersions(summary.duplicates, selected));
 
 	async function deleteSelected() {
 		confirming = false;
@@ -82,6 +90,9 @@
 										onchange={() => (selected = toggled(selected, path))}
 									/>
 									{path}
+									{#if differsFromFirst(group, path)}
+										<span class="version">different metadata</span>
+									{/if}
 									{#if sidecarsOf.get(path)?.length}
 										<span class="sidecars">+ {sidecarsOf.get(path)?.join(', ')}</span>
 									{/if}
@@ -95,7 +106,12 @@
 						<li>
 							<a href="/image/{group.content_hash}">{group.paths[0]}</a>
 							{#each group.paths.slice(1) as path}
-								<span class="copy">= {path}</span>
+								<span class="copy">
+									= {path}
+									{#if differsFromFirst(group, path)}
+										<span class="version">different metadata</span>
+									{/if}
+								</span>
 							{/each}
 						</li>
 					{/each}
@@ -138,6 +154,17 @@
 			</li>
 		{/each}
 	</ul>
+	{#if unmatchedCopies.length}
+		<p>
+			{unmatchedCopies.length === 1 ? 'This copy has' : 'These copies have'} metadata that differs
+			from every copy kept. It stays in the database with the image:
+		</p>
+		<ul class="confirm-list">
+			{#each unmatchedCopies as path (path)}
+				<li>{path}</li>
+			{/each}
+		</ul>
+	{/if}
 	{#if unmatched.length}
 		<p class="warning">
 			{unmatched.length === 1 ? 'This sidecar differs' : 'These sidecars differ'} from every
@@ -155,6 +182,11 @@
 <style>
 	.sidecars {
 		color: #777;
+		font-size: 0.75rem;
+	}
+
+	.version {
+		color: #c9a35b;
 		font-size: 0.75rem;
 	}
 

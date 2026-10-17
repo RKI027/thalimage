@@ -42,3 +42,28 @@ export function unmatchedSidecars(groups: GroupWithSidecars[], selected: Set<str
 			.map((s) => s.relative_path);
 	});
 }
+
+interface GroupWithVersions extends Group {
+	file_hashes: Record<string, string | null>;
+}
+
+/** Whether `path` is the same picture as its group's first copy with other metadata. */
+export function differsFromFirst(group: GroupWithVersions, path: string): boolean {
+	const first = group.file_hashes[group.paths[0]];
+	const version = group.file_hashes[path];
+	return first != null && version != null && version !== first;
+}
+
+/**
+ * Selected copies whose file version no kept copy of the same group has:
+ * their metadata differs from every copy kept. Copies not read yet are left out.
+ */
+export function unmatchedVersions(groups: GroupWithVersions[], selected: Set<string>): string[] {
+	return groups.flatMap((g) => {
+		const kept = new Set(g.paths.filter((p) => !selected.has(p)).map((p) => g.file_hashes[p]));
+		return g.paths.filter((p) => {
+			const version = g.file_hashes[p];
+			return selected.has(p) && version != null && !kept.has(version);
+		});
+	});
+}

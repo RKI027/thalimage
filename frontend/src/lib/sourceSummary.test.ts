@@ -21,11 +21,28 @@ describe('summaryLines', () => {
 
 	it('counts the extra copies, not the groups', () => {
 		const duplicates = [
-			{ content_hash: 'a', paths: ['a.png', 'a2.png', 'a3.png'], sidecars: {} },
-			{ content_hash: 'b', paths: ['b.png', 'b2.png'], sidecars: {} }
+			{ content_hash: 'a', paths: ['a.png', 'a2.png', 'a3.png'], sidecars: {}, file_hashes: {} },
+			{ content_hash: 'b', paths: ['b.png', 'b2.png'], sidecars: {}, file_hashes: {} }
 		];
 		expect(summaryLines({ ...empty, duplicates })).toEqual([
-			{ kind: 'duplicates', label: '3 duplicate files (same content as another file)' }
+			{ kind: 'duplicates', label: '3 duplicate files (same picture as another file)' }
+		]);
+	});
+
+	it('counts the copies whose metadata differs from the first', () => {
+		const duplicates = [
+			{
+				content_hash: 'a',
+				paths: ['a.png', 'a2.png', 'a3.png'],
+				sidecars: {},
+				file_hashes: { 'a.png': 'x', 'a2.png': 'x', 'a3.png': 'y' }
+			}
+		];
+		expect(summaryLines({ ...empty, duplicates })).toEqual([
+			{
+				kind: 'duplicates',
+				label: '2 duplicate files (same picture as another file, 1 with different metadata)'
+			}
 		]);
 	});
 

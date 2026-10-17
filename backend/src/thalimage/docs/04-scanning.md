@@ -112,12 +112,16 @@ Each source in Settings sets the files indexed in it against the images
 its preset shows ("1,390 files → 954 images"), followed by whatever
 explains the difference, each opening onto the files concerned:
 
-- **Duplicate files**: copies with the same content as another file in
-  the source. They are one image. In a writable source (see below) you
+- **Duplicate files**: copies of the same picture as another file in
+  the source. They are one image. A copy marked *different metadata*
+  holds the same picture as the group's first file but other metadata
+  (an edited prompt, a stripped EXIF block); the others are identical
+  files. In a writable source (see below) you
   can tick copies and delete them from disk, after a confirmation that
   lists every file with its sidecars (see below). Each image keeps at
   least one copy, and a file that changed since the last scan is refused
-  until you rescan. A deleted copy's metadata stays with the image. When
+  until you rescan. A deleted copy's metadata stays with the image, and the confirmation
+  names the copies whose metadata differs from every copy kept. When
   a deleted copy's sidecar differs from every sidecar of the copies
   kept, the confirmation warns that its content will be lost.
 - **Files not indexed**: files the last scan could not read or decode,

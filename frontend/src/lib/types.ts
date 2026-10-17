@@ -114,11 +114,16 @@ export interface SourceSummary {
 	files: number;
 	/** Images browsing the source shows. */
 	images: number;
-	/** Files in the source with the same content: one image each, with each file's sidecars. */
+	/**
+	 * Files in the source with the same picture: one image each, with each
+	 * file's sidecars and file version (null until a scan has read it).
+	 * Copies with different versions differ in their metadata.
+	 */
 	duplicates: {
 		content_hash: string;
 		paths: string[];
 		sidecars: Record<string, { relative_path: string; digest: string }[]>;
+		file_hashes: Record<string, string | null>;
 	}[];
 	archived: { content_hash: string; relative_path: string }[];
 	/** What the latest scan could not index; a folder ends with a separator. */

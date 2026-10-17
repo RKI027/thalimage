@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import Image, PngImagePlugin
 
 from tests.helpers import scan_source
 
@@ -43,6 +43,23 @@ def test_copies_of_one_content_are_grouped(client: TestClient, image_dir: Path) 
     [group] = summary["duplicates"]
     assert group["paths"] == ["a.png", str(Path("sub") / "a-copy.png")]
     assert group["content_hash"] in hashes
+
+
+def test_each_copy_has_its_file_version(client: TestClient, image_dir: Path) -> None:
+    """Copies of one picture with different metadata are different file
+    versions; identical copies share theirs."""
+    for name, prompt in [("p.png", "a lighthouse"), ("p-copy.png", "a lighthouse"), ("p-edit.png", "a harbour")]:
+        info = PngImagePlugin.PngInfo()
+        info.add_text("parameters", prompt)
+        Image.new("RGB", (8, 8), "teal").save(image_dir / name, pnginfo=info)
+    source_id, _ = scan_source(client, image_dir)
+
+    [group] = _summary(client, source_id)["duplicates"]
+
+    versions = group["file_hashes"]
+    assert group["paths"] == ["p-copy.png", "p-edit.png", "p.png"]
+    assert versions["p.png"] == versions["p-copy.png"]
+    assert versions["p-edit.png"] != versions["p.png"]
 
 
 def test_a_file_that_fails_is_listed_with_its_reason(client: TestClient, image_dir: Path) -> None:
