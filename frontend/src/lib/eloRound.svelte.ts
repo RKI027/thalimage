@@ -4,7 +4,7 @@
  * made for (collection, filters, NSFW switch); a response for any other
  * scope is dropped, so nothing from a previous collection can surface.
  */
-import { getEloPair, recordEloVote } from './api';
+import { archiveImage, getEloPair, recordEloVote } from './api';
 import type { EloPair, FilterState, ImageSummary } from './types';
 
 /** How long the chosen side stays highlighted before the next pair. */
@@ -28,6 +28,7 @@ export class EloRound {
 	#scopeKey = '';
 	#next: { key: string; pair: EloPair } | null = null;
 	#preload: (item: ImageSummary) => void;
+	#archiving = false;
 
 	constructor(preload: (item: ImageSummary) => void = () => {}) {
 		this.#preload = preload;
@@ -75,7 +76,7 @@ export class EloRound {
 	 * so a repeated key or a double tap counts once. */
 	async vote(side: 'left' | 'right'): Promise<void> {
 		const scope = this.#scope;
-		if (!scope || !this.left || !this.right || this.selectedSide !== null) return;
+		if (!scope || !this.left || !this.right || this.selectedSide !== null || this.#archiving) return;
 		const key = this.#scopeKey;
 		this.selectedSide = side;
 		const [winner, loser] = side === 'left' ? [this.left, this.right] : [this.right, this.left];
@@ -93,6 +94,25 @@ export class EloRound {
 		setTimeout(() => {
 			if (key === this.#scopeKey) this.loadPair();
 		}, HIGHLIGHT_MS);
+	}
+
+	/** Archive one side and move on to the next pair, recording no vote, as
+	 * a skip does. The other side is left as it was. Ignored while a vote or
+	 * another archive is under way. */
+	async archive(side: 'left' | 'right'): Promise<void> {
+		const item = side === 'left' ? this.left : this.right;
+		if (!this.#scope || !item || this.selectedSide !== null || this.#archiving) return;
+		const key = this.#scopeKey;
+		this.#archiving = true;
+		try {
+			await archiveImage(item.content_hash, true);
+		} catch (e) {
+			if (key === this.#scopeKey) this.error = e instanceof Error ? e.message : 'Failed to archive';
+			return;
+		} finally {
+			this.#archiving = false;
+		}
+		if (key === this.#scopeKey) await this.loadPair();
 	}
 
 	/** The hashes of the pair on screen, which the next pair leaves out. */

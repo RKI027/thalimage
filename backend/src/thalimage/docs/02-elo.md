@@ -32,6 +32,11 @@ its score, which comes back if the image is added again. Images never
 voted on are not ranked at all; sorting a grid by ELO places them at the
 starting 1500.
 
+Voting can bring up an image you would rather set aside. The archive
+button in the corner of each image archives it and moves on to the next
+pair without recording a vote, as **Skip** does; the other image is left
+as it was. Archived images are not drawn into pairs.
+
 Images with equal scores share a rank: an image's rank is one plus the
 number of ranked images scored higher.
 
