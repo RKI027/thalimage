@@ -124,6 +124,21 @@
 		</select>
 	</div>
 
+	<div class="filter-group">
+		<label for="filter-possible-edits">Edits</label>
+		<select
+			id="filter-possible-edits"
+			class="control"
+			title="Images that may be edits of an earlier picture at the same path; open one to merge or keep them separate"
+			value={filters.possible_edits ? 'only' : ''}
+			onchange={(e) =>
+				update({ possible_edits: (e.target as HTMLSelectElement).value === 'only' || undefined })}
+		>
+			<option value="">All images</option>
+			<option value="only">Possible edits</option>
+		</select>
+	</div>
+
 	{#if allowElo}
 		<div class="filter-group">
 			<label for="filter-elo-end">ELO</label>

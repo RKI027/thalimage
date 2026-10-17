@@ -9,11 +9,19 @@
 		getSequence,
 		getImageCopies,
 		deleteImage,
-		renameImage
+		renameImage,
+		decidePossibleEdit
 	} from '$lib/api';
 	import { browsingContext, backDestination, backLabel, contextListing } from '$lib/browsingContext';
 	import { settingsStore } from '$lib/stores';
-	import type { ImageCopy, ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
+	import type {
+		ImageCopy,
+		ImageDetail,
+		ImageSummary,
+		MetadataMode,
+		OverlayMode,
+		PossibleEditDecision
+	} from '$lib/types';
 	import { copyPath, deletionFailures, hashNamed, readOnlySources } from '$lib/imageCopies';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import { createSlidePreloader, neighborsToPreload } from '$lib/slidePreloader';
@@ -26,6 +34,7 @@
 	import SlideshowOverlay from '$lib/components/SlideshowOverlay.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import DeleteDialog from '$lib/components/DeleteDialog.svelte';
+	import PossibleEditNotice from '$lib/components/PossibleEditNotice.svelte';
 
 	let image = $state<ImageDetail | null>(null);
 	// A window of the browsing context's listing around the current image.
@@ -405,6 +414,12 @@
 		if (newState) leaveImage();
 	}
 
+	async function decideEdit(decision: PossibleEditDecision) {
+		if (!image) return;
+		image = await decidePossibleEdit(image.content_hash, decision);
+		if (ctx?.filters?.possible_edits) leaveImage();
+	}
+
 	// Navigate away from an image the listing no longer includes, and drop
 	// the window it was part of.
 	function leaveImage() {
@@ -610,6 +625,10 @@
 					<MetadataPanel {image} collectionId={browsedCollection} mode={slideshowStore.metadataMode} />
 				</div>
 			</div>
+
+			{#if image.possible_edit}
+				<PossibleEditNotice edit={image.possible_edit} ondecide={decideEdit} />
+			{/if}
 
 			<!-- Video playback controls, bottom-centered -->
 			{#if isVideo}

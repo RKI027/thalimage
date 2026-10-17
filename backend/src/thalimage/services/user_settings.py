@@ -7,6 +7,9 @@ from pydantic import BaseModel
 
 class UserSettings(BaseModel):
     show_nsfw: bool = False
+    # The perceptual distance at or under which a picture changed in place
+    # is offered as an edit of the one it replaced.
+    edit_threshold: float = 0.25
 
 
 def read(conn: sqlite3.Connection) -> UserSettings:
@@ -15,16 +18,26 @@ def read(conn: sqlite3.Connection) -> UserSettings:
     settings = UserSettings()
     if "show_nsfw" in stored:
         settings.show_nsfw = stored["show_nsfw"] == "true"
+    if "edit_threshold" in stored:
+        settings.edit_threshold = float(stored["edit_threshold"])
     return settings
 
 
-def write(conn: sqlite3.Connection, *, show_nsfw: bool | None = None) -> UserSettings:
+def write(
+    conn: sqlite3.Connection,
+    *,
+    show_nsfw: bool | None = None,
+    edit_threshold: float | None = None,
+) -> UserSettings:
     """Store the given preferences (None leaves one unchanged) and commit."""
-    if show_nsfw is not None:
-        conn.execute(
-            "INSERT INTO settings (key, value) VALUES ('show_nsfw', ?)"
+    values = {
+        "show_nsfw": None if show_nsfw is None else ("true" if show_nsfw else "false"),
+        "edit_threshold": None if edit_threshold is None else str(edit_threshold),
+    }
+    with conn:
+        conn.executemany(
+            "INSERT INTO settings (key, value) VALUES (?, ?)"
             " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            ("true" if show_nsfw else "false",),
+            [(k, v) for k, v in values.items() if v is not None],
         )
-        conn.commit()
     return read(conn)

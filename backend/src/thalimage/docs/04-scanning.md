@@ -84,6 +84,36 @@ image carry a different prompt, negative prompt or generation tool. A file's met
 image after the file is deleted or disappears, so removing a copy never
 loses it.
 
+## A picture edited in place
+
+Cropping, filtering or re-encoding a file changes its picture, so the
+scan sees a new image, and the image the file held until then loses that
+copy. When that earlier image has no copy left anywhere and the two
+pictures look alike, the new image is marked as a possible edit of it.
+How alike they must be is the **Edit detection threshold** in Settings:
+the share of the perceptual hash that may differ, 0.25 by default. At
+that value nearly every resize, re-encode or colour change, and most
+crops of up to 10% of each side, are caught. Raising it catches heavier
+edits and asks about more unrelated pictures. Lowering it does the
+opposite. A change of threshold applies from the next change a scan finds.
+
+Nothing is merged without asking. Opening the image shows the earlier
+picture with two choices:
+
+- **Merge**: one image. It takes the earlier image's tags, votes,
+  scores and collection memberships, as when two files turn out to hold
+  the same picture (see below). The earlier file's metadata (its prompt
+  and parameters included) stays as an earlier version of the image; it
+  is not mixed into the new file's.
+- **Keep separate**: two images. The earlier one stays deleted, with its
+  tags and votes. The pair is not offered again.
+
+The **Edits** filter lists only the images waiting for this choice. A
+file reused for an unrelated picture (a generator overwriting
+`output_00001.png`) does not look alike and is not offered. If the
+earlier picture comes back on disk, it is an image again and the
+question goes away.
+
 ## When the way images are identified changes
 
 Images used to be identified by a hash of the whole file, metadata

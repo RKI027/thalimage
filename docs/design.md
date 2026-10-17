@@ -50,10 +50,20 @@ is described for users in
 - **Only an unchanged file is re-keyed.** Its old key certainly named
   these bytes. A file that changed since the last scan cannot be matched
   to its old key and counts as new content.
-- **A picture edited in place is a new image.** A crop or filter changes
-  the picture hash, and the bytes alone cannot tell it from an unrelated
-  picture saved under the same name. Keeping the image across such edits
-  needs a perceptual hash and its threshold (#121).
+- **A picture edited in place is a new image, offered as an edit.** A
+  crop or filter changes the picture hash, and the bytes alone cannot
+  tell it from an unrelated picture saved under the same name. When the
+  scan replaces the picture at a path, the image that had no copy left
+  and looks alike within the edit threshold (perceptual distance, 0.25
+  by default) is recorded as a possible edit (`picture_edits`, #121).
+  The user always decides: merging is `rekey_image`, so everything
+  carries over and the old file version's metadata stays an earlier
+  version, never merged into the new one. Only when the old picture has
+  no copy left: a surviving copy makes the edit a derivative, a separate
+  image. Whether a pair is still pending is computed on read, so a
+  picture back on disk withdraws the question by itself. The edit
+  threshold is its own setting: near-duplicate search (#110) asks a
+  different question.
 - **Near-identical pictures are found by a perceptual hash** (#121,
   `core/perceptual_hash.py`): a 64-bit DCT hash (pHash), stored per
   image and compared by the share of differing bits. It decodes the

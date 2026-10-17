@@ -20,6 +20,9 @@ export interface Tag {
 
 export interface UserSettings {
 	show_nsfw: boolean;
+	/** The perceptual distance (0–1) at or under which a picture changed in
+	 * place is offered as an edit of the one it replaced. */
+	edit_threshold: number;
 }
 
 export interface BackupConfig {
@@ -58,7 +61,17 @@ export interface ImageDetail extends ImageSummary {
 	folder_tags: string[];
 	/** Other files of this image with a different tool, prompt or negative prompt. */
 	other_versions: number;
+	/** The earlier picture this image may be an edit of, still to be decided. */
+	possible_edit: PossibleEdit | null;
 }
+
+export interface PossibleEdit {
+	old_hash: string;
+	/** How far apart the two pictures look, from 0 (the same) to 1. */
+	distance: number;
+}
+
+export type PossibleEditDecision = 'merge' | 'separate';
 
 export interface ImagePage {
 	items: ImageSummary[];
@@ -165,6 +178,8 @@ export interface FilterState {
 	elo_percent?: number;
 	/** List the archived images instead of the browsable ones. */
 	archived?: boolean;
+	/** Only the images that may be edits of an earlier picture. */
+	possible_edits?: boolean;
 }
 
 export type EloEnd = 'top' | 'bottom';

@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { deleteSource, displaySize, getEloPair, getEloRankings, listingQuery, updateSource } from './api';
+import {
+	decidePossibleEdit,
+	deleteSource,
+	displaySize,
+	getEloPair,
+	getEloRankings,
+	listingQuery,
+	updateSource
+} from './api';
 
 describe('listingQuery', () => {
 	it('is empty for a default listing', () => {
@@ -18,7 +26,8 @@ describe('listingQuery', () => {
 				aspect_ratio: 'portrait',
 				media_type: 'video',
 				tags: ['a b', 'c'],
-				archived: true
+				archived: true,
+				possible_edits: true
 			}
 		});
 		expect(Object.fromEntries(q)).toEqual({
@@ -31,7 +40,8 @@ describe('listingQuery', () => {
 			aspect_ratio_filter: 'portrait',
 			media_type: 'video',
 			tags: 'c',
-			archived: 'true'
+			archived: 'true',
+			possible_edits: 'true'
 		});
 		expect(q.getAll('tags')).toEqual(['a b', 'c']);
 	});
@@ -103,8 +113,13 @@ describe('ELO requests', () => {
 
 	it('draws a pair under the collection filters, ELO cut included', async () => {
 		const url = requested();
-		// Voting never draws archived images, whatever the collection's grid shows.
-		await getEloPair(3, { aspect_ratio: 'portrait', elo_end: 'top', elo_percent: 25, archived: true }, true);
+		// Voting never draws archived images, whatever the collection's grid
+		// shows, and draws from all images, not only possible edits.
+		await getEloPair(
+			3,
+			{ aspect_ratio: 'portrait', elo_end: 'top', elo_percent: 25, archived: true, possible_edits: true },
+			true
+		);
 		const q = new URL(url(), 'http://x').searchParams;
 		expect(Object.fromEntries(q)).toEqual({
 			aspect_ratio_filter: 'portrait',
@@ -118,5 +133,18 @@ describe('ELO requests', () => {
 		const url = requested();
 		await getEloRankings(3, { offset: 100, limit: 50, showNsfw: true });
 		expect(url()).toBe('/api/v1/collections/3/elo/rankings?offset=100&limit=50&show_nsfw=true');
+	});
+});
+
+describe('decidePossibleEdit', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('posts the decision for the image', async () => {
+		const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response('{}'));
+		vi.stubGlobal('fetch', fetchMock);
+		await decidePossibleEdit('abc', 'merge');
+		expect(fetchMock.mock.lastCall![0]).toBe('/api/v1/images/abc/possible-edit');
+		expect(fetchMock.mock.lastCall![1]?.method).toBe('POST');
+		expect(JSON.parse(fetchMock.mock.lastCall![1]?.body as string)).toEqual({ decision: 'merge' });
 	});
 });
