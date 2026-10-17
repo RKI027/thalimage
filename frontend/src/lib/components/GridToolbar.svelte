@@ -23,6 +23,7 @@
 		onSortChange,
 		onFilterChange,
 		onStartSlideshow,
+		onSelect,
 		desktopLeading,
 		desktopActions,
 		sheetExtras,
@@ -42,6 +43,8 @@
 		onSortChange: (sort: SortField, dir: SortDirection) => void;
 		onFilterChange: (filters: FilterState) => void;
 		onStartSlideshow: () => void;
+		/** Start selecting images in the grid. */
+		onSelect: () => void;
 		/** Desktop: page-specific chrome at the far left (e.g. back link + title). */
 		desktopLeading?: Snippet;
 		/** Desktop: page-specific actions just before the Slideshow button. */
@@ -95,6 +98,7 @@
 	</div>
 	<div class="group actions">
 		{#if desktopActions}{@render desktopActions()}{/if}
+		<button class="control" onclick={onSelect} {disabled}>Select</button>
 		<button class="control" onclick={onStartSlideshow} {disabled}>Slideshow</button>
 	</div>
 	<!-- The count and slider keep their place at the right edge: the count's
@@ -116,6 +120,7 @@
 	<ThumbSizeSlider bind:size={thumbSize} />
 	{#if sheetExtras}{@render sheetExtras()}{/if}
 	<h3 class="sheet-section">Actions</h3>
+	<button class="control sheet-action-btn" onclick={() => { onSelect(); optionsOpen = false; }} {disabled}>Select</button>
 	<button class="control sheet-action-btn" onclick={() => { onStartSlideshow(); optionsOpen = false; }} {disabled}>Slideshow</button>
 	{#if sheetActions}{@render sheetActions()}{/if}
 </OptionsSheet>

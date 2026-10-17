@@ -126,6 +126,15 @@ export function archiveImage(hash: string, archived: boolean): Promise<ImageDeta
 	});
 }
 
+/** Archive or unarchive images at once; returns how many exist. */
+export function archiveImages(hashes: string[], archived: boolean): Promise<{ updated: number }> {
+	return fetchJSON(`${BASE}/images/archive`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ hashes, archived })
+	});
+}
+
 /** The image's ELO standing in each collection it has been voted in. */
 export function getImageElo(hash: string): Promise<EloStanding[]> {
 	return fetchJSON(`${BASE}/images/${hash}/elo`);
@@ -308,6 +317,23 @@ export async function deleteCollection(id: number): Promise<void> {
 	if (!resp.ok) throw new Error(`Delete failed: ${resp.status}`);
 }
 
+/** Add images to a manual collection; returns how many were not in it yet. */
+export function addCollectionImages(id: number, hashes: string[]): Promise<{ added: number }> {
+	return fetchJSON(`${BASE}/collections/${id}/images`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ hashes })
+	});
+}
+
+export function removeCollectionImages(id: number, hashes: string[]): Promise<{ removed: number }> {
+	return fetchJSON(`${BASE}/collections/${id}/images`, {
+		method: 'DELETE',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ hashes })
+	});
+}
+
 // ELO Voting
 
 /** A pair to vote on; the `exclude`d images are left out where the
@@ -384,6 +410,24 @@ export async function addImageTag(hash: string, tagId: number): Promise<void> {
 export async function removeImageTag(hash: string, tagId: number): Promise<void> {
 	const resp = await fetch(`${BASE}/images/${hash}/tags/${tagId}`, { method: 'DELETE' });
 	if (!resp.ok) throw new Error(`Remove tag failed: ${resp.status}`);
+}
+
+/** Tag images at once; returns how many did not carry the tag yet. */
+export function tagImages(tagId: number, hashes: string[]): Promise<{ added: number }> {
+	return fetchJSON(`${BASE}/tags/${tagId}/images`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ hashes })
+	});
+}
+
+/** Untag images at once; returns how many carried the tag. */
+export function untagImages(tagId: number, hashes: string[]): Promise<{ removed: number }> {
+	return fetchJSON(`${BASE}/tags/${tagId}/images`, {
+		method: 'DELETE',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ hashes })
+	});
 }
 
 // Settings

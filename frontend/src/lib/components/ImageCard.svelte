@@ -2,10 +2,27 @@
 	import type { ImageSummary } from '$lib/types';
 	import { thumbUrl } from '$lib/api';
 
-	let { image, size = 200 }: { image: ImageSummary; size?: number } = $props();
+	let {
+		image,
+		size = 200,
+		selected = false,
+		onclick
+	}: {
+		image: ImageSummary;
+		size?: number;
+		selected?: boolean;
+		onclick?: (e: MouseEvent) => void;
+	} = $props();
 </script>
 
-<a href="/image/{image.content_hash}" class="card" class:nsfw={image.nsfw} style="width: {size}px; height: {size}px;">
+<a
+	href="/image/{image.content_hash}"
+	class="card"
+	class:nsfw={image.nsfw}
+	class:selected
+	style="width: {size}px; height: {size}px;"
+	{onclick}
+>
 	<img
 		src={thumbUrl(image.content_hash)}
 		alt={image.filename}
@@ -14,6 +31,9 @@
 	/>
 	{#if image.nsfw}
 		<span class="nsfw-badge">NSFW</span>
+	{/if}
+	{#if selected}
+		<span class="check" aria-hidden="true">✓</span>
 	{/if}
 </a>
 
@@ -36,6 +56,28 @@
 
 	.card:hover {
 		outline: 2px solid #6ea8fe;
+	}
+
+	.card.selected,
+	.card.selected:hover {
+		outline: 3px solid #6ea8fe;
+		outline-offset: -3px;
+	}
+
+	.check {
+		position: absolute;
+		top: 4px;
+		left: 4px;
+		width: 20px;
+		height: 20px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+		background: #3a5a8a;
+		color: #fff;
+		font-size: 0.75rem;
+		pointer-events: none;
 	}
 
 	.nsfw-badge {

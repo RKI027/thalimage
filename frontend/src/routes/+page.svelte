@@ -9,6 +9,7 @@
 	import type { FilterState, SortField, SortDirection } from '$lib/types';
 	import ImageGrid from '$lib/components/ImageGrid.svelte';
 	import GridToolbar from '$lib/components/GridToolbar.svelte';
+	import SelectionBar from '$lib/components/SelectionBar.svelte';
 
 	let sort: SortField = $state('name');
 	let dir: SortDirection = $state('asc');
@@ -118,6 +119,7 @@
 		{onSortChange}
 		{onFilterChange}
 		onStartSlideshow={() => gallery.startSlideshow()}
+		onSelect={() => gallery.selection.start()}
 	/>
 
 	<ImageGrid
@@ -125,9 +127,18 @@
 		totalCount={gallery.totalCount}
 		thumbSize={gallery.thumbSize}
 		initialScrollTop={restoredScrollTop}
+		selection={gallery.selection}
 		onLoadMore={() => gallery.loadMore()}
 		onScroll={(s) => { currentScrollTop = s; }}
 	/>
+
+	{#if gallery.selection.active}
+		<SelectionBar
+			selection={gallery.selection}
+			archived={filters.archived ?? false}
+			ondone={() => gallery.reset()}
+		/>
+	{/if}
 {/if}
 
 <style>
