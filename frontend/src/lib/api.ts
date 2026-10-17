@@ -232,8 +232,9 @@ export function updateSource(
 	});
 }
 
-export async function deleteSource(id: number): Promise<void> {
-	const resp = await fetch(`${BASE}/sources/${id}`, { method: 'DELETE' });
+/** Remove a source; `keepData` keeps the data of its images found nowhere else. */
+export async function deleteSource(id: number, { keepData }: { keepData: boolean }): Promise<void> {
+	const resp = await fetch(`${BASE}/sources/${id}?keep_data=${keepData}`, { method: 'DELETE' });
 	if (!resp.ok) throw new Error(`Delete failed: ${resp.status}`);
 }
 

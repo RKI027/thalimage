@@ -259,9 +259,21 @@ record is kept even after the source is removed.
 
 ## Removing a source
 
-Deleting a source removes its preset collection and every image found
-only in that source, together with its metadata, scores, tags and
-collection memberships, with no prompt and no undo. Images that also lie
-in another source are kept, with everything attached. A more careful
-flow, offering to keep the database entries or to write them out to
-sidecar files first, is designed but not yet built.
+**Remove** in Settings asks what to do with the images found only in
+that source, and says how many there are. Removing never touches the
+files on disk, and images that also lie in another source are kept
+either way, with everything attached. The source's preset collection
+goes in both cases.
+
+- **Keep their data** marks those images deleted (see
+  *Archived and deleted* above): they leave every
+  gallery, collection and vote, but their tags, scores, collection
+  memberships and metadata stay in the database. Once a scan finds the
+  same pictures again, in the same folder added back or in any other
+  source, they return with all of it.
+- **Remove their data** deletes those images from the database with
+  their metadata, scores, tags and collection memberships. There is no
+  undo; a later scan of the same files indexes them as new images.
+
+Writing that data to sidecar files before removing a source is not yet
+built.

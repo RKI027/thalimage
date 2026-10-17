@@ -1,5 +1,6 @@
 """Deleting a source or a collection removes exactly its own data (GEN-003, TST-001)."""
 
+import shutil
 import sqlite3
 from pathlib import Path
 
@@ -93,7 +94,9 @@ def test_delete_source_removes_its_data_and_nothing_else(
     for h in (a[0], b[0]):
         client.post(f"/api/v1/images/{h}/tags", json={"tag_id": tag})
 
-    assert client.delete(f"/api/v1/sources/{src_a}").status_code == 204
+    assert client.delete(
+        f"/api/v1/sources/{src_a}", params={"keep_data": False}
+    ).status_code == 204
 
     in_a = ",".join("?" * len(a))
     # Nothing of source A remains...
@@ -123,3 +126,85 @@ def test_delete_source_removes_its_data_and_nothing_else(
     assert _count(db, "SELECT COUNT(*) FROM image_tags WHERE image_hash = ?", b[0]) == 1
     assert _count(db, "SELECT COUNT(*) FROM tags WHERE id = ?", tag) == 1
     assert _count(db, "SELECT COUNT(*) FROM collections WHERE id IN (?, ?)", manual, preset_b) == 2
+
+
+def _listed(client: TestClient, **params: object) -> list[str]:
+    items = client.get("/api/v1/images", params=params).json()["items"]
+    return [i["content_hash"] for i in items]
+
+
+def _ranked_and_tagged(client: TestClient, hashes: list[str]) -> tuple[int, int]:
+    """A manual collection holding `hashes` with one vote between the first
+    two, and a tag on the first. Returns the collection and tag ids."""
+    manual = client.post("/api/v1/collections", json={"name": "kept"}).json()["id"]
+    client.post(f"/api/v1/collections/{manual}/images", json={"hashes": hashes})
+    _vote(client, manual, hashes[0], hashes[1])
+    tag = client.post("/api/v1/tags", json={"name": "liked"}).json()["id"]
+    client.post(f"/api/v1/images/{hashes[0]}/tags", json={"tag_id": tag})
+    return manual, tag
+
+
+def _assert_data_kept(
+    db: sqlite3.Connection, hashes: list[str], manual: int, tag: int
+) -> None:
+    assert _count(db, "SELECT COUNT(*) FROM collection_images WHERE collection_id = ?", manual) == 3
+    assert _count(db, "SELECT COUNT(*) FROM votes WHERE collection_id = ?", manual) == 1
+    assert _count(db, "SELECT COUNT(*) FROM image_tags WHERE image_hash = ?", hashes[0]) == 1
+    assert _count(db, "SELECT COUNT(*) FROM tags WHERE id = ?", tag) == 1
+    assert _count(db, "SELECT COUNT(*) FROM elo_scores WHERE collection_id = ?", manual) == 2
+
+
+def test_removing_a_source_can_keep_its_images_data(
+    client: TestClient, db: sqlite3.Connection, image_dir: Path
+) -> None:
+    src, hashes = scan_source(client, image_dir)
+    manual, tag = _ranked_and_tagged(client, hashes)
+
+    assert client.delete(f"/api/v1/sources/{src}", params={"keep_data": True}).status_code == 204
+
+    assert client.get("/api/v1/sources").json() == []
+    assert _listed(client) == []
+    assert _listed(client, collection_id=manual) == []
+    _assert_data_kept(db, hashes, manual, tag)
+
+
+def test_kept_images_return_when_their_folder_is_added_again(
+    client: TestClient, db: sqlite3.Connection, image_dir: Path
+) -> None:
+    src, hashes = scan_source(client, image_dir)
+    manual, tag = _ranked_and_tagged(client, hashes)
+    client.delete(f"/api/v1/sources/{src}", params={"keep_data": True})
+
+    _, again = scan_source(client, image_dir)
+
+    assert sorted(again) == sorted(hashes)
+    assert sorted(_listed(client, collection_id=manual)) == sorted(hashes)
+    standing = client.get(f"/api/v1/images/{hashes[0]}/elo").json()
+    assert [s["collection_id"] for s in standing] == [manual]
+    _assert_data_kept(db, hashes, manual, tag)
+
+
+def test_kept_images_return_when_another_source_holds_them(
+    client: TestClient, db: sqlite3.Connection, image_dir: Path, tmp_path: Path
+) -> None:
+    src, hashes = scan_source(client, image_dir)
+    manual, tag = _ranked_and_tagged(client, hashes)
+    client.delete(f"/api/v1/sources/{src}", params={"keep_data": True})
+
+    _, again = scan_source(client, shutil.copytree(image_dir, tmp_path / "moved"))
+
+    assert sorted(again) == sorted(hashes)
+    assert sorted(_listed(client, collection_id=manual)) == sorted(hashes)
+    standing = client.get(f"/api/v1/images/{hashes[0]}/elo").json()
+    assert [s["collection_id"] for s in standing] == [manual]
+    _assert_data_kept(db, hashes, manual, tag)
+
+
+def test_a_removed_source_is_not_found(client: TestClient, image_dir: Path) -> None:
+    src, _ = scan_source(client, image_dir)
+    client.delete(f"/api/v1/sources/{src}", params={"keep_data": True})
+
+    assert client.get(f"/api/v1/sources/{src}/summary").status_code == 404
+    assert client.post(f"/api/v1/sources/{src}/scan").status_code == 404
+    assert client.patch(f"/api/v1/sources/{src}", json={"label": "x"}).status_code == 404
+    assert client.delete(f"/api/v1/sources/{src}").status_code == 404

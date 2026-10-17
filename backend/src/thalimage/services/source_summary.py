@@ -41,7 +41,8 @@ class SourceSummary(BaseModel):
     its preset shows. The difference is the extra copies in `duplicates`
     plus the `archived` images; `failures` were not indexed at all.
     `orphans` are the other files the last scan found that no media file
-    in their folder names."""
+    in their folder names. `only_here` counts the images, archived ones
+    included, that lie in no other source."""
 
     files: int
     images: int
@@ -49,6 +50,7 @@ class SourceSummary(BaseModel):
     archived: list[SourceFile]
     failures: list[ScanFailure]
     orphans: list[str]
+    only_here: int
 
 
 def source_summary(conn: sqlite3.Connection, source_id: int) -> Optional[SourceSummary]:
@@ -104,6 +106,12 @@ def source_summary(conn: sqlite3.Connection, source_id: int) -> Optional[SourceS
                 (source_id,),
             )
         ],
+        only_here=conn.execute(
+            "SELECT COUNT(DISTINCT content_hash) FROM image_locations l WHERE source_id = ?"
+            " AND NOT EXISTS (SELECT 1 FROM image_locations o"
+            "   WHERE o.content_hash = l.content_hash AND o.source_id != l.source_id)",
+            (source_id,),
+        ).fetchone()[0],
     )
 
 

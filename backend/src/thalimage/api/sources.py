@@ -41,6 +41,16 @@ def _connection_db_path(conn: sqlite3.Connection) -> str:
     raise RuntimeError("No main database found for connection")
 
 
+def live_source(source_id: int, db: sqlite3.Connection = Depends(get_db)) -> sqlite3.Row:
+    """The source a route names; 404 if there is none, or it was removed."""
+    row: Optional[sqlite3.Row] = db.execute(
+        "SELECT * FROM sources WHERE id = ? AND removed_at IS NULL", (source_id,)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(404, "Source not found")
+    return row
+
+
 class SourceCreate(BaseModel):
     path: str
     label: Optional[str] = None
@@ -85,7 +95,9 @@ class SourceResponse(BaseModel):
 
 @router.get("", response_model=list[SourceResponse])
 def list_sources(db: sqlite3.Connection = Depends(get_db)) -> list[SourceResponse]:
-    rows = db.execute("SELECT * FROM sources ORDER BY label, path").fetchall()
+    rows = db.execute(
+        "SELECT * FROM sources WHERE removed_at IS NULL ORDER BY label, path"
+    ).fetchall()
     return [SourceResponse(**dict(r)) for r in rows]
 
 
@@ -100,16 +112,22 @@ def create_source(
     if body.writable:
         _require_writes(source_path)
 
-    try:
-        cursor = db.execute(
-            "INSERT INTO sources (path, label, recursive, writable) VALUES (?, ?, ?, ?)",
-            (str(source_path), body.label, body.recursive, body.writable),
-        )
-        db.commit()
-    except sqlite3.IntegrityError as exc:
-        raise HTTPException(409, "Source path already exists") from exc
+    # A folder removed with its images' data kept comes back as the same
+    # source, settings reset; a live one is refused.
+    cursor = db.execute(
+        """INSERT INTO sources (path, label, recursive, writable) VALUES (?, ?, ?, ?)
+           ON CONFLICT(path) DO UPDATE SET
+            label = excluded.label, recursive = excluded.recursive,
+            writable = excluded.writable, rename_to_hash = 0, enabled = 1,
+            created_at = datetime('now'), last_scan = NULL, removed_at = NULL
+           WHERE removed_at IS NOT NULL""",
+        (str(source_path), body.label, body.recursive, body.writable),
+    )
+    db.commit()
+    if cursor.rowcount == 0:
+        raise HTTPException(409, "Source path already exists")
 
-    row = db.execute("SELECT * FROM sources WHERE id = ?", (cursor.lastrowid,)).fetchone()
+    row = db.execute("SELECT * FROM sources WHERE path = ?", (str(source_path),)).fetchone()
     source = SourceResponse(**dict(row))
     get_or_create_source_preset(db, source.id, body.label or source_path.name)
     return source
@@ -126,14 +144,12 @@ def _require_writes(folder: Path) -> None:
 def update_source(
     source_id: int,
     body: SourceUpdate,
+    row: sqlite3.Row = Depends(live_source),
     db: sqlite3.Connection = Depends(get_db),
 ) -> SourceResponse:
     """Relabel a source, mark it writable (once its folder has accepted a
     test write) or read-only, which stops renaming its files, or have its
     scans rename its files to their picture hash (writable sources only)."""
-    row = db.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone()
-    if row is None:
-        raise HTTPException(404, "Source not found")
     writable = row["writable"] if body.writable is None else body.writable
     if body.rename_to_hash and not writable:
         raise HTTPException(409, "Only a writable source can rename its files.")
@@ -153,19 +169,24 @@ def update_source(
     return SourceResponse(**dict(row))
 
 
-@router.delete("/{source_id}", status_code=204)
+@router.delete("/{source_id}", status_code=204, dependencies=[Depends(live_source)])
 def del_source(
     source_id: int,
+    keep_data: bool = True,
     db: sqlite3.Connection = Depends(get_db),
     video_dir: Path = Depends(get_video_dir),
 ) -> None:
-    removed = delete_source(db, source_id)
+    """Remove a source. Its images found nowhere else keep their data
+    unless `keep_data` is false."""
+    removed = delete_source(db, source_id, keep_data=keep_data)
     if removed is None:
         raise HTTPException(404, "Source not found")
     remove_playable_copies(video_dir, removed)
 
 
-@router.post("/{source_id}/delete-copies", response_model=DeletedCopies)
+@router.post(
+    "/{source_id}/delete-copies", response_model=DeletedCopies, dependencies=[Depends(live_source)]
+)
 def delete_source_copies(
     source_id: int,
     body: CopiesToDelete,
@@ -188,7 +209,9 @@ def delete_source_copies(
     )
 
 
-@router.get("/{source_id}/summary", response_model=SourceSummary)
+@router.get(
+    "/{source_id}/summary", response_model=SourceSummary, dependencies=[Depends(live_source)]
+)
 def get_source_summary(
     source_id: int,
     db: sqlite3.Connection = Depends(get_db),
@@ -199,7 +222,7 @@ def get_source_summary(
     return summary
 
 
-@router.post("/{source_id}/scan", status_code=202)
+@router.post("/{source_id}/scan", status_code=202, dependencies=[Depends(live_source)])
 async def trigger_scan(
     source_id: int,
     db: sqlite3.Connection = Depends(get_db),
@@ -208,10 +231,6 @@ async def trigger_scan(
     video_dir: Path = Depends(get_video_dir),
     scan_manager: ScanManager = Depends(get_scan_manager),
 ) -> dict[str, str]:
-    source = db.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone()
-    if source is None:
-        raise HTTPException(404, "Source not found")
-
     if not scan_manager.can_start(source_id):
         raise HTTPException(409, "Scan already running for this source")
 
@@ -257,17 +276,13 @@ async def trigger_scan(
     return {"status": "started"}
 
 
-@router.get("/{source_id}/scan/status")
+@router.get("/{source_id}/scan/status", dependencies=[Depends(live_source)])
 async def scan_status_sse(
     source_id: int,
     request: Request,
     db: sqlite3.Connection = Depends(get_db),
     scan_manager: ScanManager = Depends(get_scan_manager),
 ) -> EventSourceResponse:
-    source = db.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone()
-    if source is None:
-        raise HTTPException(404, "Source not found")
-
     async def event_generator():  # type: ignore[no-untyped-def]
         progress = scan_manager.get_progress(source_id)
         if progress is None:

@@ -121,3 +121,19 @@ def test_deleting_a_source_drops_its_failures(client: TestClient, image_dir: Pat
 
     assert client.delete(f"/api/v1/sources/{source_id}").status_code == 204
     assert client.get(f"/api/v1/sources/{source_id}/summary").status_code == 404
+
+
+def test_images_found_nowhere_else_are_counted(
+    client: TestClient, image_dir: Path, tmp_path: Path
+) -> None:
+    """What removing the source would take with it: archived images
+    included, images also in another source not."""
+    other = tmp_path / "other"
+    other.mkdir()
+    shutil.copy(image_dir / "a.png", other / "a.png")
+    source_id, hashes = scan_source(client, image_dir)
+    scan_source(client, other)
+    # Listed by name: a.png, b.jpg, sub/c.png.
+    client.patch(f"/api/v1/images/{hashes[1]}/archive", json={"archived": True})
+
+    assert _summary(client, source_id)["only_here"] == 2

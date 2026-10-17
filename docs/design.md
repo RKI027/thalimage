@@ -16,6 +16,12 @@ is described for users in
 - **Sources are scan targets.** Users manage them in Settings and browse
   them through their presets; voting, tagging and every other feature
   work on collections, never on raw sources.
+- **A source removed with its data kept is hidden, not deleted** (#122):
+  its images still reference it (`images.source_id` is required), so the
+  row stays with `removed_at` set, and adding its folder again revives
+  it. Making `source_id` nullable was rejected: a table rebuild, and
+  every reader handling an image with no source. Kept images come back
+  when any source holds the same picture, as identity is by content.
 - **Folders are data, not browsing structure** (#29). The disk layout
   does not become sub-presets; each image gets `folder:<dir>` tags
   derived on read from its current locations (source left out), so
