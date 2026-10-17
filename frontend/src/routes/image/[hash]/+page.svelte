@@ -14,7 +14,7 @@
 	import { browsingContext, backDestination, backLabel, contextListing } from '$lib/browsingContext';
 	import { settingsStore } from '$lib/stores';
 	import type { ImageCopy, ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
-	import { copyPath, hashNamed, readOnlySources } from '$lib/imageCopies';
+	import { copyPath, deletionFailures, hashNamed, readOnlySources } from '$lib/imageCopies';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import { createSlidePreloader, neighborsToPreload } from '$lib/slidePreloader';
 	import { attachSwipe } from '$lib/swipe';
@@ -25,6 +25,7 @@
 	import MetadataPanel from '$lib/components/MetadataPanel.svelte';
 	import SlideshowOverlay from '$lib/components/SlideshowOverlay.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import DeleteDialog from '$lib/components/DeleteDialog.svelte';
 
 	let image = $state<ImageDetail | null>(null);
 	// A window of the browsing context's listing around the current image.
@@ -53,7 +54,6 @@
 	// The image being confirmed for deletion, pinned so navigating cannot
 	// change what gets deleted, with its copies; null when not deleting.
 	let deleting = $state<{ hash: string; copies: ImageCopy[]; message: string } | null>(null);
-	const deletingReadOnly = $derived(deleting ? readOnlySources(deleting.copies) : []);
 	// The same for renaming the image's files to its hash.
 	let renaming = $state<{ hash: string; copies: ImageCopy[]; message: string } | null>(null);
 	const renamingReadOnly = $derived(renaming ? readOnlySources(renaming.copies) : []);
@@ -460,18 +460,13 @@
 		const { hash } = deleting;
 		try {
 			const result = await deleteImage(hash);
-			if (result.failed.length === 0) {
+			const message = deletionFailures(result);
+			if (!message) {
 				deleting = null;
 				leaveImage();
 				return;
 			}
-			deleting = {
-				hash,
-				copies: await getImageCopies(hash),
-				message:
-					`Deleted ${result.deleted}; these could not be deleted: ` +
-					result.failed.map((f) => `${f.relative_path} (${f.error})`).join(', ')
-			};
+			deleting = { hash, copies: await getImageCopies(hash), message };
 		} catch (e) {
 			const message = e instanceof Error ? e.message : 'Delete failed';
 			deleting = { hash, copies: deleting?.copies ?? [], message };
@@ -650,46 +645,13 @@
 {/if}
 
 {#if deleting}
-	<ConfirmDialog
-		open
-		title="Delete this image from disk?"
-		confirmLabel="Delete {deleting.copies.length} {deleting.copies.length === 1 ? 'file' : 'files'} permanently"
-		danger
-		canConfirm={deleting.copies.length > 0 && deletingReadOnly.length === 0}
+	<DeleteDialog
+		images={1}
+		copies={deleting.copies}
+		message={deleting.message}
 		onconfirm={confirmDelete}
 		oncancel={() => (deleting = null)}
-	>
-		{#if deleting.message}
-			<p class="confirm-message">{deleting.message}</p>
-		{/if}
-		{#if deletingReadOnly.length > 0}
-			<p>
-				Some copies are in sources Thalimage may not change. To delete the image, mark
-				{deletingReadOnly.length === 1 ? 'this source' : 'these sources'} writable in Settings first:
-			</p>
-			<ul class="file-list">
-				{#each deletingReadOnly as folder (folder)}
-					<li>{folder}</li>
-				{/each}
-			</ul>
-		{:else if deleting.copies.length > 0}
-			<p>
-				Every copy below will be removed from the disk, with its sidecars. This cannot be undone.
-				The image leaves the gallery; its tags, scores, votes and collections are kept, and come
-				back if the same file is scanned again.
-			</p>
-		{/if}
-		<ul class="file-list">
-			{#each deleting.copies as copy (copyPath(copy))}
-				<li>
-					{copyPath(copy)}
-					{#each copy.sidecars as sidecar (sidecar)}
-						<div class="file-note">+ {copyPath({ ...copy, relative_path: sidecar })}</div>
-					{/each}
-				</li>
-			{/each}
-		</ul>
-	</ConfirmDialog>
+	/>
 {/if}
 
 {#if renaming}

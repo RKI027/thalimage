@@ -5,6 +5,7 @@ import type {
 	ImagePage,
 	ImageDetail,
 	ImageCopy,
+	ImageDeletion,
 	SidecarContent,
 	EloStanding,
 	Source,
@@ -150,14 +151,17 @@ export function getImageSidecars(hash: string): Promise<SidecarContent[]> {
 }
 
 /** Delete every copy of the image from disk. Refused as a whole if any may not be deleted. */
-export function deleteImage(
-	hash: string
-): Promise<{
-	deleted: number;
-	sidecars: number;
-	failed: { source_id: number; relative_path: string; error: string }[];
-}> {
+export function deleteImage(hash: string): Promise<ImageDeletion> {
 	return fetchJSON(`${BASE}/images/${hash}/delete`, { method: 'POST' });
+}
+
+/** Delete every copy of these images from disk. Refused as a whole if any may not be deleted. */
+export function deleteImages(hashes: string[]): Promise<ImageDeletion> {
+	return fetchJSON(`${BASE}/images/delete`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ hashes })
+	});
 }
 
 /** Rename every copy of the image to its picture hash, deleting copies whose folder

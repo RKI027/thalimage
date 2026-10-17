@@ -250,6 +250,13 @@ export interface ImageCopy {
 	sidecars: string[];
 }
 
+/** What deleting images from disk did: files and sidecars removed, and those that stayed. */
+export interface ImageDeletion {
+	deleted: number;
+	sidecars: number;
+	failed: { source_id: number; relative_path: string; error: string }[];
+}
+
 /** A sidecar of one copy, read from disk; `text` is null when it is binary or too large. */
 export interface SidecarContent {
 	source_id: number;

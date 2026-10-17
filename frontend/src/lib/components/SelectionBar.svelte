@@ -3,14 +3,18 @@
 		addCollectionImages,
 		archiveImages,
 		createTag,
+		deleteImages,
+		getImageCopies,
 		listTags,
 		removeCollectionImages,
 		tagImages,
 		untagImages
 	} from '$lib/api';
+	import { deletionFailures } from '$lib/imageCopies';
 	import type { ImageSelection } from '$lib/imageSelection.svelte';
 	import { collectionsStore } from '$lib/stores';
-	import type { Tag } from '$lib/types';
+	import type { ImageCopy, Tag } from '$lib/types';
+	import DeleteDialog from './DeleteDialog.svelte';
 
 	/** `archived`: the grid lists archived images, so they can be unarchived.
 	 * `collectionId`: the manual collection browsed, which images can leave.
@@ -35,6 +39,10 @@
 	let busy = $state(false);
 	let error = $state<string | null>(null);
 	let debounce: ReturnType<typeof setTimeout> | null = null;
+	// The copies confirmed for deletion; null when not deleting.
+	let deleting = $state<{ copies: ImageCopy[]; message: string } | null>(null);
+	// A delete that left some files removed others: the grid must reload.
+	let deletedSome = false;
 
 	const none = $derived(selection.count === 0);
 	const targets = $derived(
@@ -100,8 +108,50 @@
 		else if (picker === 'tag') run(async (hashes) => tagImages((await createTag(name)).id, hashes));
 	}
 
+	/** Every copy of these images; an image already gone has none. */
+	async function copiesOf(hashes: string[]): Promise<ImageCopy[]> {
+		const copies = await Promise.all(hashes.map((h) => getImageCopies(h).catch(() => [])));
+		return copies.flat();
+	}
+
+	async function askDelete() {
+		picker = null;
+		busy = true;
+		error = null;
+		try {
+			deleting = { copies: await copiesOf(selection.hashes), message: '' };
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function confirmDelete() {
+		if (!deleting) return;
+		const hashes = selection.hashes;
+		try {
+			const message = deletionFailures(await deleteImages(hashes));
+			collectionsStore.refresh();
+			if (!message) {
+				deleting = null;
+				ondone();
+				return;
+			}
+			deletedSome = true;
+			deleting = { copies: await copiesOf(hashes), message };
+		} catch (e) {
+			const message = e instanceof Error ? e.message : 'Delete failed';
+			deleting = { copies: deleting?.copies ?? [], message };
+		}
+	}
+
+	function cancelDelete() {
+		deleting = null;
+		if (deletedSome) ondone();
+	}
+
 	function onWindowKeydown(e: KeyboardEvent) {
-		if (e.key !== 'Escape') return;
+		// The dialog handles its own Escape.
+		if (e.key !== 'Escape' || deleting) return;
 		if (picker) picker = null;
 		else selection.stop();
 	}
@@ -155,11 +205,22 @@
 			Remove from collection
 		</button>
 	{/if}
+	<button class="control control-danger" disabled={none || busy} onclick={askDelete}>Delete from disk…</button>
 	<button class="control control-primary" onclick={() => selection.stop()}>Done</button>
 	{#if error}
 		<p class="error">{error}</p>
 	{/if}
 </div>
+
+{#if deleting}
+	<DeleteDialog
+		images={selection.count}
+		copies={deleting.copies}
+		message={deleting.message}
+		onconfirm={confirmDelete}
+		oncancel={cancelDelete}
+	/>
+{/if}
 
 <style>
 	.bar {

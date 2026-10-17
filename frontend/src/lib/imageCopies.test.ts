@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { copyPath, hashNamed, readOnlySources } from './imageCopies';
+import { copyPath, deletionFailures, hashNamed, readOnlySources } from './imageCopies';
 
 const copy = (source_path: string, relative_path: string, writable = true) => ({
 	source_id: source_path.length,
@@ -44,5 +44,21 @@ describe('hashNamed', () => {
 	it('handles a file in the source folder, and one with no extension', () => {
 		expect(hashNamed(copy('/images', 'a.b.jpg'), 'abc').relative_path).toBe('abc.jpg');
 		expect(hashNamed(copy('/images', 'noext'), 'abc').relative_path).toBe('abc');
+	});
+});
+
+describe('deletionFailures', () => {
+	it('is empty when every file went', () => {
+		expect(deletionFailures({ deleted: 2, sidecars: 0, failed: [] })).toBe('');
+	});
+
+	it('names each file that stayed, with its error', () => {
+		const failed = [
+			{ source_id: 1, relative_path: 'a.png', error: 'Permission denied' },
+			{ source_id: 1, relative_path: 'b.png', error: 'Busy' }
+		];
+		expect(deletionFailures({ deleted: 3, sidecars: 0, failed })).toBe(
+			'Deleted 3; these could not be deleted: a.png (Permission denied), b.png (Busy)'
+		);
 	});
 });
