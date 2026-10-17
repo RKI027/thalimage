@@ -52,6 +52,8 @@ export interface ImageDetail extends ImageSummary {
 	raw_params: string | null;
 	exif_data: string | null;
 	png_text: string | null;
+	/** The name the shown file was first scanned under. */
+	original_name: string | null;
 	/** `folder:<dir>` per folder holding a copy; derived, so read-only. */
 	folder_tags: string[];
 	/** Other files of this image with a different tool, prompt or negative prompt. */

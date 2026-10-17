@@ -503,24 +503,29 @@ def _tag_from_file(conn: sqlite3.Connection, h: str, meta: ImageMetadata) -> Non
         )
 
 
+# A file version keeps the first name it was scanned under.
+_KEEP_ORIGINAL_NAME = "original_name = COALESCE(original_name, excluded.original_name)"
+
+
 def _upsert_metadata(conn: sqlite3.Connection, item: _Indexed) -> None:
     """Record what was read from the file version, for the image it shows."""
     meta = item.meta
     if meta is None:
         # Videos carry no AI metadata; keep an empty row so joins line up.
         conn.execute(
-            "INSERT INTO file_metadata (file_hash, content_hash, extractor_version) VALUES (?, ?, ?)"
+            "INSERT INTO file_metadata (file_hash, content_hash, extractor_version, original_name)"
+            " VALUES (?, ?, ?, ?)"
             " ON CONFLICT(file_hash) DO UPDATE SET content_hash = excluded.content_hash,"
-            " extractor_version = excluded.extractor_version",
-            (item.file_hash, item.content_hash, EXTRACTOR_VERSION),
+            " extractor_version = excluded.extractor_version, " + _KEEP_ORIGINAL_NAME,
+            (item.file_hash, item.content_hash, EXTRACTOR_VERSION, item.filename),
         )
         return
     ai = meta.ai_params
     conn.execute(
         """INSERT INTO file_metadata
            (file_hash, content_hash, ai_tool, prompt, negative_prompt,
-            raw_params, exif_data, png_text, extractor_version)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            raw_params, exif_data, png_text, extractor_version, original_name)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(file_hash) DO UPDATE SET
             content_hash=excluded.content_hash,
             extractor_version=excluded.extractor_version,
@@ -530,8 +535,8 @@ def _upsert_metadata(conn: sqlite3.Connection, item: _Indexed) -> None:
             raw_params=excluded.raw_params,
             exif_data=excluded.exif_data,
             png_text=excluded.png_text,
-            extracted_at=datetime('now')
-        """,
+            extracted_at=datetime('now'),
+        """ + _KEEP_ORIGINAL_NAME,
         (
             item.file_hash,
             item.content_hash,
@@ -542,5 +547,6 @@ def _upsert_metadata(conn: sqlite3.Connection, item: _Indexed) -> None:
             json.dumps(meta.exif_data) if meta.exif_data else None,
             json.dumps(meta.png_text) if meta.png_text else None,
             EXTRACTOR_VERSION,
+            item.filename,
         ),
     )

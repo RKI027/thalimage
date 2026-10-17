@@ -118,6 +118,9 @@
 				<h3>File</h3>
 				<dl>
 					<dt>Name</dt><dd>{image.filename}</dd>
+					{#if image.original_name && image.original_name !== image.filename}
+						<dt>Original name</dt><dd>{image.original_name}</dd>
+					{/if}
 					<dt>Size</dt><dd>{formatSize(image.file_size)}</dd>
 					<dt>Format</dt><dd>{image.format}</dd>
 					<dt>Dimensions</dt><dd>{image.width} × {image.height}</dd>

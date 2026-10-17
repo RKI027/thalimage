@@ -208,3 +208,26 @@ def test_020_keys_metadata_by_the_file_that_gave_it(tmp_path: Path) -> None:
         "rekeyed": '["beach"]',
     }
     conn.close()
+
+
+def test_022_names_each_file_version_after_a_file_holding_it(tmp_path: Path) -> None:
+    conn = _db_at(tmp_path, 21)
+    conn.execute("INSERT INTO sources (id, path) VALUES (1, '/a')")
+    _image(conn, "img")
+    conn.executemany(
+        "INSERT INTO image_locations (source_id, relative_path, content_hash, filename,"
+        " file_size, file_modified, file_hash) VALUES (1, ?, 'img', ?, 1, '2024-01-01', ?)",
+        [("sub/b.png", "b.png", "v1"), ("a.png", "a.png", "v1"), ("c.png", "c.png", "v2")],
+    )
+    conn.executemany(
+        "INSERT INTO file_metadata (file_hash, content_hash) VALUES (?, 'img')",
+        [("v1",), ("v2",), ("gone",)],
+    )
+    conn.commit()
+
+    migrate(conn, target=22)
+
+    assert {r[0]: r[1] for r in conn.execute(
+        "SELECT file_hash, original_name FROM file_metadata"
+    )} == {"v1": "a.png", "v2": "c.png", "gone": None}
+    conn.close()

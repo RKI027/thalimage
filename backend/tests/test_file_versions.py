@@ -91,3 +91,14 @@ def test_a_removed_tag_is_not_imported_again_from_another_file(library: Library)
 
     assert set(library.live().values()) == {key}
     assert library.tags(key) == {"sunset"}
+
+
+def test_a_file_keeps_the_first_name_it_was_scanned_under(library: Library) -> None:
+    first = _generated(library.folder / "a.png", "a lighthouse")
+    library.scan()
+    renamed = first.rename(library.folder / "lighthouse.png")
+    library.scan()
+
+    detail = _detail(library, renamed)
+    assert detail.filename == "lighthouse.png"
+    assert detail.original_name == "a.png"
