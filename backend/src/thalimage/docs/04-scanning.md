@@ -149,6 +149,11 @@ of voting. It is a way of setting something aside without losing it.
 A collection's image count leaves them out too; when it holds archived
 images, an archive icon next to the count says how many.
 
+To find them again, set the **Archived** filter to **Only**, in the
+gallery, a source or a collection: the grid then lists the archived
+images, the viewer walks them, and each can be unarchived from the
+viewer. Voting never draws archived images, whatever that filter says.
+
 **Deleted** marks an image whose file is no longer on disk anywhere. The
 row is kept so that tags and scores survive if the file comes back.
 

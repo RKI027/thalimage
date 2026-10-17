@@ -80,6 +80,7 @@ def listing(
     show_nsfw: bool = Query(False),
     elo_end: Literal["top", "bottom"] = Query("top"),
     elo_percent: Optional[int] = Query(None, ge=1, le=100),
+    archived: bool = Query(False),
     db: sqlite3.Connection = Depends(get_db),
 ) -> Listing:
     """The query parameters every listing route reads, as a Listing."""
@@ -108,6 +109,7 @@ def listing(
             tags=tags,
             show_nsfw=show_nsfw,
             elo_cut=cut,
+            archived=archived,
         ),
         browsed_collection_id=browsed_collection_id,
     )
