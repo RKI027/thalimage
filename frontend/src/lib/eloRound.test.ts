@@ -3,9 +3,11 @@ import type { EloPair } from './types';
 
 const getEloPair = vi.fn();
 const recordEloVote = vi.fn();
+const archiveImage = vi.fn();
 vi.mock('./api', () => ({
 	getEloPair: (...a: unknown[]) => getEloPair(...a),
-	recordEloVote: (...a: unknown[]) => recordEloVote(...a)
+	recordEloVote: (...a: unknown[]) => recordEloVote(...a),
+	archiveImage: (...a: unknown[]) => archiveImage(...a)
 }));
 
 const { EloRound } = await import('./eloRound.svelte');
@@ -30,6 +32,7 @@ describe('EloRound', () => {
 	beforeEach(() => {
 		getEloPair.mockReset();
 		recordEloVote.mockReset();
+		archiveImage.mockReset();
 		vi.useRealTimers();
 	});
 
@@ -85,6 +88,55 @@ describe('EloRound', () => {
 		recordEloVote.mockResolvedValueOnce({ status: 'recorded' });
 		await round.vote('left');
 		expect(recordEloVote).toHaveBeenCalledTimes(2);
+	});
+
+	it('archives one side and moves on without a vote', async () => {
+		const round = new EloRound();
+		getEloPair.mockResolvedValueOnce(pair('a', 'b')).mockResolvedValueOnce(pair('c', 'd'));
+		round.setScope(scope(1));
+		await round.loadPair();
+		await flush();
+		archiveImage.mockResolvedValue({});
+
+		await round.archive('right');
+
+		expect(archiveImage).toHaveBeenCalledOnce();
+		expect(archiveImage).toHaveBeenCalledWith('b', true);
+		expect(recordEloVote).not.toHaveBeenCalled();
+		expect(round.voteCount).toBe(0);
+		expect([round.left?.content_hash, round.right?.content_hash]).toEqual(['c', 'd']);
+	});
+
+	it('archives once however often it is asked, and blocks a vote meanwhile', async () => {
+		const round = new EloRound();
+		getEloPair.mockResolvedValue(pair('a', 'b'));
+		round.setScope(scope(1));
+		await round.loadPair();
+		const archived = deferred<unknown>();
+		archiveImage.mockReturnValue(archived.promise);
+
+		const first = round.archive('left');
+		round.archive('left');
+		round.vote('right');
+		archived.resolve({});
+		await first;
+
+		expect(archiveImage).toHaveBeenCalledOnce();
+		expect(recordEloVote).not.toHaveBeenCalled();
+	});
+
+	it('keeps the pair after a failed archive so the user can retry', async () => {
+		const round = new EloRound();
+		getEloPair.mockResolvedValue(pair('a', 'b'));
+		round.setScope(scope(1));
+		await round.loadPair();
+		archiveImage.mockRejectedValueOnce(new Error('offline'));
+		await round.archive('left');
+		expect(round.error).toBe('offline');
+		expect(round.left?.content_hash).toBe('a');
+		archiveImage.mockResolvedValueOnce({});
+		await round.archive('left');
+		expect(archiveImage).toHaveBeenCalledTimes(2);
 	});
 
 	it('drops a prefetch that lands after a collection switch (GEN-015)', async () => {

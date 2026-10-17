@@ -88,6 +88,8 @@
 			selectedSide={round.selectedSide}
 			onSelectLeft={() => round.vote('left')}
 			onSelectRight={() => round.vote('right')}
+			onArchiveLeft={() => round.archive('left')}
+			onArchiveRight={() => round.archive('right')}
 		/>
 		<div class="controls">
 			<span class="hint desktop-hint">← or 1</span>
