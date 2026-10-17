@@ -65,7 +65,7 @@
 		try {
 			await updateSource(source.id, { label });
 		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Failed to rename the source');
+			alert(e instanceof Error ? e.message : 'Failed to relabel the source');
 		}
 		await refresh();
 		collectionsStore.refresh();
@@ -214,7 +214,7 @@
 					</div>
 					<div class="source-actions">
 						<button class="control control-primary" onclick={() => scan(source.id)}>Scan</button>
-						<button class="control" onclick={() => (relabelling = source.id)}>Rename</button>
+						<button class="control" onclick={() => (relabelling = source.id)}>Relabel</button>
 						<button class="control control-danger" onclick={() => remove(source.id)}>Remove</button>
 					</div>
 				</li>
