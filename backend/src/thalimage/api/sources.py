@@ -52,6 +52,7 @@ class SourceUpdate(BaseModel):
     """Only the fields sent are changed; a blank or null label clears it."""
 
     writable: Optional[bool] = None
+    rename_to_hash: Optional[bool] = None
     label: Optional[str] = None
 
 
@@ -77,6 +78,7 @@ class SourceResponse(BaseModel):
     recursive: bool
     enabled: bool
     writable: bool
+    rename_to_hash: bool
     created_at: str
     last_scan: Optional[str]
 
@@ -126,16 +128,25 @@ def update_source(
     body: SourceUpdate,
     db: sqlite3.Connection = Depends(get_db),
 ) -> SourceResponse:
-    """Relabel a source, or mark it writable (once its folder has accepted
-    a test write) or read-only."""
+    """Relabel a source, mark it writable (once its folder has accepted a
+    test write) or read-only, which stops renaming its files, or have its
+    scans rename its files to their picture hash (writable sources only)."""
     row = db.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone()
     if row is None:
         raise HTTPException(404, "Source not found")
+    writable = row["writable"] if body.writable is None else body.writable
+    if body.rename_to_hash and not writable:
+        raise HTTPException(409, "Only a writable source can rename its files.")
     if body.writable is not None:
         if body.writable:
             _require_writes(Path(row["path"]))
         db.execute("UPDATE sources SET writable = ? WHERE id = ?", (body.writable, source_id))
-        db.commit()
+    if not writable or body.rename_to_hash is not None:
+        db.execute(
+            "UPDATE sources SET rename_to_hash = ? WHERE id = ?",
+            (bool(writable and body.rename_to_hash), source_id),
+        )
+    db.commit()
     if "label" in body.model_fields_set:
         relabel_source(db, source_id, body.label)
     row = db.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone()
@@ -234,6 +245,7 @@ async def trigger_scan(
                 sidecars_added=result.sidecars_added,
                 sidecars_changed=result.sidecars_changed,
                 sidecars_removed=result.sidecars_removed,
+                renamed=result.renamed,
             )
         except Exception as exc:
             logger.exception("Scan of source %d failed", source_id)

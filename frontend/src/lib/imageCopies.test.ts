@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { copyPath, readOnlySources } from './imageCopies';
+import { copyPath, hashNamed, readOnlySources } from './imageCopies';
 
 const copy = (source_path: string, relative_path: string, writable = true) => ({
 	source_id: source_path.length,
@@ -31,5 +31,18 @@ describe('readOnlySources', () => {
 
 	it('is empty when every source is writable', () => {
 		expect(readOnlySources([copy('/rw', 'a.png')])).toEqual([]);
+	});
+});
+
+describe('hashNamed', () => {
+	it('takes the hash as the name, keeping the folder and the extension as found', () => {
+		expect(hashNamed(copy('/images', 'sub/cat (1).PNG'), 'abc')).toEqual(
+			copy('/images', 'sub/abc.PNG')
+		);
+	});
+
+	it('handles a file in the source folder, and one with no extension', () => {
+		expect(hashNamed(copy('/images', 'a.b.jpg'), 'abc').relative_path).toBe('abc.jpg');
+		expect(hashNamed(copy('/images', 'noext'), 'abc').relative_path).toBe('abc');
 	});
 });

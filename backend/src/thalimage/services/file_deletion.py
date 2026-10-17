@@ -9,7 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from thalimage.core.sidecars import claimed, sidecars_of
-from thalimage.services.file_changes import record_change, writable_root
+from thalimage.services.file_changes import change_file, writable_root
 from thalimage.services.locations import sync_images
 from thalimage.services.scan_service import unchanged_since_scan
 
@@ -148,19 +148,10 @@ def _remove(conn: sqlite3.Connection, targets: list[_Target]) -> DeletionResult:
     result = DeletionResult()
     for t in targets:
         sidecars = sidecars_of(t.root / t.path)
-        try:
-            os.remove(t.root / t.path)
-        except OSError as exc:
-            record_change(conn, t.source_id, "delete", t.path, outcome="failed", error=str(exc))
-            result.failed.append((t.source_id, t.path, str(exc)))
+        error = remove_copy(conn, t.source_id, t.root, t.path)
+        if error is not None:
+            result.failed.append((t.source_id, t.path, error))
             continue
-        record_change(conn, t.source_id, "delete", t.path, outcome="done")
-        with conn:
-            conn.execute(
-                "DELETE FROM image_locations WHERE source_id = ? AND relative_path = ?",
-                (t.source_id, t.path),
-            )
-            sync_images(conn, [t.location["content_hash"]])
         result.deleted.append(t.path)
         for sidecar in sidecars:
             if not claimed(sidecar):
@@ -168,16 +159,33 @@ def _remove(conn: sqlite3.Connection, targets: list[_Target]) -> DeletionResult:
     return result
 
 
+def remove_copy(conn: sqlite3.Connection, source_id: int, root: Path, path: str) -> str | None:
+    """Remove one indexed file from disk, record the attempt and drop its
+    location (its image then opens from another copy, or is marked
+    deleted). The error if the file could not be removed."""
+    error = change_file(conn, source_id, "delete", path, lambda: os.remove(root / path))
+    if error is not None:
+        return error
+    with conn:
+        content_hash = conn.execute(
+            "SELECT content_hash FROM image_locations WHERE source_id = ? AND relative_path = ?",
+            (source_id, path),
+        ).fetchone()["content_hash"]
+        conn.execute(
+            "DELETE FROM image_locations WHERE source_id = ? AND relative_path = ?",
+            (source_id, path),
+        )
+        sync_images(conn, [content_hash])
+    return None
+
+
 def _remove_sidecar(
     conn: sqlite3.Connection, t: _Target, path: str, result: DeletionResult
 ) -> None:
-    try:
-        os.remove(t.root / path)
-    except OSError as exc:
-        record_change(conn, t.source_id, "delete", path, outcome="failed", error=str(exc))
-        result.failed.append((t.source_id, path, str(exc)))
+    error = change_file(conn, t.source_id, "delete", path, lambda: os.remove(t.root / path))
+    if error is not None:
+        result.failed.append((t.source_id, path, error))
         return
-    record_change(conn, t.source_id, "delete", path, outcome="done")
     with conn:
         conn.execute(
             "DELETE FROM sidecars WHERE source_id = ? AND relative_path = ?",

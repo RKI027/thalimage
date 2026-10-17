@@ -151,6 +151,18 @@ export function deleteImage(
 	return fetchJSON(`${BASE}/images/${hash}/delete`, { method: 'POST' });
 }
 
+/** Rename every copy of the image to its picture hash, deleting copies whose folder
+ * already holds it under that name. Refused as a whole if any may not be renamed. */
+export function renameImage(hash: string): Promise<{
+	renamed: number;
+	deleted: number;
+	/** Sidecars left where they were: their new name holds a different file. */
+	kept_sidecars: string[];
+	failed: { source_id: number; relative_path: string; error: string }[];
+}> {
+	return fetchJSON(`${BASE}/images/${hash}/rename`, { method: 'POST' });
+}
+
 /** A video as the viewer plays it: a copy iOS can play when the original is not one. */
 export function videoUrl(hash: string): string {
 	return `${BASE}/images/${hash}/video`;
@@ -206,11 +218,12 @@ export function createSource(
 	});
 }
 
-/** Relabel a source (a blank label clears it), or mark it writable (refused
- * if its folder does not accept writes) or read-only. */
+/** Relabel a source (a blank label clears it), mark it writable (refused
+ * if its folder does not accept writes) or read-only (which stops renaming),
+ * or have its scans rename its files to their picture hash. */
 export function updateSource(
 	id: number,
-	changes: { writable?: boolean; label?: string | null }
+	changes: { writable?: boolean; rename_to_hash?: boolean; label?: string | null }
 ): Promise<Source> {
 	return fetchJSON(`${BASE}/sources/${id}`, {
 		method: 'PATCH',

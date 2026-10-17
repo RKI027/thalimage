@@ -8,12 +8,13 @@
 		archiveImage,
 		getSequence,
 		getImageCopies,
-		deleteImage
+		deleteImage,
+		renameImage
 	} from '$lib/api';
 	import { browsingContext, backDestination, backLabel, contextListing } from '$lib/browsingContext';
 	import { settingsStore } from '$lib/stores';
 	import type { ImageCopy, ImageDetail, ImageSummary, MetadataMode, OverlayMode } from '$lib/types';
-	import { copyPath, readOnlySources } from '$lib/imageCopies';
+	import { copyPath, hashNamed, readOnlySources } from '$lib/imageCopies';
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import { createSlidePreloader, neighborsToPreload } from '$lib/slidePreloader';
 	import { attachSwipe } from '$lib/swipe';
@@ -53,6 +54,9 @@
 	// change what gets deleted, with its copies; null when not deleting.
 	let deleting = $state<{ hash: string; copies: ImageCopy[]; message: string } | null>(null);
 	const deletingReadOnly = $derived(deleting ? readOnlySources(deleting.copies) : []);
+	// The same for renaming the image's files to its hash.
+	let renaming = $state<{ hash: string; copies: ImageCopy[]; message: string } | null>(null);
+	const renamingReadOnly = $derived(renaming ? readOnlySources(renaming.copies) : []);
 
 	// Neighbours fetched on each side of the current image, for prev/next. A
 	// new window is fetched once navigation comes within WINDOW_EDGE of either
@@ -239,7 +243,7 @@
 	function onKeydown(e: KeyboardEvent) {
 		const tag = (e.target as HTMLElement).tagName;
 		if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-		if (deleting) return;
+		if (deleting || renaming) return;
 
 		if (e.key === 'ArrowLeft') {
 			e.preventDefault();
@@ -413,13 +417,41 @@
 		}
 	}
 
-	async function askDelete() {
-		if (!image) return;
-		const hash = image.content_hash;
+	/** The image's copies, to confirm an action on them with. */
+	async function confirming(hash: string): Promise<{ hash: string; copies: ImageCopy[]; message: string }> {
 		try {
-			deleting = { hash, copies: await getImageCopies(hash), message: '' };
+			return { hash, copies: await getImageCopies(hash), message: '' };
 		} catch (e) {
-			deleting = { hash, copies: [], message: e instanceof Error ? e.message : 'Could not list the files' };
+			return { hash, copies: [], message: e instanceof Error ? e.message : 'Could not list the files' };
+		}
+	}
+
+	async function askDelete() {
+		if (image) deleting = await confirming(image.content_hash);
+	}
+
+	async function askRename() {
+		if (image) renaming = await confirming(image.content_hash);
+	}
+
+	async function confirmRename() {
+		if (!renaming) return;
+		const { hash } = renaming;
+		try {
+			const result = await renameImage(hash);
+			if (image?.content_hash === hash) image = await getImage(hash);
+			const problems = [
+				...result.failed.map((f) => `${f.relative_path} could not be renamed (${f.error})`),
+				...result.kept_sidecars.map((p) => `${p} was left in place: its new name holds a different file`)
+			];
+			if (problems.length === 0) {
+				renaming = null;
+				return;
+			}
+			renaming = { hash, copies: await getImageCopies(hash), message: problems.join('; ') };
+		} catch (e) {
+			const message = e instanceof Error ? e.message : 'Rename failed';
+			renaming = { hash, copies: renaming?.copies ?? [], message };
 		}
 	}
 
@@ -520,6 +552,9 @@
 						onclick={toggleArchive}
 						title={image.archived ? 'Unarchive' : 'Archive'}
 					>{image.archived ? '↩ Unarchive' : '⬜ Archive'}</button>
+					<button class="control" onclick={askRename} title="Rename the image's files to its picture hash">
+						Rename…
+					</button>
 					<button class="control" onclick={askDelete} title="Delete the image's files from disk">
 						Delete…
 					</button>
@@ -625,14 +660,14 @@
 		oncancel={() => (deleting = null)}
 	>
 		{#if deleting.message}
-			<p class="delete-message">{deleting.message}</p>
+			<p class="confirm-message">{deleting.message}</p>
 		{/if}
 		{#if deletingReadOnly.length > 0}
 			<p>
 				Some copies are in sources Thalimage may not change. To delete the image, mark
 				{deletingReadOnly.length === 1 ? 'this source' : 'these sources'} writable in Settings first:
 			</p>
-			<ul class="delete-list">
+			<ul class="file-list">
 				{#each deletingReadOnly as folder (folder)}
 					<li>{folder}</li>
 				{/each}
@@ -644,13 +679,53 @@
 				back if the same file is scanned again.
 			</p>
 		{/if}
-		<ul class="delete-list">
+		<ul class="file-list">
 			{#each deleting.copies as copy (copyPath(copy))}
 				<li>
 					{copyPath(copy)}
 					{#each copy.sidecars as sidecar (sidecar)}
-						<div class="delete-sidecar">+ {copyPath({ ...copy, relative_path: sidecar })}</div>
+						<div class="file-note">+ {copyPath({ ...copy, relative_path: sidecar })}</div>
 					{/each}
+				</li>
+			{/each}
+		</ul>
+	</ConfirmDialog>
+{/if}
+
+{#if renaming}
+	<ConfirmDialog
+		open
+		title="Rename this image's files to its hash?"
+		confirmLabel="Rename {renaming.copies.length} {renaming.copies.length === 1 ? 'file' : 'files'}"
+		canConfirm={renaming.copies.length > 0 && renamingReadOnly.length === 0}
+		onconfirm={confirmRename}
+		oncancel={() => (renaming = null)}
+	>
+		{#if renaming.message}
+			<p class="confirm-message">{renaming.message}</p>
+		{/if}
+		{#if renamingReadOnly.length > 0}
+			<p>
+				Some copies are in sources Thalimage may not change. To rename the image's files, mark
+				{renamingReadOnly.length === 1 ? 'this source' : 'these sources'} writable in Settings first:
+			</p>
+			<ul class="file-list">
+				{#each renamingReadOnly as folder (folder)}
+					<li>{folder}</li>
+				{/each}
+			</ul>
+		{:else if renaming.copies.length > 0}
+			<p>
+				Each copy below takes the picture hash as its name, in the same folder and with the same
+				extension, and its sidecars follow. A copy whose folder already holds the image under that
+				name is deleted instead; its metadata stays with the image. The original names are kept.
+			</p>
+		{/if}
+		<ul class="file-list">
+			{#each renaming.copies as copy (copyPath(copy))}
+				<li>
+					{copyPath(copy)}
+					<div class="file-note">→ {hashNamed(copy, renaming.hash).relative_path}</div>
 				</li>
 			{/each}
 		</ul>
@@ -700,15 +775,15 @@
 		color: #6ea8fe;
 	}
 
-	.delete-message {
+	.confirm-message {
 		color: #f88;
 	}
 
-	.delete-sidecar {
+	.file-note {
 		color: #888;
 	}
 
-	.delete-list {
+	.file-list {
 		margin: 8px 0;
 		padding-left: 18px;
 		font-family: monospace;

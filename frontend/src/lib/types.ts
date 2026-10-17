@@ -89,6 +89,8 @@ export interface Source {
 	enabled: boolean;
 	/** Thalimage may change files in this source (delete, rename, move). */
 	writable: boolean;
+	/** Each scan renames the source's files to their picture hash (writable sources only). */
+	rename_to_hash: boolean;
 	created_at: string;
 	last_scan: string | null;
 }
@@ -145,6 +147,8 @@ export interface ScanProgress {
 	sidecars_added: number;
 	sidecars_changed: number;
 	sidecars_removed: number;
+	/** Files renamed to their picture hash at the end of the scan. */
+	renamed: number;
 	message: string;
 }
 

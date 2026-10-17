@@ -132,7 +132,9 @@ explains the difference, each opening onto the files concerned:
   a deleted copy's sidecar differs from every sidecar of the copies
   kept, the confirmation warns that its content will be lost.
 - **Files not indexed**: files the last scan could not read or decode,
-  and subfolders it could not list, with the reason. A new file that
+  and subfolders it could not list, with the reason. Files it could not
+  rename to their picture hash are listed here too, although they are
+  indexed. A new file that
   fails is not counted at all; one indexed before keeps its earlier
   entry. Every scan replaces this list.
 - **Archived images**: indexed, but left out of browsing.
@@ -204,6 +206,45 @@ The image is then marked deleted, as above: it leaves the gallery, but
 its tags, scores, votes and collection memberships are kept, and come
 back if a scan finds the same file again. If some copy could not be
 removed, the image stays, and the confirmation says which and why.
+
+## Renaming files to their picture hash
+
+A file can be renamed to the image's picture hash (see Hashing above),
+keeping its extension: `cat (1).png` becomes `3f9a…c2.png`, with the full
+64-character hash. Only the name changes; the file stays in its folder,
+so its folder tags are unaffected. Its sidecars are renamed with it:
+`cat (1).txt` becomes `3f9a…c2.txt`, `cat (1).png.json` becomes
+`3f9a…c2.png.json`. A sidecar that another image or video in the folder
+is also named after stays where it is.
+
+Each scan records the name it first sees for every file version, and
+never replaces it, so the original name is kept after a rename, and also
+after you rename the file yourself once it has been scanned. The
+information panel shows it as **Original name** when it differs from the
+current one.
+
+When the folder already holds the same picture under its hash name, the
+copy being renamed is redundant and is deleted instead, whether it is an
+identical file or holds other metadata: each file's metadata stays with
+the image (see above). Its sidecars move to the hash name when that is
+free, are deleted when the kept copy has a sidecar of the same name and
+content, and otherwise stay where they are, as orphans.
+
+There are two ways to rename:
+
+- **Rename…** in the image viewer renames every copy of the image, in
+  every source, after a confirmation that lists them. As with deleting,
+  every source holding a copy must be writable, and a copy that changed
+  since the last scan, or whose hash name is taken by another file,
+  refuses the whole rename before anything is touched.
+- **Rename files to their picture hash**, a setting of each writable
+  source in Settings, renames every file of the source at the end of
+  each scan, starting with the scan that follows. A file that cannot be
+  renamed is listed under **Files not indexed** with the reason; the
+  rest are renamed. Making the source read-only turns the setting off.
+
+Every rename is recorded with the other changes Thalimage makes to files
+(see below).
 
 ## Read-only and writable sources
 

@@ -46,12 +46,12 @@
 		}
 	}
 
-	async function setWritable(source: Source, box: HTMLInputElement) {
+	async function setFlag(source: Source, flag: 'writable' | 'rename_to_hash', box: HTMLInputElement) {
 		try {
-			await updateSource(source.id, { writable: box.checked });
+			await updateSource(source.id, { [flag]: box.checked });
 		} catch (e) {
 			// The box was ticked by hand; the source did not change, so put it back.
-			box.checked = source.writable;
+			box.checked = source[flag];
 			alert(e instanceof Error ? e.message : 'Failed to change the source');
 		}
 		await refresh();
@@ -186,10 +186,20 @@
 							<input
 								type="checkbox"
 								checked={source.writable}
-								onchange={(e) => setWritable(source, e.currentTarget)}
+								onchange={(e) => setFlag(source, 'writable', e.currentTarget)}
 							/>
 							{source.writable ? 'Thalimage may change files here' : 'Read-only: Thalimage never changes files here'}
 						</label>
+						{#if source.writable}
+							<label class="writable">
+								<input
+									type="checkbox"
+									checked={source.rename_to_hash}
+									onchange={(e) => setFlag(source, 'rename_to_hash', e.currentTarget)}
+								/>
+								Rename files to their picture hash at each scan
+							</label>
+						{/if}
 						{#if summaries[source.id] && source.last_scan}
 							<SourceBreakdown
 								summary={summaries[source.id]}

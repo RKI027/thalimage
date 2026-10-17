@@ -26,6 +26,7 @@ from thalimage.core.video import (
     ffmpeg_available,
     is_video,
 )
+from thalimage.services.file_changes import SourceNotWritable
 from thalimage.services.folders import is_folder_tag
 from thalimage.services.identity import rekey_image
 from thalimage.services.locations import EARLIEST_CREATED, sync_images
@@ -42,6 +43,7 @@ class ScanResult(BaseModel):
     sidecars_added: int = 0
     sidecars_changed: int = 0
     sidecars_removed: int = 0
+    renamed: int = 0
 
 
 # Indexed files are written in batches of at most this many files, or
@@ -95,7 +97,8 @@ def run_scan(
     5. Drop the locations of files that are gone; an image with no location
        left anywhere is marked deleted
     6. Record the other files: sidecars, and orphans no media file names
-    7. With a video_dir, make playable copies of the videos iOS cannot play
+    7. Rename the files to their picture hash, if the source is set to
+    8. With a video_dir, make playable copies of the videos iOS cannot play
     """
     source = conn.execute(
         "SELECT * FROM sources WHERE id = ?", (source_id,)
@@ -246,7 +249,11 @@ def run_scan(
     label = source["label"] or source_path.name
     get_or_create_source_preset(conn, source_id, label)
 
-    # Step 7: playable copies, after the index is written: a long transcode
+    # Step 7: rename the files to their picture hash, where the source asks
+    if source["rename_to_hash"]:
+        _rename_files(conn, source_id, result)
+
+    # Step 8: playable copies, after the index is written: a long transcode
     # must not hold back what the scan found.
     if video_dir is not None and ffmpeg_available():
         result.errors += prepare_playable_copies(
@@ -254,6 +261,28 @@ def run_scan(
         )
 
     return result
+
+
+def _rename_files(conn: sqlite3.Connection, source_id: int, result: ScanResult) -> None:
+    """Rename the source's files to their picture hash, listing those that
+    could not be among the scan's failures; the source folder itself when
+    it refuses writes."""
+    from thalimage.services.file_renaming import rename_source_files
+
+    try:
+        renaming = rename_source_files(conn, source_id)
+        failed = [(path, error) for _, path, error in renaming.failed]
+        result.renamed = len(renaming.renamed)
+    except SourceNotWritable as exc:
+        logger.warning("Not renaming the files of source %d: %s", source_id, exc)
+        failed = [("." + os.sep, str(exc))]
+    result.errors += len(failed)
+    with conn:
+        conn.executemany(
+            "INSERT OR REPLACE INTO scan_failures (source_id, relative_path, reason)"
+            " VALUES (?, ?, ?)",
+            [(source_id, path, f"Not renamed: {error}") for path, error in failed],
+        )
 
 
 def _read_sidecars(

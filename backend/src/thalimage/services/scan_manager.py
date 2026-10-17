@@ -18,6 +18,7 @@ class ScanProgress(BaseModel):
     sidecars_added: int = 0
     sidecars_changed: int = 0
     sidecars_removed: int = 0
+    renamed: int = 0
     message: str = ""
 
 

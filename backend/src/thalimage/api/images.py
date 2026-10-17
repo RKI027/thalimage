@@ -20,6 +20,7 @@ from thalimage.services.elo_ranking import elo_cut
 from thalimage.services.elo_service import EloStanding, image_standings
 from thalimage.services.file_changes import SourceNotWritable
 from thalimage.services.file_deletion import Copy, DeletionRefused, delete_image, image_copies
+from thalimage.services.file_renaming import RenameRefused, rename_image
 from thalimage.services.image_service import (
     ImageDetail,
     ImagePage,
@@ -349,7 +350,7 @@ def get_image_sidecars(
     return contents
 
 
-class ImageDeleteFailure(BaseModel):
+class FileFailure(BaseModel):
     source_id: int
     relative_path: str
     error: str
@@ -358,7 +359,7 @@ class ImageDeleteFailure(BaseModel):
 class ImageDeletion(BaseModel):
     deleted: int
     sidecars: int
-    failed: list[ImageDeleteFailure]
+    failed: list[FileFailure]
 
 
 @router.post("/{content_hash}/delete", response_model=ImageDeletion)
@@ -381,6 +382,35 @@ def delete_image_files(
         deleted=len(result.deleted),
         sidecars=len(result.sidecars),
         failed=[
-            ImageDeleteFailure(source_id=s, relative_path=p, error=e) for s, p, e in result.failed
+            FileFailure(source_id=s, relative_path=p, error=e) for s, p, e in result.failed
         ],
+    )
+
+
+class ImageRename(BaseModel):
+    renamed: int
+    deleted: int
+    kept_sidecars: list[str]
+    failed: list[FileFailure]
+
+
+@router.post("/{content_hash}/rename", response_model=ImageRename)
+def rename_image_files(
+    content_hash: ContentHash,
+    db: sqlite3.Connection = Depends(get_db),
+) -> ImageRename:
+    """Rename every copy of the image to its picture hash, deleting copies
+    whose folder already holds it under that name. Refused as a whole if
+    any copy may not be renamed."""
+    try:
+        result = rename_image(db, content_hash)
+    except (SourceNotWritable, RenameRefused) as exc:
+        raise HTTPException(409, str(exc)) from exc
+    if result is None:
+        raise HTTPException(404, "Image not found")
+    return ImageRename(
+        renamed=len(result.renamed),
+        deleted=len(result.deleted),
+        kept_sidecars=result.kept_sidecars,
+        failed=[FileFailure(source_id=s, relative_path=p, error=e) for s, p, e in result.failed],
     )
