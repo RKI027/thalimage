@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { withEloCut } from '$lib/eloCut';
+	import { withFilters } from '$lib/filters';
 	import type { EloEnd, FilterState } from '$lib/types';
 
 	let {
@@ -27,12 +28,7 @@
 	}
 
 	function update(patch: Partial<FilterState>) {
-		const next = { ...filters, ...patch };
-		// Remove empty string values so they're treated as unset
-		for (const k of Object.keys(next) as (keyof FilterState)[]) {
-			if (next[k] === '') delete next[k];
-		}
-		onchange?.(next);
+		onchange?.(withFilters(filters, patch));
 	}
 </script>
 
