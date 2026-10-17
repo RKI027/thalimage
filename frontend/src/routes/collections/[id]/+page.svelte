@@ -10,6 +10,7 @@
 	import type { Collection, FilterState, SortField, SortDirection } from '$lib/types';
 	import ImageGrid from '$lib/components/ImageGrid.svelte';
 	import GridToolbar from '$lib/components/GridToolbar.svelte';
+	import SelectionBar from '$lib/components/SelectionBar.svelte';
 
 	let collection = $state<Collection | null>(null);
 
@@ -119,6 +120,7 @@
 	{onSortChange}
 	{onFilterChange}
 	onStartSlideshow={() => gallery.startSlideshow()}
+	onSelect={() => gallery.selection.start()}
 >
 	{#snippet desktopLeading()}
 		<div class="left">
@@ -163,9 +165,19 @@
 	totalCount={gallery.totalCount}
 	thumbSize={gallery.thumbSize}
 	initialScrollTop={restoredScrollTop}
+	selection={gallery.selection}
 	onLoadMore={() => gallery.loadMore()}
 	onScroll={(s) => { currentScrollTop = s; }}
 />
+
+{#if gallery.selection.active}
+	<SelectionBar
+		selection={gallery.selection}
+		archived={filters.archived ?? false}
+		collectionId={collection?.type === 'manual' ? collection.id : undefined}
+		ondone={() => gallery.reset()}
+	/>
+{/if}
 
 <style>
 	.status.error {

@@ -506,16 +506,18 @@ def get_image(conn: sqlite3.Connection, content_hash: str) -> Optional[ImageDeta
 
 def set_archived(
     conn: sqlite3.Connection,
-    content_hash: str,
+    hashes: list[str],
     archived: bool,
-) -> bool:
-    """Set archived state on an image. Returns False if image not found."""
-    cursor = conn.execute(
+) -> int:
+    """Set archived state on images. Returns how many exist (unknown and
+    deleted images are skipped)."""
+    before = conn.total_changes
+    conn.executemany(
         "UPDATE images SET archived = ? WHERE content_hash = ? AND deleted = 0",
-        (1 if archived else 0, content_hash),
+        [(1 if archived else 0, h) for h in hashes],
     )
     conn.commit()
-    return cursor.rowcount > 0
+    return conn.total_changes - before
 
 
 def resolve_file_path(

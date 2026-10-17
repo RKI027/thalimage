@@ -291,13 +291,25 @@ class ArchiveRequest(BaseModel):
     archived: bool
 
 
+class ArchiveImagesRequest(ArchiveRequest):
+    hashes: list[str]
+
+
+@router.post("/archive")
+def archive_images(
+    body: ArchiveImagesRequest,
+    db: sqlite3.Connection = Depends(get_db),
+) -> dict[str, int]:
+    return {"updated": set_archived(db, body.hashes, body.archived)}
+
+
 @router.patch("/{content_hash}/archive", response_model=ImageDetail)
 def archive_image(
     content_hash: ContentHash,
     body: ArchiveRequest,
     db: sqlite3.Connection = Depends(get_db),
 ) -> ImageDetail:
-    if not set_archived(db, content_hash, body.archived):
+    if not set_archived(db, [content_hash], body.archived):
         raise HTTPException(404, "Image not found")
     image = get_image(db, content_hash)
     assert image is not None

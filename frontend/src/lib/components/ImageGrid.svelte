@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import type { ImageSummary } from '$lib/types';
+	import type { ImageSelection } from '$lib/imageSelection.svelte';
 	import { needsMoreImages } from '$lib/gridPaging';
 	import ImageCard from './ImageCard.svelte';
 
@@ -10,6 +11,7 @@
 		thumbSize = 200,
 		gap = 8,
 		initialScrollTop = 0,
+		selection,
 		onLoadMore,
 		onScroll: onScrollCallback
 	}: {
@@ -18,6 +20,7 @@
 		thumbSize?: number;
 		gap?: number;
 		initialScrollTop?: number;
+		selection?: ImageSelection;
 		onLoadMore?: () => void;
 		onScroll?: (scrollTop: number) => void;
 	} = $props();
@@ -36,6 +39,14 @@
 	const endRow = $derived(Math.min(totalRows, Math.ceil((scrollTop + viewportHeight) / cellSize) + 2));
 	const visibleStart = $derived(startRow * columns);
 	const visibleEnd = $derived(Math.min(images.length, endRow * columns));
+
+	// While selecting, a click selects rather than opens; Ctrl/Cmd-click
+	// starts selecting. Shift-click on a link otherwise opens a window.
+	function onCardClick(e: MouseEvent, hash: string) {
+		if (!selection || !(selection.active || e.ctrlKey || e.metaKey)) return;
+		e.preventDefault();
+		selection.click(hash, { range: e.shiftKey });
+	}
 
 	function onScroll() {
 		if (!containerEl) return;
@@ -98,7 +109,12 @@
 					height: {thumbSize}px;
 				"
 			>
-				<ImageCard {image} size={thumbSize} />
+				<ImageCard
+					{image}
+					size={thumbSize}
+					selected={selection?.has(image.content_hash) ?? false}
+					onclick={(e) => onCardClick(e, image.content_hash)}
+				/>
 			</div>
 		{/each}
 	</div>

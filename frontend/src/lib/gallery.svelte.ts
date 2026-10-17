@@ -1,10 +1,12 @@
 /**
  * What the two grid pages (all images, one collection) share: paging through
- * a listing, the persisted thumbnail size, and starting a slideshow from it.
+ * a listing, selecting among its images, the persisted thumbnail size, and
+ * starting a slideshow from it.
  * Each page supplies only the listing it shows.
  */
 import { goto } from '$app/navigation';
 import { listImages, type ListingParams } from './api';
+import { ImageSelection } from './imageSelection.svelte';
 import { responsiveThumbSize } from './mobileStore.svelte';
 import { slideshowStore } from './slideshowStore.svelte';
 import { readStored, writeStored } from './storage';
@@ -26,6 +28,7 @@ export class Gallery {
 	error = $state<string | null>(null);
 	/** False until the first page (or its error) has arrived. */
 	loaded = $state(false);
+	readonly selection = new ImageSelection(() => this.images.map((i) => i.content_hash));
 
 	#thumbSize = $state(readStored('thumbSize', 200));
 	#query: () => ListingParams;
@@ -47,8 +50,10 @@ export class Gallery {
 		writeStored('thumbSize', size);
 	}
 
-	/** Load the listing from its start, superseding any request in flight. */
+	/** Load the listing from its start, superseding any request in flight.
+	 * The selection is forgotten: it belonged to the listing shown before. */
 	reset(): Promise<void> {
+		this.selection.stop();
 		return this.#fetch(null);
 	}
 

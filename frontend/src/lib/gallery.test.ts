@@ -94,6 +94,19 @@ describe('Gallery', () => {
 		expect(g.error).toBeNull();
 	});
 
+	it('selects among its images, and forgets the selection on reset', async () => {
+		const g = new Gallery(() => ({}));
+		listImages.mockResolvedValue(page(['a', 'b', 'c']));
+		await g.reset();
+		g.selection.click('a');
+		g.selection.click('c', { range: true });
+		expect(g.selection.hashes).toEqual(['a', 'b', 'c']);
+
+		await g.reset();
+		expect(g.selection.active).toBe(false);
+		expect(g.selection.count).toBe(0);
+	});
+
 	it('remembers the thumbnail size', async () => {
 		const g = new Gallery(() => ({}));
 		expect(g.thumbSize).toBe(200);

@@ -196,6 +196,19 @@ def test_archive_not_found(client: TestClient) -> None:
     assert resp.status_code == 404
 
 
+def test_archive_several_images(client: TestClient, image_dir: Path) -> None:
+    hashes = scan_source(client, image_dir)[1]
+
+    resp = client.post(
+        "/api/v1/images/archive", json={"hashes": hashes[:2], "archived": True}
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"updated": 2}
+
+    listed = _listed(client)
+    assert listed == set(hashes[2:])
+
+
 def test_filter_by_aspect_ratio_square(client: TestClient, image_dir: Path) -> None:
     scan_source(client, image_dir)[1]
     # a.png (10x10) and c.png (5x5) are square; b.jpg (20x15) is landscape
