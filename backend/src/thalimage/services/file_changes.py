@@ -8,6 +8,7 @@ refuse up front, not halfway through an operation.
 import os
 import sqlite3
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -63,3 +64,25 @@ def record_change(
             " VALUES (?, ?, ?, ?, ?, ?)",
             (source_id, operation, path, target, outcome, error),
         )
+
+
+def change_file(
+    conn: sqlite3.Connection,
+    source_id: int,
+    operation: str,
+    path: str,
+    change: Callable[[], object],
+    *,
+    target: Optional[str] = None,
+) -> Optional[str]:
+    """Make one change on disk and record it, done or failed; the error if
+    it failed."""
+    try:
+        change()
+    except OSError as exc:
+        record_change(
+            conn, source_id, operation, path, target=target, outcome="failed", error=str(exc)
+        )
+        return str(exc)
+    record_change(conn, source_id, operation, path, target=target, outcome="done")
+    return None

@@ -57,6 +57,8 @@ class ImageDetail(ImageSummary):
     raw_params: Optional[str] = None
     exif_data: Optional[str] = None
     png_text: Optional[str] = None
+    # The name the shown file version was first scanned under.
+    original_name: Optional[str] = None
     folder_tags: list[str] = []
     # Other files of this image with a different tool, prompt or negative prompt.
     other_versions: int = 0
@@ -488,7 +490,7 @@ def get_image(conn: sqlite3.Connection, content_hash: str) -> Optional[ImageDeta
     """Get full image details including metadata. Returns archived images too."""
     row = conn.execute(
         f"""SELECT i.*, m.ai_tool, m.prompt, m.negative_prompt,
-                  m.raw_params, m.exif_data, m.png_text,
+                  m.raw_params, m.exif_data, m.png_text, m.original_name,
                   ({_DIFFERING_VERSIONS}) AS other_versions
            FROM images i
            LEFT JOIN file_metadata m ON m.file_hash = ({_SHOWN_VERSION})

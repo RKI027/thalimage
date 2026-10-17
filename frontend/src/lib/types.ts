@@ -52,6 +52,8 @@ export interface ImageDetail extends ImageSummary {
 	raw_params: string | null;
 	exif_data: string | null;
 	png_text: string | null;
+	/** The name the shown file was first scanned under. */
+	original_name: string | null;
 	/** `folder:<dir>` per folder holding a copy; derived, so read-only. */
 	folder_tags: string[];
 	/** Other files of this image with a different tool, prompt or negative prompt. */
@@ -87,6 +89,8 @@ export interface Source {
 	enabled: boolean;
 	/** Thalimage may change files in this source (delete, rename, move). */
 	writable: boolean;
+	/** Each scan renames the source's files to their picture hash (writable sources only). */
+	rename_to_hash: boolean;
 	created_at: string;
 	last_scan: string | null;
 }
@@ -143,6 +147,8 @@ export interface ScanProgress {
 	sidecars_added: number;
 	sidecars_changed: number;
 	sidecars_removed: number;
+	/** Files renamed to their picture hash at the end of the scan. */
+	renamed: number;
 	message: string;
 }
 

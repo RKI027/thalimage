@@ -53,6 +53,28 @@ is described for users in
   (`replay_scores`), and only in the collections they touched, so a
   change of formula does not shift scores elsewhere.
 
+## Renaming files
+
+- **Files are renamed to their picture hash** (#14), not a GUID: the
+  name stays right when tools write metadata into the file, and copies
+  of one picture get the same name. Only the name changes, never the
+  folder, so folder tags are unaffected.
+- **Per source, not by guessing from names.** Whether a name is worth
+  keeping (one's own generations, game screenshots) depends on where the
+  file comes from, so a writable source opts in and each scan renames its
+  files; the viewer's Rename handles strays. A name heuristic was
+  rejected: bad names (user-chosen, NSFW) cannot be told from good ones.
+- **The first name seen is kept per file version**
+  (`file_metadata.original_name`), recorded at every scan and never
+  replaced, so it survives renames by hand too. It is not location
+  history (#29 keeps none): it is one name per file version.
+- **A redundant copy is deleted, only within its folder.** When the
+  folder already holds the image under its hash name, the copy goes;
+  each file's metadata stays in `file_metadata`. Copies in other folders
+  are renamed in place and kept. A sidecar whose new name is taken is
+  deleted only when identical, else left as an orphan, so no sidecar
+  content is lost.
+
 ## Deployment
 
 - **Tailnet only.** The app runs on a Tailscale sidecar's network
