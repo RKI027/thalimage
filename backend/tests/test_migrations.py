@@ -231,3 +231,20 @@ def test_022_names_each_file_version_after_a_file_holding_it(tmp_path: Path) -> 
         "SELECT file_hash, original_name FROM file_metadata"
     )} == {"v1": "a.png", "v2": "c.png", "gone": None}
     conn.close()
+
+
+def test_025_marks_videos_current_and_stills_for_a_perceptual_hash(tmp_path: Path) -> None:
+    conn = _db_at(tmp_path, 24)
+    conn.execute("INSERT INTO sources (id, path) VALUES (1, '/a')")
+    for h in ("still", "clip"):
+        _image(conn, h)
+    conn.execute("UPDATE images SET format = 'MKV' WHERE content_hash = 'clip'")
+    conn.commit()
+
+    migrate(conn, target=25)
+
+    rows = {r[0]: (r[1], r[2]) for r in conn.execute(
+        "SELECT content_hash, perceptual_hash, perceptual_hash_version FROM images"
+    )}
+    assert rows == {"still": (None, 0), "clip": (None, 1)}
+    conn.close()
