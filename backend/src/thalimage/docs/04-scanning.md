@@ -200,7 +200,10 @@ over 256 KiB are listed by name and size only.
 disk, in every source, with their sidecars, after a confirmation that
 lists each file. All those sources must be writable; if one is not, the
 confirmation names it and offers no way to go ahead. A copy that changed since the last
-scan refuses the whole delete until you rescan.
+scan refuses the whole delete until you rescan. **Delete from disk…**
+on a selection of images (see *Selecting images*) does the same for
+each of them at once: one source that is not writable, or one changed
+copy, refuses the delete of them all.
 
 The image is then marked deleted, as above: it leaves the gallery, but
 its tags, scores, votes and collection memberships are kept, and come

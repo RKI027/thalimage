@@ -19,7 +19,15 @@ from thalimage.services.collection_service import resolve_scope
 from thalimage.services.elo_ranking import elo_cut
 from thalimage.services.elo_service import EloStanding, image_standings
 from thalimage.services.file_changes import SourceNotWritable
-from thalimage.services.file_deletion import Copy, DeletionRefused, delete_image, image_copies
+from thalimage.services.file_deletion import (
+    Copy,
+    DeletionRefused,
+    DeletionResult,
+    delete_image,
+    delete_images,
+    image_copies,
+    is_live,
+)
 from thalimage.services.file_renaming import RenameRefused, rename_image
 from thalimage.services.image_service import (
     ImageDetail,
@@ -287,12 +295,16 @@ def get_image_preview(
     )
 
 
+class ImagesBody(BaseModel):
+    hashes: list[str]
+
+
 class ArchiveRequest(BaseModel):
     archived: bool
 
 
-class ArchiveImagesRequest(ArchiveRequest):
-    hashes: list[str]
+class ArchiveImagesRequest(ArchiveRequest, ImagesBody):
+    pass
 
 
 @router.post("/archive")
@@ -390,6 +402,28 @@ def delete_image_files(
         raise HTTPException(404, "Image not found")
     if not result.failed:
         playable_copy_path(video_dir, content_hash).unlink(missing_ok=True)
+    return _deletion(result)
+
+
+@router.post("/delete", response_model=ImageDeletion)
+def delete_several_images_files(
+    body: ImagesBody,
+    db: sqlite3.Connection = Depends(get_db),
+    video_dir: Path = Depends(get_video_dir),
+) -> ImageDeletion:
+    """Delete every copy of these images from disk; unknown images are
+    skipped. Refused as a whole if any copy may not be deleted."""
+    try:
+        result = delete_images(db, body.hashes)
+    except (SourceNotWritable, DeletionRefused) as exc:
+        raise HTTPException(409, str(exc)) from exc
+    for content_hash in body.hashes:
+        if not is_live(db, content_hash):
+            playable_copy_path(video_dir, content_hash).unlink(missing_ok=True)
+    return _deletion(result)
+
+
+def _deletion(result: DeletionResult) -> ImageDeletion:
     return ImageDeletion(
         deleted=len(result.deleted),
         sidecars=len(result.sidecars),
