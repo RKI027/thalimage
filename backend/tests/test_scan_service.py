@@ -7,7 +7,7 @@ from PIL import Image
 
 from tests.helpers import requires_ffmpeg
 from thalimage.db.engine import connect, migrate
-from thalimage.services.scan_service import run_scan
+from thalimage.services.scan_service import ScanResult, run_scan
 
 
 def _setup_source(conn: sqlite3.Connection, path: Path) -> int:
@@ -453,4 +453,89 @@ def test_the_same_file_twice_is_tagged_once(tmp_path: Path) -> None:
     run_scan(conn, source_id, thumbs)
 
     assert conn.execute("SELECT COUNT(*) FROM image_tags").fetchone()[0] == 1
+    conn.close()
+
+
+def _sidecar_counts(result: ScanResult) -> tuple[int, int, int]:
+    return result.sidecars_added, result.sidecars_changed, result.sidecars_removed
+
+
+def _rewrite(path: Path, text: str) -> None:
+    """Write `text` and move the modification time on, as a later edit would."""
+    import os
+
+    path.write_text(text)
+    st = path.stat()
+    os.utime(path, (st.st_atime, st.st_mtime + 10))
+
+
+def test_a_scan_counts_the_sidecars_added_changed_and_removed(tmp_path: Path) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    Image.new("RGB", (10, 10), "red").save(img_dir / "a.png")
+    (img_dir / "a.txt").write_text("steps: 20")
+    (img_dir / "a.png.json").write_text("{}")
+    first = run_scan(conn, source_id, thumbs)
+
+    _rewrite(img_dir / "a.txt", "steps: 30")
+    (img_dir / "a.png.json").unlink()
+    second = run_scan(conn, source_id, thumbs)
+
+    assert _sidecar_counts(first) == (2, 0, 0)
+    assert second.skipped == 1
+    assert _sidecar_counts(second) == (0, 1, 1)
+    conn.close()
+
+
+def test_a_sidecar_touched_but_saying_the_same_has_not_changed(tmp_path: Path) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    Image.new("RGB", (10, 10), "red").save(img_dir / "a.png")
+    (img_dir / "a.txt").write_text("steps: 20")
+    run_scan(conn, source_id, thumbs)
+
+    _rewrite(img_dir / "a.txt", "steps: 20")
+
+    assert _sidecar_counts(run_scan(conn, source_id, thumbs)) == (0, 0, 0)
+    conn.close()
+
+
+def test_an_unreadable_subfolder_keeps_its_sidecars(tmp_path: Path, monkeypatch) -> None:
+    import os
+
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    (img_dir / "sub").mkdir()
+    Image.new("RGB", (10, 10), "red").save(img_dir / "top.png")
+    Image.new("RGB", (11, 10), "blue").save(img_dir / "sub" / "deep.png")
+    (img_dir / "sub" / "deep.txt").write_text("steps: 20")
+    run_scan(conn, source_id, thumbs)
+
+    real_scandir = os.scandir
+
+    def scandir(path: object = ".") -> object:
+        if Path(str(path)) == img_dir / "sub":
+            raise PermissionError(13, "Permission denied", str(path))
+        return real_scandir(path)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(os, "scandir", scandir)
+
+    assert _sidecar_counts(run_scan(conn, source_id, thumbs)) == (0, 0, 0)
+    conn.close()
+
+
+def test_a_sidecar_that_cannot_be_read_is_kept_and_counted_as_an_error(
+    tmp_path: Path, monkeypatch
+) -> None:
+    conn, img_dir, source_id, thumbs = _scan_setup(tmp_path)
+    Image.new("RGB", (10, 10), "red").save(img_dir / "a.png")
+    (img_dir / "a.txt").write_text("steps: 20")
+    run_scan(conn, source_id, thumbs)
+    _rewrite(img_dir / "a.txt", "steps: 30")
+
+    def boom(path: Path) -> str:
+        raise PermissionError(13, "Permission denied", str(path))
+
+    monkeypatch.setattr("thalimage.services.scan_service.digest", boom)
+    result = run_scan(conn, source_id, thumbs)
+
+    assert result.errors == 1
+    assert _sidecar_counts(result) == (0, 0, 0)
     conn.close()

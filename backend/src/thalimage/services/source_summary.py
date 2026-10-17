@@ -39,13 +39,16 @@ class ScanFailure(BaseModel):
 class SourceSummary(BaseModel):
     """`files` are the files indexed in the source, `images` what browsing
     its preset shows. The difference is the extra copies in `duplicates`
-    plus the `archived` images; `failures` were not indexed at all."""
+    plus the `archived` images; `failures` were not indexed at all.
+    `orphans` are the other files the last scan found that no media file
+    in their folder names."""
 
     files: int
     images: int
     duplicates: list[DuplicateGroup]
     archived: list[SourceFile]
     failures: list[ScanFailure]
+    orphans: list[str]
 
 
 def source_summary(conn: sqlite3.Connection, source_id: int) -> Optional[SourceSummary]:
@@ -90,6 +93,14 @@ def source_summary(conn: sqlite3.Connection, source_id: int) -> Optional[SourceS
             for r in conn.execute(
                 "SELECT relative_path, reason FROM scan_failures"
                 " WHERE source_id = ? ORDER BY relative_path",
+                (source_id,),
+            )
+        ],
+        orphans=[
+            r["relative_path"]
+            for r in conn.execute(
+                "SELECT relative_path FROM sidecars"
+                " WHERE source_id = ? AND orphan = 1 ORDER BY relative_path",
                 (source_id,),
             )
         ],

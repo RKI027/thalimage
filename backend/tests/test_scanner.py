@@ -45,6 +45,16 @@ def test_scan_ignores_non_image_files(image_dir: Path) -> None:
     assert "readme.txt" not in names
 
 
+@pytest.mark.parametrize("recursive", [True, False])
+def test_scan_lists_the_other_files_apart(image_dir: Path, recursive: bool) -> None:
+    (image_dir / "sub" / "c.txt").write_text("steps: 20")
+
+    listing = scan_directory(image_dir, recursive=recursive)
+
+    expected = [image_dir / "readme.txt"] + ([image_dir / "sub" / "c.txt"] if recursive else [])
+    assert listing.others == expected
+
+
 def test_scan_empty_directory(tmp_path: Path) -> None:
     listing = scan_directory(tmp_path, recursive=True)
     assert listing.files == []

@@ -17,7 +17,8 @@ from thalimage.core.derived_files import DerivedDirs, link_derived, remove_deriv
 from thalimage.core.hasher import content_hash
 from thalimage.core.metadata import EXTRACTOR_VERSION, ImageMetadata, extract_metadata
 from thalimage.core.picture_hash import HASH_VERSION, picture_hash
-from thalimage.core.scanner import SourceUnavailable, scan_directory
+from thalimage.core.scanner import Listing, SourceUnavailable, scan_directory
+from thalimage.core.sidecars import digest, names_any
 from thalimage.core.thumbnails import generate_thumbnail
 from thalimage.core.video import (
     extract_video_info,
@@ -38,6 +39,9 @@ class ScanResult(BaseModel):
     added: int = 0
     skipped: int = 0
     errors: int = 0
+    sidecars_added: int = 0
+    sidecars_changed: int = 0
+    sidecars_removed: int = 0
 
 
 # Indexed files are written in batches of at most this many files, or
@@ -90,7 +94,8 @@ def run_scan(
     4. Write them to the DB in short batches
     5. Drop the locations of files that are gone; an image with no location
        left anywhere is marked deleted
-    6. With a video_dir, make playable copies of the videos iOS cannot play
+    6. Record the other files: sidecars, and orphans no media file names
+    7. With a video_dir, make playable copies of the videos iOS cannot play
     """
     source = conn.execute(
         "SELECT * FROM sources WHERE id = ?", (source_id,)
@@ -174,9 +179,7 @@ def run_scan(
         except Exception as exc:
             logger.exception("Failed to process %s during scan", file_path)
             result.errors += 1
-            # The path is listed beside the reason already; keep it short.
-            reason = str(exc).replace(str(file_path), relative)
-            failures[relative] = f"{type(exc).__name__}: {reason}"
+            failures[relative] = _reason(exc, file_path, relative)
             kept.add(relative)
 
         # Step 4: write in batches
@@ -205,6 +208,10 @@ def run_scan(
         for relative in known
         if relative not in kept and not any(relative.startswith(p) for p in unreadable)
     ]
+    # Step 6: read the other files that changed, outside the transaction
+    sidecars, sidecars_gone = _read_sidecars(
+        conn, source_id, source_path, listing, unreadable, result, failures
+    )
     with conn:
         # Their current keys: re-keying this scan may have changed them.
         gone_keys = [_location_key(conn, source_id, relative) for relative in gone]
@@ -213,6 +220,16 @@ def run_scan(
             [(source_id, relative) for relative in gone],
         )
         sync_images(conn, (k for k in gone_keys if k is not None))
+        conn.executemany(
+            "DELETE FROM sidecars WHERE source_id = ? AND relative_path = ?",
+            [(source_id, relative) for relative in sidecars_gone],
+        )
+        conn.executemany(
+            "INSERT OR REPLACE INTO sidecars"
+            " (source_id, relative_path, digest, file_size, file_modified, orphan)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            sidecars,
+        )
         conn.execute("DELETE FROM scan_failures WHERE source_id = ?", (source_id,))
         conn.executemany(
             "INSERT INTO scan_failures (source_id, relative_path, reason) VALUES (?, ?, ?)",
@@ -229,7 +246,7 @@ def run_scan(
     label = source["label"] or source_path.name
     get_or_create_source_preset(conn, source_id, label)
 
-    # Step 6: playable copies, after the index is written: a long transcode
+    # Step 7: playable copies, after the index is written: a long transcode
     # must not hold back what the scan found.
     if video_dir is not None and ffmpeg_available():
         result.errors += prepare_playable_copies(
@@ -237,6 +254,72 @@ def run_scan(
         )
 
     return result
+
+
+def _read_sidecars(
+    conn: sqlite3.Connection,
+    source_id: int,
+    source_path: Path,
+    listing: Listing,
+    unreadable: list[str],
+    result: ScanResult,
+    failures: dict[str, str],
+) -> tuple[list[tuple[object, ...]], list[str]]:
+    """The sidecar rows to write, and the paths of those that are gone,
+    counting what was added, changed and removed. A file is read again
+    only if it changed since the last scan; one that cannot be read keeps
+    its row."""
+    known = {
+        row["relative_path"]: row
+        for row in conn.execute(
+            "SELECT relative_path, digest, file_size, file_modified FROM sidecars"
+            " WHERE source_id = ?",
+            (source_id,),
+        )
+    }
+    media: dict[Path, list[Path]] = {}
+    for file_path in listing.files:
+        media.setdefault(file_path.parent, []).append(file_path)
+
+    rows: list[tuple[object, ...]] = []
+    seen: set[str] = set()
+    for path in listing.others:
+        relative = str(path.relative_to(source_path))
+        seen.add(relative)
+        previous = known.get(relative)
+        try:
+            stat = path.stat()
+            if previous is not None and unchanged_since_scan(stat, previous):
+                d = previous["digest"]
+            else:
+                d = digest(path)
+        except OSError as exc:
+            logger.warning("Cannot read sidecar %s: %s", path, exc)
+            result.errors += 1
+            failures[relative] = _reason(exc, path, relative)
+            continue
+        if previous is None:
+            result.sidecars_added += 1
+        elif previous["digest"] != d:
+            result.sidecars_changed += 1
+        orphan = not names_any(path, media.get(path.parent, []))
+        rows.append(
+            (source_id, relative, d, stat.st_size, _iso(stat.st_mtime), int(orphan))
+        )
+
+    gone = [
+        relative
+        for relative in known
+        if relative not in seen and not any(relative.startswith(p) for p in unreadable)
+    ]
+    result.sidecars_removed = len(gone)
+    return rows, gone
+
+
+def _reason(exc: Exception, path: Path, relative: str) -> str:
+    # The path is listed beside the reason already; keep it short.
+    reason = str(exc).replace(str(path), relative)
+    return f"{type(exc).__name__}: {reason}"
 
 
 def _birthtime(stat: os.stat_result) -> Optional[float]:

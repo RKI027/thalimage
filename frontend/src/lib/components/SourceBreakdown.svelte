@@ -119,6 +119,10 @@
 					{#each summary.failures as failure (failure.relative_path)}
 						<li>{failure.relative_path} <span class="reason">— {failure.reason}</span></li>
 					{/each}
+				{:else if line.kind === 'orphans'}
+					{#each summary.orphans as path (path)}
+						<li>{path}</li>
+					{/each}
 				{:else}
 					{#each summary.archived as file (file.content_hash)}
 						<li><a href="/image/{file.content_hash}">{file.relative_path}</a></li>

@@ -128,6 +128,8 @@ export interface SourceSummary {
 	archived: { content_hash: string; relative_path: string }[];
 	/** What the latest scan could not index; a folder ends with a separator. */
 	failures: { relative_path: string; reason: string }[];
+	/** Files the latest scan found that are not media and that no media file in their folder names. */
+	orphans: string[];
 }
 
 export interface ScanProgress {
@@ -138,6 +140,9 @@ export interface ScanProgress {
 	added: number;
 	skipped: number;
 	errors: number;
+	sidecars_added: number;
+	sidecars_changed: number;
+	sidecars_removed: number;
 	message: string;
 }
 

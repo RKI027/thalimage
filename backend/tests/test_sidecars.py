@@ -3,6 +3,7 @@
 when it is deleted, unless another media file there claims them too."""
 
 import hashlib
+import json
 import os
 import shutil
 import sqlite3
@@ -165,3 +166,59 @@ def test_binary_or_large_sidecars_are_listed_without_their_text(
 
 def test_the_sidecars_of_an_unknown_image_are_a_404(client: TestClient) -> None:
     assert client.get(f"/api/v1/images/{'0' * 64}/sidecars").status_code == 404
+
+
+def _orphans(client: TestClient, source_id: int) -> list[str]:
+    return client.get(f"/api/v1/sources/{source_id}/summary").json()["orphans"]
+
+
+def _rescan(client: TestClient, source_id: int) -> dict:
+    """Scan again to the end; return the last status event."""
+    client.post(f"/api/v1/sources/{source_id}/scan")
+    resp = client.get(f"/api/v1/sources/{source_id}/scan/status")
+    return [
+        json.loads(line[len("data: "):])
+        for line in resp.text.splitlines()
+        if line.startswith("data: ")
+    ][-1]
+
+
+def test_files_no_media_file_names_are_orphans(client: TestClient, image_dir: Path) -> None:
+    (image_dir / "a.txt").write_text("steps: 20")
+    (image_dir / "sub" / "c.png.json").write_text("{}")
+    (image_dir / "sub" / "notes.md").write_text("todo")
+    source_id, _ = scan_source(client, image_dir)
+
+    assert _orphans(client, source_id) == ["readme.txt", str(Path("sub") / "notes.md")]
+
+
+def test_a_sidecar_whose_media_file_is_gone_is_an_orphan(
+    client: TestClient, image_dir: Path
+) -> None:
+    (image_dir / "a.txt").write_text("steps: 20")
+    source_id, _ = scan_source(client, image_dir)
+    (image_dir / "a.png").unlink()
+
+    _rescan(client, source_id)
+
+    assert "a.txt" in _orphans(client, source_id)
+
+
+def test_the_scan_status_counts_the_sidecars(client: TestClient, image_dir: Path) -> None:
+    source_id, _ = scan_source(client, image_dir)
+    (image_dir / "a.txt").write_text("steps: 20")
+
+    status = _rescan(client, source_id)
+
+    assert (status["sidecars_added"], status["sidecars_changed"], status["sidecars_removed"]) == (
+        1, 0, 0
+    )
+
+
+def test_a_sidecar_deleted_with_its_copy_is_not_reported_removed(
+    client: TestClient, duplicated: tuple[int, str]
+) -> None:
+    source_id, _ = duplicated
+    client.post(f"/api/v1/sources/{source_id}/delete-copies", json={"paths": [COPY]})
+
+    assert _rescan(client, source_id)["sidecars_removed"] == 0

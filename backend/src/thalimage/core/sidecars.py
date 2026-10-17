@@ -9,11 +9,7 @@ parameter .txt, ComfyUI's workflow .json.
 import hashlib
 from pathlib import Path
 
-from thalimage.core.scanner import SUPPORTED_EXTENSIONS
-
-
-def _is_media(path: Path) -> bool:
-    return path.suffix.lower() in SUPPORTED_EXTENSIONS
+from thalimage.core.scanner import is_media
 
 
 def sidecars_of(media: Path) -> list[Path]:
@@ -25,7 +21,7 @@ def sidecars_of(media: Path) -> list[Path]:
     return sorted(
         (
             p for p in entries
-            if p.stem in (media.stem, media.name) and not _is_media(p) and p.is_file()
+            if p.stem in (media.stem, media.name) and not is_media(p) and p.is_file()
         ),
         key=lambda p: p.name,
     )
@@ -37,7 +33,12 @@ def claimed(sidecar: Path) -> bool:
         entries = list(sidecar.parent.iterdir())
     except OSError:
         return True
-    return any(_is_media(p) and sidecar.stem in (p.stem, p.name) for p in entries)
+    return names_any(sidecar, [p for p in entries if is_media(p)])
+
+
+def names_any(sidecar: Path, media: list[Path]) -> bool:
+    """Whether one of the media files is named the way the sidecar is."""
+    return any(sidecar.stem in (p.stem, p.name) for p in media)
 
 
 def digest(path: Path) -> str:
