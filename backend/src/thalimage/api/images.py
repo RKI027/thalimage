@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from thalimage.core.sidecars import text_of
 from thalimage.core.previews import PREVIEW_SIZES, generate_preview, nearest_size
+from thalimage.core.derived_files import DerivedDirs, remove_derived
 from thalimage.core.thumbnails import thumbnail_path
 from thalimage.core.video import playable_copy_path
 from thalimage.deps import ContentHash, get_db, get_preview_dir, get_thumb_dir, get_video_dir
@@ -43,6 +44,7 @@ from thalimage.services.image_service import (
     sequence,
     set_archived,
 )
+from thalimage.services.picture_edits import keep_separate, merge, possible_edit_of
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +92,7 @@ def listing(
     elo_end: Literal["top", "bottom"] = Query("top"),
     elo_percent: Optional[int] = Query(None, ge=1, le=100),
     archived: bool = Query(False),
+    possible_edits: bool = Query(False),
     db: sqlite3.Connection = Depends(get_db),
 ) -> Listing:
     """The query parameters every listing route reads, as a Listing."""
@@ -119,6 +122,7 @@ def listing(
             show_nsfw=show_nsfw,
             elo_cut=cut,
             archived=archived,
+            possible_edits=possible_edits,
         ),
         browsed_collection_id=browsed_collection_id,
     )
@@ -323,6 +327,35 @@ def archive_image(
 ) -> ImageDetail:
     if not set_archived(db, [content_hash], body.archived):
         raise HTTPException(404, "Image not found")
+    image = get_image(db, content_hash)
+    assert image is not None
+    return image
+
+
+class PossibleEditDecision(BaseModel):
+    # Merge the earlier picture into this image, or keep the two apart.
+    decision: Literal["merge", "separate"]
+
+
+@router.post("/{content_hash}/possible-edit", response_model=ImageDetail)
+def decide_possible_edit(
+    content_hash: ContentHash,
+    body: PossibleEditDecision,
+    db: sqlite3.Connection = Depends(get_db),
+    thumb_dir: Path = Depends(get_thumb_dir),
+    preview_dir: Path = Depends(get_preview_dir),
+    video_dir: Path = Depends(get_video_dir),
+) -> ImageDetail:
+    """Settle whether the image is an edit of the earlier picture it may
+    be one of; 404 if it has none to settle."""
+    if possible_edit_of(db, content_hash) is None:
+        raise HTTPException(404, "No possible edit to decide")
+    if body.decision == "merge":
+        retired = merge(db, content_hash)
+        if retired is not None:
+            remove_derived(DerivedDirs(thumbs=thumb_dir, previews=preview_dir, videos=video_dir), retired)
+    else:
+        keep_separate(db, content_hash)
     image = get_image(db, content_hash)
     assert image is not None
     return image

@@ -16,6 +16,11 @@ from thalimage.services.folders import (
     tagged_folder,
 )
 from thalimage.services.locations import in_source_sql, resolve_paths
+from thalimage.services.picture_edits import (
+    PossibleEdit,
+    is_possible_edit_sql,
+    possible_edit_of,
+)
 
 
 class ImageSummary(BaseModel):
@@ -62,6 +67,8 @@ class ImageDetail(ImageSummary):
     folder_tags: list[str] = []
     # Other files of this image with a different tool, prompt or negative prompt.
     other_versions: int = 0
+    # The earlier picture this image may be an edit of, still to be decided.
+    possible_edit: Optional[PossibleEdit] = None
 
 
 class InvalidCursor(ValueError):
@@ -161,6 +168,8 @@ class ListingFilters:
     elo_cut: Optional[EloCut] = None
     # List the archived images instead of the browsable ones.
     archived: bool = False
+    # Only the images that may be edits of an earlier picture.
+    possible_edits: bool = False
 
 
 def _apply_filters(q: str, p: list[object], f: ListingFilters) -> str:
@@ -198,6 +207,8 @@ def _apply_filters(q: str, p: list[object], f: ListingFilters) -> str:
         sql, values = in_cut_sql(f.elo_cut)
         q += f" AND {sql}"
         p.extend(values)
+    if f.possible_edits:
+        q += f" AND {is_possible_edit_sql()}"
     if not f.show_nsfw:
         q += f" AND {safe_sql()}"
     return q
@@ -501,7 +512,11 @@ def get_image(conn: sqlite3.Connection, content_hash: str) -> Optional[ImageDeta
     if row is None:
         return None
 
-    return ImageDetail(**dict(row), folder_tags=folder_tags(conn, content_hash))
+    return ImageDetail(
+        **dict(row),
+        folder_tags=folder_tags(conn, content_hash),
+        possible_edit=possible_edit_of(conn, content_hash),
+    )
 
 
 def set_archived(

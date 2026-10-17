@@ -11,6 +11,7 @@ import type {
 	Source,
 	Collection,
 	Tag,
+	PossibleEditDecision,
 	UserSettings,
 	ScanProgress,
 	SourceSummary,
@@ -72,6 +73,7 @@ export function listingQuery(params: ListingParams): URLSearchParams {
 		setFilters(q, params.filters);
 		if (params.filters.tags) params.filters.tags.forEach((t) => q.append('tags', t));
 		if (params.filters.archived) q.set('archived', 'true');
+		if (params.filters.possible_edits) q.set('possible_edits', 'true');
 	}
 	return q;
 }
@@ -124,6 +126,16 @@ export function archiveImage(hash: string, archived: boolean): Promise<ImageDeta
 		method: 'PATCH',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ archived })
+	});
+}
+
+/** Merge the image with the earlier picture it may be an edit of, or keep
+ * the two apart. */
+export function decidePossibleEdit(hash: string, decision: PossibleEditDecision): Promise<ImageDetail> {
+	return fetchJSON(`${BASE}/images/${hash}/possible-edit`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ decision })
 	});
 }
 

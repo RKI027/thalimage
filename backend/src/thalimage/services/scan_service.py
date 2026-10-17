@@ -30,7 +30,9 @@ from thalimage.core.video import (
 from thalimage.services.file_changes import SourceNotWritable
 from thalimage.services.folders import is_folder_tag
 from thalimage.services.identity import rekey_image
+from thalimage.services import user_settings
 from thalimage.services.locations import EARLIEST_CREATED, sync_images
+from thalimage.services.picture_edits import record_edits
 from thalimage.services.playable_copies import prepare_playable_copies
 
 logger = logging.getLogger(__name__)
@@ -114,6 +116,7 @@ def run_scan(
     listing = scan_directory(source_path, recursive=bool(source["recursive"]))
 
     dirs = DerivedDirs(thumbs=thumb_dir, previews=preview_dir, videos=video_dir)
+    edit_threshold = user_settings.read(conn).edit_threshold
 
     # What the last scan found here, by relative path, with the extractor
     # version its metadata came from, the hash version that keyed it and the
@@ -196,7 +199,7 @@ def run_scan(
         if pending and (
             len(pending) >= BATCH_FILES or time.monotonic() - last_write >= BATCH_SECONDS
         ):
-            _write_batch(conn, source_id, pending, dirs)
+            _write_batch(conn, source_id, pending, dirs, edit_threshold)
             pending = []
             last_write = time.monotonic()
 
@@ -208,7 +211,7 @@ def run_scan(
                 errors=result.errors,
             )
 
-    _write_batch(conn, source_id, pending, dirs)
+    _write_batch(conn, source_id, pending, dirs, edit_threshold)
 
     # Step 5: drop the locations of files that are gone. Nothing under a
     # folder that could not be listed counts as gone: its contents are unknown.
@@ -434,19 +437,25 @@ def _write_batch(
     source_id: int,
     items: list[_Indexed],
     dirs: DerivedDirs,
+    edit_threshold: float,
 ) -> None:
-    """Write indexed files in one short transaction, then drop the derived
+    """Write indexed files in one short transaction, recording the
+    pictures changed in place that look like edits, then drop the derived
     files of the keys it retired."""
     if not items:
         return
     retired: set[str] = set()
     with conn:
         touched: set[str] = set()
+        # (old, new) keys of the paths whose picture changed.
+        replaced: list[tuple[str, str]] = []
         for item in items:
             previous = _location_key(conn, source_id, item.relative_path)
             if item.rekey and previous is not None and previous != item.content_hash:
                 rekey_image(conn, previous, item.content_hash)
                 retired.add(previous)
+            elif previous is not None and previous != item.content_hash:
+                replaced.append((previous, item.content_hash))
             _upsert_image(conn, source_id, item)
             if item.meta is not None:
                 _tag_from_file(conn, item.content_hash, item.meta)
@@ -457,6 +466,7 @@ def _write_batch(
                 # The path may have held other content until now.
                 touched.add(previous)
         sync_images(conn, touched - retired)
+        record_edits(conn, replaced, edit_threshold)
     for key in retired:
         remove_derived(dirs, key)
 
