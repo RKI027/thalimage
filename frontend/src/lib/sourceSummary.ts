@@ -1,3 +1,4 @@
+import { differsFromFirst } from './copySelection';
 import type { SourceSummary } from './types';
 
 export type SummaryKind = 'duplicates' | 'failures' | 'archived';
@@ -14,11 +15,16 @@ export function summaryHeadline(s: SourceSummary): string {
 /** The reasons a source's files and images differ, one line each, only those that apply. */
 export function summaryLines(s: SourceSummary): { kind: SummaryKind; label: string }[] {
 	const copies = s.duplicates.reduce((n, group) => n + group.paths.length - 1, 0);
+	const differing = s.duplicates.reduce(
+		(n, group) => n + group.paths.filter((p) => differsFromFirst(group, p)).length,
+		0
+	);
 	const lines: { kind: SummaryKind; label: string }[] = [];
 	if (copies > 0) {
+		const versions = differing > 0 ? `, ${differing} with different metadata` : '';
 		lines.push({
 			kind: 'duplicates',
-			label: `${count(copies, 'duplicate file', 'duplicate files')} (same content as another file)`
+			label: `${count(copies, 'duplicate file', 'duplicate files')} (same picture as another file${versions})`
 		});
 	}
 	if (s.failures.length > 0) {

@@ -20,12 +20,15 @@ class Sidecar(BaseModel):
 
 
 class DuplicateGroup(BaseModel):
-    """Files in one source with the same content: one image. `sidecars`
-    maps each path to its sidecars, whose digests tell which say the same."""
+    """Files in one source with the same picture: one image. `sidecars`
+    maps each path to its sidecars, whose digests tell which say the same.
+    `file_hashes` maps each path to its file version (None until a scan has
+    read it): copies with different versions differ in their metadata."""
 
     content_hash: str
     paths: list[str]
     sidecars: dict[str, list[Sidecar]]
+    file_hashes: dict[str, Optional[str]]
 
 
 class ScanFailure(BaseModel):
@@ -52,7 +55,7 @@ def source_summary(conn: sqlite3.Connection, source_id: int) -> Optional[SourceS
         return None
     root = Path(source["path"])
     locations = conn.execute(
-        "SELECT l.content_hash, l.relative_path, i.archived FROM image_locations l"
+        "SELECT l.content_hash, l.relative_path, l.file_hash, i.archived FROM image_locations l"
         " JOIN images i ON i.content_hash = l.content_hash"
         " WHERE l.source_id = ? AND i.deleted = 0 ORDER BY l.relative_path",
         (source_id,),
@@ -62,12 +65,18 @@ def source_summary(conn: sqlite3.Connection, source_id: int) -> Optional[SourceS
     for row in locations:
         paths.setdefault(row["content_hash"], []).append(row["relative_path"])
     archived = {row["content_hash"] for row in locations if row["archived"]}
+    file_hashes = {row["relative_path"]: row["file_hash"] for row in locations}
 
     return SourceSummary(
         files=len(locations),
         images=len(paths) - len(archived),
         duplicates=[
-            DuplicateGroup(content_hash=h, paths=p, sidecars=_sidecars(root, p))
+            DuplicateGroup(
+                content_hash=h,
+                paths=p,
+                sidecars=_sidecars(root, p),
+                file_hashes={path: file_hashes[path] for path in p},
+            )
             for h, p in paths.items()
             if len(p) > 1
         ],

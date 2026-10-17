@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { allButFirst, canSelect, toggled, unmatchedSidecars } from './copySelection';
+import {
+	allButFirst,
+	canSelect,
+	differsFromFirst,
+	toggled,
+	unmatchedSidecars,
+	unmatchedVersions
+} from './copySelection';
 
 const groups = [
 	{ content_hash: 'a', paths: ['a.png', 'a2.png', 'a3.png'] },
@@ -61,5 +68,41 @@ describe('unmatchedSidecars', () => {
 			'c2.json',
 			'd.txt'
 		]);
+	});
+});
+
+describe('differsFromFirst', () => {
+	const group = {
+		paths: ['e.png', 'e2.png', 'e3.png', 'e4.png'],
+		file_hashes: { 'e.png': 'x', 'e2.png': 'x', 'e3.png': 'y', 'e4.png': null }
+	};
+
+	it('tells a copy with another file version from an identical one', () => {
+		expect(differsFromFirst(group, 'e2.png')).toBe(false);
+		expect(differsFromFirst(group, 'e3.png')).toBe(true);
+	});
+
+	it('claims no difference for a copy not read yet', () => {
+		expect(differsFromFirst(group, 'e4.png')).toBe(false);
+	});
+});
+
+describe('unmatchedVersions', () => {
+	const group = {
+		paths: ['f.png', 'f2.png', 'f3.png'],
+		file_hashes: { 'f.png': 'x', 'f2.png': 'y', 'f3.png': 'x' }
+	};
+
+	it('lists deleted copies whose file version no kept copy has', () => {
+		expect(unmatchedVersions([group], new Set(['f2.png']))).toEqual(['f2.png']);
+	});
+
+	it('is empty when a kept copy is identical', () => {
+		expect(unmatchedVersions([group], new Set(['f.png']))).toEqual([]);
+	});
+
+	it('leaves out copies not read yet', () => {
+		const unread = { paths: ['g.png', 'g2.png'], file_hashes: { 'g.png': 'x', 'g2.png': null } };
+		expect(unmatchedVersions([unread], new Set(['g2.png']))).toEqual([]);
 	});
 });
