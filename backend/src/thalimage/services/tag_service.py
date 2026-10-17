@@ -91,21 +91,43 @@ def add_image_tag(
     created_by: Optional[str] = None,
 ) -> None:
     """Attach a tag to an image. Idempotent: silently ignores duplicates."""
-    conn.execute(
-        """INSERT OR IGNORE INTO image_tags (image_hash, tag_id, created_by)
-           VALUES (?, ?, ?)""",
-        (image_hash, tag_id, created_by),
-    )
-    conn.commit()
+    tag_images(conn, tag_id, [image_hash], created_by=created_by)
 
 
 def remove_image_tag(
     conn: sqlite3.Connection, image_hash: str, tag_id: int
 ) -> bool:
     """Remove a tag from an image. Returns False if the association didn't exist."""
-    cursor = conn.execute(
-        "DELETE FROM image_tags WHERE image_hash = ? AND tag_id = ?",
-        (image_hash, tag_id),
+    return untag_images(conn, tag_id, [image_hash]) > 0
+
+
+def tag_images(
+    conn: sqlite3.Connection,
+    tag_id: int,
+    hashes: list[str],
+    *,
+    created_by: Optional[str] = None,
+) -> int:
+    """Attach a tag to images. Returns the number newly tagged (images that
+    already carry it and unknown hashes don't count). OR IGNORE does not
+    cover foreign-key failures, so unknown hashes are filtered out by the
+    SELECT."""
+    before = conn.total_changes
+    conn.executemany(
+        """INSERT OR IGNORE INTO image_tags (image_hash, tag_id, created_by)
+           SELECT content_hash, ?, ? FROM images WHERE content_hash = ?""",
+        [(tag_id, created_by, h) for h in hashes],
     )
     conn.commit()
-    return cursor.rowcount > 0
+    return conn.total_changes - before
+
+
+def untag_images(conn: sqlite3.Connection, tag_id: int, hashes: list[str]) -> int:
+    """Remove a tag from images. Returns the number that carried it."""
+    before = conn.total_changes
+    conn.executemany(
+        "DELETE FROM image_tags WHERE image_hash = ? AND tag_id = ?",
+        [(h, tag_id) for h in hashes],
+    )
+    conn.commit()
+    return conn.total_changes - before

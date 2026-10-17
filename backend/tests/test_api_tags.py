@@ -85,3 +85,47 @@ def test_tag_image_with_unknown_tag_is_404(client: TestClient, db: sqlite3.Conne
 
 def test_malformed_hash_is_422(client: TestClient) -> None:
     assert client.get("/api/v1/images/not-a-hash/tags").status_code == 422
+
+
+def _names(client: TestClient, h: str) -> list[str]:
+    return [t["name"] for t in client.get(f"/api/v1/images/{h}/tags").json()]
+
+
+def test_tag_several_images(client: TestClient, db: sqlite3.Connection) -> None:
+    a, b = insert_image(db, "a" * 64), insert_image(db, "b" * 64)
+    tid = _tag(client, "red")
+    client.post(f"/api/v1/images/{a}/tags", json={"tag_id": tid})
+
+    resp = client.post(f"/api/v1/tags/{tid}/images", json={"hashes": [a, b, UNKNOWN]})
+
+    assert resp.status_code == 200
+    # Already tagged and unknown images are not counted.
+    assert resp.json() == {"added": 1}
+    assert _names(client, a) == ["red"]
+    assert _names(client, b) == ["red"]
+
+
+def test_untag_several_images(client: TestClient, db: sqlite3.Connection) -> None:
+    a, b = insert_image(db, "a" * 64), insert_image(db, "b" * 64)
+    tid = _tag(client, "red")
+    client.post(f"/api/v1/images/{a}/tags", json={"tag_id": tid})
+
+    resp = client.request(
+        "DELETE", f"/api/v1/tags/{tid}/images", json={"hashes": [a, b, UNKNOWN]}
+    )
+
+    assert resp.status_code == 200
+    # Only images that carried the tag are counted.
+    assert resp.json() == {"removed": 1}
+    assert _names(client, a) == []
+
+
+def test_tag_several_images_with_unknown_tag_is_404(
+    client: TestClient, db: sqlite3.Connection
+) -> None:
+    a = insert_image(db, "a" * 64)
+    assert client.post("/api/v1/tags/999/images", json={"hashes": [a]}).status_code == 404
+    assert (
+        client.request("DELETE", "/api/v1/tags/999/images", json={"hashes": [a]}).status_code
+        == 404
+    )

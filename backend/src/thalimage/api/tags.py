@@ -17,6 +17,8 @@ from thalimage.services.tag_service import (
     get_tag,
     list_tags,
     remove_image_tag,
+    tag_images,
+    untag_images,
     update_tag,
 )
 
@@ -44,6 +46,10 @@ class TagUpdate(BaseModel):
 
 class ImageTagBody(BaseModel):
     tag_id: int
+
+
+class TagImagesBody(BaseModel):
+    hashes: list[str]
 
 
 @router.get("/tags", response_model=list[Tag])
@@ -89,6 +95,28 @@ def del_tag(
         raise HTTPException(404, "Tag not found")
 
 
+@router.post("/tags/{tag_id}/images")
+def post_tag_images(
+    tag_id: int,
+    body: TagImagesBody,
+    db: sqlite3.Connection = Depends(get_db),
+) -> dict[str, int]:
+    if get_tag(db, tag_id) is None:
+        raise HTTPException(404, "Tag not found")
+    return {"added": tag_images(db, tag_id, body.hashes)}
+
+
+@router.delete("/tags/{tag_id}/images")
+def del_tag_images(
+    tag_id: int,
+    body: TagImagesBody,
+    db: sqlite3.Connection = Depends(get_db),
+) -> dict[str, int]:
+    if get_tag(db, tag_id) is None:
+        raise HTTPException(404, "Tag not found")
+    return {"removed": untag_images(db, tag_id, body.hashes)}
+
+
 @router.get("/images/{content_hash}/tags", response_model=list[Tag])
 def get_tags_for_image(
     content_hash: ContentHash,
@@ -105,7 +133,7 @@ def post_image_tag(
 ) -> None:
     if get_tag(db, body.tag_id) is None:
         raise HTTPException(404, "Tag not found")
-    # OR IGNORE in add_image_tag does not cover the image foreign key.
+    # add_image_tag skips an unknown image without saying so.
     if db.execute("SELECT 1 FROM images WHERE content_hash = ?", (content_hash,)).fetchone() is None:
         raise HTTPException(404, "Image not found")
     add_image_tag(db, content_hash, body.tag_id)
