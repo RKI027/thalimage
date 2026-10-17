@@ -195,7 +195,7 @@ def test_removing_the_source_deletes_its_copies(
     source_id, _ = scan_source(client, videos)
     webm = _hash(client, source_id, "vp9.webm")
 
-    client.delete(f"/api/v1/sources/{source_id}")
+    client.delete(f"/api/v1/sources/{source_id}", params={"keep_data": False})
 
     assert not playable_copy_path(video_dir, webm).exists()
 

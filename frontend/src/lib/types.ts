@@ -134,6 +134,8 @@ export interface SourceSummary {
 	failures: { relative_path: string; reason: string }[];
 	/** Files the latest scan found that are not media and that no media file in their folder names. */
 	orphans: string[];
+	/** Images, archived ones included, that lie in no other source. */
+	only_here: number;
 }
 
 export interface ScanProgress {

@@ -26,16 +26,23 @@ def relabel_source(conn: sqlite3.Connection, source_id: int, label: Optional[str
     return True
 
 
-def delete_source(conn: sqlite3.Connection, source_id: int) -> Optional[list[str]]:
-    """Delete a source and everything that exists only because of it.
+def delete_source(
+    conn: sqlite3.Connection, source_id: int, *, keep_data: bool
+) -> Optional[list[str]]:
+    """Remove a source, its preset collection and its files' records.
 
     Content that also lies in another source survives, with its
     collections, votes and tags, and is re-pointed at that other copy.
-    Content found only here is removed with all its dependent rows.
-    Returns the hashes of the images removed, or None if there is no such
-    source. Commits.
+    Content found only here is marked deleted with everything attached
+    when `keep_data`, so a scan finding it again anywhere brings it back;
+    the source row is then hidden rather than deleted, as those images
+    still reference it. Otherwise that content is removed with all its
+    dependent rows. Returns the hashes of the images removed, or None if
+    there is no such source. Commits.
     """
-    if conn.execute("SELECT 1 FROM sources WHERE id = ?", (source_id,)).fetchone() is None:
+    if conn.execute(
+        "SELECT 1 FROM sources WHERE id = ? AND removed_at IS NULL", (source_id,)
+    ).fetchone() is None:
         return None
     with conn:
         for preset in conn.execute(
@@ -54,6 +61,12 @@ def delete_source(conn: sqlite3.Connection, source_id: int) -> Optional[list[str
         conn.execute("DELETE FROM scan_failures WHERE source_id = ?", (source_id,))
         conn.execute("DELETE FROM sidecars WHERE source_id = ?", (source_id,))
         sync_images(conn, located_here)
+
+        if keep_data:
+            conn.execute(
+                "UPDATE sources SET removed_at = datetime('now') WHERE id = ?", (source_id,)
+            )
+            return []
 
         # Whatever still points here has no copy left anywhere (sync_images
         # moved the rest), including images soft-deleted from this source.

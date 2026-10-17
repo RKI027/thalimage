@@ -168,7 +168,7 @@ def test_deleting_one_source_keeps_shared_content_and_its_rankings(
         json={"winner_hash": shared, "loser_hash": other},
     )
 
-    assert client.delete(f"/api/v1/sources/{sa}").status_code == 204
+    assert client.delete(f"/api/v1/sources/{sa}", params={"keep_data": False}).status_code == 204
 
     row = db.execute(
         "SELECT source_id, deleted FROM images WHERE content_hash = ?", (shared,)

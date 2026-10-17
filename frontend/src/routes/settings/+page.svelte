@@ -4,6 +4,7 @@
 	import { collectionsStore, settingsStore } from '$lib/stores';
 	import { scanDoneMessage } from '$lib/scanStatus';
 	import BackupSettings from '$lib/components/BackupSettings.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import SourceBreakdown from '$lib/components/SourceBreakdown.svelte';
 	import type { Source, SourceSummary, VersionInfo } from '$lib/types';
 
@@ -12,6 +13,8 @@
 	let newLabel = $state('');
 	let newWritable = $state(false);
 	let relabelling: number | null = $state(null);
+	let removing: Source | null = $state(null);
+	let keepData = $state(true);
 	let scanStatus: Record<number, string> = $state({});
 	let summaries: Record<number, SourceSummary> = $state({});
 	let backendVersion: string | null = $state(null);
@@ -76,8 +79,20 @@
 		else if (e.key === 'Escape') relabelling = null;
 	}
 
-	async function remove(id: number) {
-		await deleteSource(id);
+	function askRemove(source: Source) {
+		keepData = true;
+		removing = source;
+	}
+
+	async function remove() {
+		if (!removing) return;
+		const id = removing.id;
+		removing = null;
+		try {
+			await deleteSource(id, { keepData });
+		} catch (e) {
+			alert(e instanceof Error ? e.message : 'Failed to remove the source');
+		}
 		await refresh();
 		collectionsStore.refresh();
 	}
@@ -215,11 +230,45 @@
 					<div class="source-actions">
 						<button class="control control-primary" onclick={() => scan(source.id)}>Scan</button>
 						<button class="control" onclick={() => (relabelling = source.id)}>Relabel</button>
-						<button class="control control-danger" onclick={() => remove(source.id)}>Remove</button>
+						<button class="control control-danger" onclick={() => askRemove(source)}>Remove…</button>
 					</div>
 				</li>
 			{/each}
 		</ul>
+	{/if}
+
+	{#if removing}
+		{@const onlyHere = summaries[removing.id]?.only_here ?? 0}
+		<ConfirmDialog
+			open
+			title="Remove {removing.label || removing.path}?"
+			confirmLabel={keepData ? 'Remove source' : 'Remove source and data'}
+			danger={!keepData && onlyHere > 0}
+			onconfirm={remove}
+			oncancel={() => (removing = null)}
+		>
+			<p>
+				The files on disk are not touched, and the source's preset collection goes.
+				{#if onlyHere === 0}
+					Every image in it also lies in another source and keeps its data.
+				{:else}
+					{onlyHere.toLocaleString('en-US')} {onlyHere === 1 ? 'image is' : 'images are'} found
+					in no other source:
+				{/if}
+			</p>
+			{#if onlyHere > 0}
+				<label class="choice">
+					<input type="radio" name="keep-data" value={true} bind:group={keepData} />
+					<span><strong>Keep their data</strong>: tags, scores and collection memberships stay,
+						hidden, and come back when a scan finds the same pictures again.</span>
+				</label>
+				<label class="choice">
+					<input type="radio" name="keep-data" value={false} bind:group={keepData} />
+					<span><strong>Remove their data</strong>: delete them from the database with their
+						tags, scores and collection memberships. This cannot be undone.</span>
+				</label>
+			{/if}
+		</ConfirmDialog>
 	{/if}
 
 	<section class="about">
@@ -361,6 +410,13 @@
 	.meta {
 		color: #666;
 		font-size: 0.8rem;
+	}
+
+	.choice {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+		margin: 8px 0;
 	}
 
 	.writable {

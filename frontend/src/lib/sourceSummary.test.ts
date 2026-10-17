@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { summaryHeadline, summaryLines } from './sourceSummary';
 import type { SourceSummary } from './types';
 
-const empty: SourceSummary = { files: 0, images: 0, duplicates: [], archived: [], failures: [], orphans: [] };
+const empty: SourceSummary = { files: 0, images: 0, duplicates: [], archived: [], failures: [], orphans: [], only_here: 0 };
 
 describe('summaryHeadline', () => {
 	it('sets files against images', () => {

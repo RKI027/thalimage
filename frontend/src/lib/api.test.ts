@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { displaySize, getEloPair, getEloRankings, listingQuery, updateSource } from './api';
+import { deleteSource, displaySize, getEloPair, getEloRankings, listingQuery, updateSource } from './api';
 
 describe('listingQuery', () => {
 	it('is empty for a default listing', () => {
@@ -76,6 +76,18 @@ describe('updateSource', () => {
 			vi.fn(async () => new Response(JSON.stringify({ detail: '/x is mounted read-only' }), { status: 409 }))
 		);
 		await expect(updateSource(1, { writable: true })).rejects.toThrow(/^API error 409: \/x is mounted read-only$/);
+	});
+});
+
+describe('deleteSource', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it("says whether to keep the data of the source's images", async () => {
+		const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response(null, { status: 204 }));
+		vi.stubGlobal('fetch', fetchMock);
+		await deleteSource(4, { keepData: false });
+		expect(fetchMock.mock.lastCall![0]).toBe('/api/v1/sources/4?keep_data=false');
+		expect(fetchMock.mock.lastCall![1]?.method).toBe('DELETE');
 	});
 });
 
