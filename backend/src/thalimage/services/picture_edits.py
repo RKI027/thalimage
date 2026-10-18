@@ -81,22 +81,30 @@ def merge(conn: sqlite3.Connection, new_hash: str) -> Optional[str]:
     tags, collections, votes, scores and file versions move to it. Pending
     edits of the earlier image become edits of this one. The earlier key,
     now retired, or None if there was no possible edit. Commits."""
+    edit = possible_edit_of(conn, new_hash)
+    if edit is None:
+        return None
+    with conn:
+        merge_keys(conn, edit.old_hash, new_hash)
+    return edit.old_hash
+
+
+def merge_keys(conn: sqlite3.Connection, old: str, new: str) -> None:
+    """Merge the image keyed `old` into the one keyed `new` (`rekey_image`).
+    Possible edits whose new picture is `old` become edits of `new`; those
+    whose earlier picture is `old` are dropped, as that picture is no
+    longer an image of its own.
+
+    Runs inside the caller's transaction; does not commit.
+    """
     # Imported here: identity leads back to image_service, which reads
     # possible edits from this module.
     from thalimage.services.identity import rekey_image
 
-    edit = possible_edit_of(conn, new_hash)
-    if edit is None:
-        return None
-    old = edit.old_hash
-    with conn:
-        conn.execute("DELETE FROM picture_edits WHERE old_hash = ?", (old,))
-        conn.execute(
-            "UPDATE OR IGNORE picture_edits SET new_hash = ? WHERE new_hash = ?", (new_hash, old)
-        )
-        conn.execute("DELETE FROM picture_edits WHERE new_hash = ?", (old,))
-        rekey_image(conn, old, new_hash)
-    return old
+    conn.execute("DELETE FROM picture_edits WHERE old_hash = ?", (old,))
+    conn.execute("UPDATE OR IGNORE picture_edits SET new_hash = ? WHERE new_hash = ?", (new, old))
+    conn.execute("DELETE FROM picture_edits WHERE new_hash = ?", (old,))
+    rekey_image(conn, old, new)
 
 
 def keep_separate(conn: sqlite3.Connection, new_hash: str) -> None:

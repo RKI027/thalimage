@@ -44,6 +44,7 @@ from thalimage.services.image_service import (
     sequence,
     set_archived,
 )
+from thalimage.services.merging import merge_images
 from thalimage.services.near_duplicates import WIDEST_THRESHOLD
 from thalimage.services.picture_edits import keep_separate, merge, possible_edit_of
 
@@ -457,6 +458,33 @@ def delete_several_images_files(
         if not is_live(db, content_hash):
             playable_copy_path(video_dir, content_hash).unlink(missing_ok=True)
     return _deletion(result)
+
+
+class ImageMerge(ImageDeletion):
+    # The images merged into the one kept; one whose files could not all be
+    # removed is not among them.
+    merged: list[str]
+
+
+@router.post("/{content_hash}/merge", response_model=ImageMerge)
+def merge_into_image(
+    content_hash: ContentHash,
+    body: ImagesBody,
+    db: sqlite3.Connection = Depends(get_db),
+    video_dir: Path = Depends(get_video_dir),
+) -> ImageMerge:
+    """Merge these images into this one: their files are deleted from disk
+    and their history carried over. Refused as a whole if any of their
+    copies may not be deleted."""
+    try:
+        result = merge_images(db, content_hash, body.hashes)
+    except (SourceNotWritable, DeletionRefused) as exc:
+        raise HTTPException(409, str(exc)) from exc
+    if result is None:
+        raise HTTPException(404, "Image not found")
+    for merged in result.merged:
+        playable_copy_path(video_dir, merged).unlink(missing_ok=True)
+    return ImageMerge(**_deletion(result.deletion).model_dump(), merged=result.merged)
 
 
 def _deletion(result: DeletionResult) -> ImageDeletion:
