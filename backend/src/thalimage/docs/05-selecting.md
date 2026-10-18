@@ -37,3 +37,27 @@ The bar that appears while selecting offers:
 Each action applies to every selected image or, if it fails, to none.
 Afterwards the selection is forgotten and the grid reloads, since
 archived or removed images leave it.
+
+## Comparing two images
+
+With exactly two images selected, **Compare** opens them against each
+other: the first in the grid is the reference, the other the current
+image. Three views show them, switched with the buttons or **M**:
+
+- **Side by side**: the two next to each other (one above the other on a
+  phone).
+- **Toggle**: one at a time, filling the view. **T** switches to the
+  other.
+- **Overlay**: the current image over the reference, both fitted to the
+  same frame. **Blend** mixes them, a slider setting how much of the
+  current image shows through; **wipe** splits them at a divider, the
+  reference on its left: press or drag anywhere on the picture to move
+  it. **O** switches between blend and wipe. Videos cannot be overlaid.
+
+In the toggle and overlay views, holding **Space** shows only the
+reference until you let go, to flash between the two.
+
+Under the pictures, their dimensions, file size, format, dates, files
+and tags are listed side by side, each line that differs highlighted.
+**X** swaps the reference and the current image. Escape goes back to the
+grid.

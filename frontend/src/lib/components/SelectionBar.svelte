@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import {
 		addCollectionImages,
 		archiveImages,
@@ -194,6 +195,17 @@
 	<span class="count">{selection.count} selected</span>
 	<button class="control" disabled={none || busy} onclick={() => run((h) => archiveImages(h, !archived))}>
 		{archived ? 'Unarchive' : 'Archive'}
+	</button>
+	<button
+		class="control"
+		disabled={selection.count !== 2 || busy}
+		title="Compare the two selected images"
+		onclick={() => {
+			const [reference, current] = selection.hashes;
+			goto(`/compare?reference=${reference}&current=${current}`);
+		}}
+	>
+		Compare
 	</button>
 	<button class="control" class:open={picker === 'tag'} disabled={none || busy} onclick={() => open('tag')}>Tag</button>
 	<button class="control" class:open={picker === 'untag'} disabled={none || busy} onclick={() => open('untag')}>Untag</button>
