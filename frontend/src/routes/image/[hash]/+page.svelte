@@ -12,7 +12,13 @@
 		renameImage,
 		decidePossibleEdit
 	} from '$lib/api';
-	import { browsingContext, backDestination, backLabel, contextListing } from '$lib/browsingContext';
+	import {
+		browsingContext,
+		backDestination,
+		backLabel,
+		contextListing,
+		groupsNearDuplicates
+	} from '$lib/browsingContext';
 	import { settingsStore } from '$lib/stores';
 	import type {
 		ImageCopy,
@@ -253,7 +259,7 @@
 	// The near-duplicate group of the image shown, in a grid filtered to
 	// them; empty otherwise.
 	const reviewable = $derived(
-		ctx?.filters?.near_duplicates !== undefined && currentIndex >= 0 ? groupAround(neighbors, currentIndex) : []
+		groupsNearDuplicates(ctx) && currentIndex >= 0 ? groupAround(neighbors, currentIndex) : []
 	);
 
 	function reviewGroup() {

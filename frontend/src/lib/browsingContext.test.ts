@@ -87,3 +87,18 @@ describe('browsingContext', () => {
 		expect(m.contextKey({ type: 'all', sourceId: 2 })).toBe('source:2');
 	});
 });
+
+describe('groupsNearDuplicates', () => {
+	it('is true for a listing grouped by near-duplicates, whatever the threshold, 0 included', async () => {
+		const { groupsNearDuplicates } = await load();
+		expect(groupsNearDuplicates({ type: 'all', filters: { near_duplicates: 0 } })).toBe(true);
+		expect(groupsNearDuplicates({ type: 'all', filters: { near_duplicates: 0.2 } })).toBe(true);
+	});
+
+	it('is false otherwise', async () => {
+		const { groupsNearDuplicates } = await load();
+		expect(groupsNearDuplicates({ type: 'all', filters: {} })).toBe(false);
+		expect(groupsNearDuplicates({ type: 'all' })).toBe(false);
+		expect(groupsNearDuplicates(null)).toBe(false);
+	});
+});

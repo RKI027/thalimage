@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { archiveImages, deleteImages, getNeighbors, mergeImages, thumbUrl } from '$lib/api';
-	import { backDestination, browsingContext, contextListing } from '$lib/browsingContext';
+	import { backDestination, browsingContext, contextListing, groupsNearDuplicates } from '$lib/browsingContext';
 	import { loadCompared, type CompareMode } from '$lib/comparison';
 	import { isTextEntry } from '$lib/keys';
 	import { nextGroup, ReviewSession, type ReviewAction } from '$lib/review.svelte';
@@ -54,7 +54,7 @@
 
 	async function findNextGroup(reviewed: string[]): Promise<string[]> {
 		const ctx = get(browsingContext);
-		if (!ctx?.filters?.near_duplicates) return [];
+		if (!ctx || !groupsNearDuplicates(ctx)) return [];
 		try {
 			await settingsStore.loaded;
 			const around = await getNeighbors(reviewed[reviewed.length - 1], {
