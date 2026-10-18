@@ -94,7 +94,12 @@ is described for users in
   at 10k images in pure Python; afterwards only images added or changed
   are compared and those gone dropped (20 ms for a deletion, 70 ms for
   100 new images). Recomputing everything on each change stalled the
-  viewer and the grid after every deletion. A VP-tree was measured at 4x slower: 64-bit
+  viewer and the grid after every deletion. The pairs are also written to
+  `cache/near-duplicates.json` after each change (1.4 MB and 25 ms at
+  10k) and read at startup, so a restart only compares what changed
+  meanwhile. The file holds the hashes it was computed from, so a stale
+  one costs comparisons, never wrong groups. It sits in the cache, not
+  the database: it is derived, and would only bloat the backups. A VP-tree was measured at 4x slower: 64-bit
   Hamming distance takes few values and prunes little within 10 bits,
   and each node visit is a Python call. Revisit (a multi-index on hash
   blocks, or storing pairs at scan) if the library grows well past 10k.

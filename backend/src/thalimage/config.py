@@ -90,6 +90,11 @@ class Settings(BaseSettings):
         return self.thumb_dir or (self.data_dir / "cache" / "thumbs")
 
     @property
+    def resolved_near_duplicates_path(self) -> Path:
+        """Where the near-duplicate pairs are kept between runs."""
+        return self.data_dir / "cache" / "near-duplicates.json"
+
+    @property
     def resolved_frontend_dir(self) -> Path:
         return self.frontend_dir or CHECKOUT_FRONTEND_DIR
 

@@ -5,24 +5,47 @@ in memory. The first search compares all pairs; later ones compare only
 the images added or changed since, and drop those gone, so a deletion or
 a scan does not stall the listing. A search at any threshold up to the
 widest only filters those pairs, so moving the threshold regroups at once.
+Kept on disk too (`keep_on_disk`), a restart only compares what changed
+while it was down.
 """
 
+import json
+import logging
+import os
 import sqlite3
 import threading
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Optional
 
 from thalimage.core.perceptual_hash import BITS
 
+logger = logging.getLogger(__name__)
+
 # The widest threshold a search takes, as a perceptual distance.
 WIDEST_THRESHOLD = 0.30
+_WIDEST_BITS = int(WIDEST_THRESHOLD * BITS)
+
+# Raised when the file's layout changes, so an older file is not read.
+_FILE_FORMAT = 1
 
 # Each image's near pictures, as (key, differing bits).
 _Near = dict[str, list[tuple[str, int]]]
 # The perceptual hashes by key that the near pictures were found among.
 _Pictures = dict[str, int]
 _found: tuple[_Pictures, _Near] = ({}, {})
+_kept_at: Optional[Path] = None
 _lock = threading.Lock()
+
+
+def keep_on_disk(path: Path) -> None:
+    """Keep the pairs found in the file at `path`, starting from those it
+    holds. A file missing, unreadable or written for another hash length
+    or widest threshold is ignored: the next search compares all pairs."""
+    global _found, _kept_at
+    with _lock:
+        _kept_at = path
+        _found = _read(path)
 
 
 def groups(conn: sqlite3.Connection, ordered: Sequence[str], threshold: float) -> list[list[str]]:
@@ -82,7 +105,55 @@ def _near_pictures(conn: sqlite3.Connection) -> _Near:
     with _lock:
         if _found[0] != pictures:
             _found = (pictures, _updated(*_found, pictures))
+            if _kept_at is not None:
+                _write(_kept_at, *_found)
         return _found[1]
+
+
+def _read(path: Path) -> tuple[_Pictures, _Near]:
+    try:
+        kept = json.loads(path.read_text())
+        if (kept["format"], kept["bits"], kept["widest_bits"]) != (_FILE_FORMAT, BITS, _WIDEST_BITS):
+            return {}, {}
+        keys = kept["keys"]
+        pictures = dict(zip(keys, kept["pictures"], strict=True))
+        near: _Near = {}
+        for i, j, bits in kept["pairs"]:
+            near.setdefault(keys[i], []).append((keys[j], bits))
+            near.setdefault(keys[j], []).append((keys[i], bits))
+        return pictures, near
+    except FileNotFoundError:
+        return {}, {}
+    except (OSError, ValueError, KeyError, TypeError, IndexError) as exc:
+        logger.warning("Ignoring the near-duplicate pairs kept in %s: %s", path, exc)
+        return {}, {}
+
+
+def _write(path: Path, pictures: _Pictures, near: _Near) -> None:
+    """Write the pairs to `path` whole or not at all: through a file beside
+    it, renamed over it. Each pair is written once."""
+    keys = list(pictures)
+    index = {k: i for i, k in enumerate(keys)}
+    kept = {
+        "format": _FILE_FORMAT,
+        "bits": BITS,
+        "widest_bits": _WIDEST_BITS,
+        "keys": keys,
+        "pictures": [pictures[k] for k in keys],
+        "pairs": [
+            [index[k], index[o], bits]
+            for k, found in near.items()
+            for o, bits in found
+            if index[k] < index[o]
+        ],
+    }
+    partial = path.with_name(path.name + ".partial")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial.write_text(json.dumps(kept, separators=(",", ":")))
+        os.replace(partial, path)
+    except OSError as exc:
+        logger.warning("Could not keep the near-duplicate pairs in %s: %s", path, exc)
 
 
 def _updated(before: _Pictures, near: _Near, pictures: _Pictures) -> _Near:
@@ -94,7 +165,6 @@ def _updated(before: _Pictures, near: _Near, pictures: _Pictures) -> _Near:
     updated: _Near = {
         k: [(o, bits) for o, bits in v if o not in gone] for k, v in near.items() if k not in gone
     }
-    widest = int(WIDEST_THRESHOLD * BITS)
     # The changed images first: each meets every image after it, so the
     # changed meet one another and the settled once, and settled pairs,
     # already known, are not compared again.
@@ -104,7 +174,7 @@ def _updated(before: _Pictures, near: _Near, pictures: _Pictures) -> _Near:
         key, picture = keys[i], values[i]
         for j, other in enumerate(values[i + 1 :], i + 1):
             bits = (picture ^ other).bit_count()
-            if bits <= widest:
+            if bits <= _WIDEST_BITS:
                 updated.setdefault(key, []).append((keys[j], bits))
                 updated.setdefault(keys[j], []).append((key, bits))
     return updated

@@ -19,6 +19,7 @@ from thalimage.config import get_settings
 from thalimage.csrf import CrossSiteWriteGuard
 from thalimage.db.engine import connect, migrate
 from thalimage.services.db_backup import BackupScheduler
+from thalimage.services.near_duplicates import keep_on_disk
 from thalimage.services.scan_manager import ScanManager
 from thalimage.version import version_info
 
@@ -65,6 +66,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         settings.resolved_db_path, settings.resolved_backup_dir
     )
     app.state.backup_scheduler.start()
+    keep_on_disk(settings.resolved_near_duplicates_path)
     try:
         yield
     finally:

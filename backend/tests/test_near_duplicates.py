@@ -1,9 +1,12 @@
 """Near-duplicate groups, through the image listing."""
 
+import json
 import sqlite3
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from thalimage.services.near_duplicates import keep_on_disk
 from tests.helpers import ensure_source, insert_image
 
 
@@ -186,3 +189,49 @@ def test_an_image_left_out_of_the_groups_keeps_its_place_among_them(
     assert [i["content_hash"][0] for i in around["before"]] == ["a", "b"]
     assert [i["content_hash"][0] for i in around["after"]] == ["e", "f"]
     assert around["position"] == 2
+
+
+def _kept(tmp_path: Path) -> Path:
+    """Where the app started by the `client` fixture keeps the pairs."""
+    return tmp_path / "data" / "cache" / "near-duplicates.json"
+
+
+def test_a_restart_starts_from_the_pairs_kept_on_disk(
+    client: TestClient, db: sqlite3.Connection, tmp_path: Path
+) -> None:
+    _image(db, "a", 0)
+    _image(db, "b", 1)
+    assert _listed(client) == ["a", "b"]
+    kept = json.loads(_kept(tmp_path).read_text())
+
+    # Pairs removed from the file can only be missing after a restart if
+    # the restart read them from it rather than comparing again.
+    kept["pairs"] = []
+    _kept(tmp_path).write_text(json.dumps(kept))
+    keep_on_disk(_kept(tmp_path))
+
+    assert _listed(client) == []
+
+
+def test_a_restart_compares_what_changed_since(
+    client: TestClient, db: sqlite3.Connection, tmp_path: Path
+) -> None:
+    _image(db, "a", 0)
+    assert _listed(client) == []
+    keep_on_disk(_kept(tmp_path))
+
+    _image(db, "b", 1)
+
+    assert _listed(client) == ["a", "b"]
+
+
+def test_an_unreadable_file_on_disk_is_compared_again(
+    client: TestClient, db: sqlite3.Connection, tmp_path: Path
+) -> None:
+    _image(db, "a", 0)
+    _image(db, "b", 1)
+    _kept(tmp_path).parent.mkdir(parents=True, exist_ok=True)
+    _kept(tmp_path).write_text("{not json")
+    keep_on_disk(_kept(tmp_path))
+
+    assert _listed(client) == ["a", "b"]
