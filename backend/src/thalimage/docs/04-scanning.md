@@ -114,6 +114,34 @@ file reused for an unrelated picture (a generator overwriting
 earlier picture comes back on disk, it is an image again and the
 question goes away.
 
+## Near-duplicates
+
+Two images can show nearly the same picture without being one: a resized
+or re-encoded copy, a variant with a slight colour change, a light crop.
+Setting the **Near-duplicates** filter to **Grouped** lists only the
+images that look like another one, group after group, alternating in
+tint so you can tell where one group ends.
+
+Groups follow the listing's sort. The first image not yet in a group
+starts one, and every image not yet grouped that looks alike within the
+threshold joins it; the next group starts from the first image left.
+Every image in a group is therefore close to the image that starts it,
+and each image appears in one group only. Two images can look alike yet
+land in different groups when each lies closer to another start.
+
+How alike they must be is the threshold next to the filter, the share of
+the perceptual hash that may differ: 0.15 by default, up to 0.30.
+Moving it regroups at once, and the value is kept as the
+**Near-duplicate threshold** in Settings. At 0.15 nearly every resize,
+re-encode or colour change and most crops of up to 5% of each side are
+grouped, and unrelated pictures almost never are. Raising it catches
+heavier edits, along with more pictures that only share a layout.
+
+The other filters choose which images are grouped: with a source or a
+tag set, only the images they leave are compared. Videos have no
+perceptual hash and are never listed. Select images to archive, tag or
+delete the extra ones, as *Selecting images* describes.
+
 ## When the way images are identified changes
 
 Images used to be identified by a hash of the whole file, metadata

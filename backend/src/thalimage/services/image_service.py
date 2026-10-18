@@ -1,7 +1,7 @@
 """Image retrieval and query service."""
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional
 
@@ -16,6 +16,7 @@ from thalimage.services.folders import (
     tagged_folder,
 )
 from thalimage.services.locations import in_source_sql, resolve_paths
+from thalimage.services.near_duplicates import groups
 from thalimage.services.picture_edits import (
     PossibleEdit,
     is_possible_edit_sql,
@@ -35,10 +36,16 @@ class ImageSummary(BaseModel):
     thumb_generated: bool
     archived: bool = False
     nsfw: bool = False
+    # The image's near-duplicate group, numbered from 0 in listing order;
+    # set only in a listing grouped by near-duplicates.
+    duplicate_group: Optional[int] = None
 
 
-# The images columns an ImageSummary is built from, in one place.
-SUMMARY_COLUMNS: tuple[str, ...] = tuple(ImageSummary.model_fields)
+# The images columns an ImageSummary is built from, in one place. The
+# near-duplicate group belongs to a listing, not to the images table.
+SUMMARY_COLUMNS: tuple[str, ...] = tuple(
+    f for f in ImageSummary.model_fields if f != "duplicate_group"
+)
 
 
 def summary_columns_sql(alias: str = "") -> str:
@@ -170,6 +177,9 @@ class ListingFilters:
     archived: bool = False
     # Only the images that may be edits of an earlier picture.
     possible_edits: bool = False
+    # Only the images grouped as near-duplicates at this threshold, group
+    # after group in place of the sort (see `_ordering`).
+    near_duplicates: Optional[float] = None
 
 
 def _apply_filters(q: str, p: list[object], f: ListingFilters) -> str:
@@ -209,6 +219,8 @@ def _apply_filters(q: str, p: list[object], f: ListingFilters) -> str:
         p.extend(values)
     if f.possible_edits:
         q += f" AND {is_possible_edit_sql()}"
+    if f.near_duplicates is not None:
+        q += f" AND content_hash IN (SELECT content_hash FROM {_GROUPS})"
     if not f.show_nsfw:
         q += f" AND {safe_sql()}"
     return q
@@ -269,6 +281,62 @@ _NUMERIC_SORT_COLUMNS = frozenset({"file_size", "aspect_ratio"})
 
 _LIVE = "FROM images WHERE deleted = 0"
 
+# The near-duplicate groups of the listing being read, written by
+# `_ordering`: each image's group and its place in the listing.
+_GROUPS = "temp.near_duplicate_groups"
+
+# A grouped listing's key: the place `_ordering` gave the image; one it
+# left out sorts first.
+_GROUPED = _SortKey(
+    f"COALESCE((SELECT g.position FROM {_GROUPS} g"
+    " WHERE g.content_hash = images.content_hash), -1)",
+    (),
+    "group_position",
+    True,
+)
+
+
+def _ordering(
+    conn: sqlite3.Connection,
+    f: ListingFilters,
+    sort: str,
+    direction: str,
+    elo_collection_id: Optional[int],
+) -> tuple[_SortKey, str]:
+    """The key and direction a listing orders and pages by. A listing of
+    near-duplicates groups the images the other filters leave, taken in
+    the order sort and direction give, and writes those groups for its
+    queries to read; it then follows the groups."""
+    key = _sort_key(sort, elo_collection_id)
+    if direction not in ("asc", "desc"):
+        direction = "asc"
+    if f.near_duplicates is None:
+        return key, direction
+    params: list[object] = list(key.params)
+    sql = _apply_filters(
+        f"SELECT content_hash, {key.expr} AS {key.alias} {_LIVE}",
+        params,
+        replace(f, near_duplicates=None),
+    )
+    sql += f" ORDER BY {key.alias} {direction}, content_hash {direction}"
+    ordered = [r["content_hash"] for r in conn.execute(sql, params)]
+    members = [
+        (image, group)
+        for group, images in enumerate(groups(conn, ordered, f.near_duplicates))
+        for image in images
+    ]
+    with conn:
+        conn.execute(
+            f"CREATE TEMP TABLE IF NOT EXISTS {_GROUPS} ("
+            " content_hash TEXT PRIMARY KEY, grp INTEGER NOT NULL, position INTEGER NOT NULL)"
+        )
+        conn.execute(f"DELETE FROM {_GROUPS}")
+        conn.executemany(
+            f"INSERT INTO {_GROUPS} (content_hash, grp, position) VALUES (?, ?, ?)",
+            [(image, group, i) for i, (image, group) in enumerate(members)],
+        )
+    return _GROUPED, "asc"
+
 
 def list_images(
     conn: sqlite3.Connection,
@@ -324,7 +392,7 @@ def listing_page(
 ) -> ImagePage:
     """A page of the listing that sort, direction and filters define; see
     `list_images`."""
-    key = _sort_key(sort, elo_collection_id)
+    key, direction = _ordering(conn, filters, sort, direction, elo_collection_id)
     return _page(conn, filters, key, direction, cursor, limit)
 
 
@@ -347,6 +415,11 @@ def _page(
     # columns are ignored when building ImageSummary. The key's placeholder
     # (ELO) sits in the SELECT list, so its value leads the parameters.
     select_cols = [*SUMMARY_COLUMNS, f"{key.expr} AS {key.alias}"]
+    if f.near_duplicates is not None:
+        select_cols.append(
+            f"(SELECT g.grp FROM {_GROUPS} g WHERE g.content_hash = images.content_hash)"
+            " AS duplicate_group"
+        )
     params: list[object] = list(key.params)
     sql = _apply_filters(f"SELECT {', '.join(select_cols)} {_LIVE}", params, f)
 
@@ -367,6 +440,9 @@ def _page(
         rows = rows[:limit]
 
     items = [summary_from_row(r) for r in rows]
+    if f.near_duplicates is not None:
+        for item, row in zip(items, rows, strict=True):
+            item.duplicate_group = row["duplicate_group"]
 
     next_cursor = None
     if has_next and rows:
@@ -399,10 +475,8 @@ def neighbors(
     that sort, direction and filters define, wherever it falls in it.
     None if the image does not exist. An image the filters exclude still
     has neighbours: those around the place it would sort into."""
-    if direction not in ("asc", "desc"):
-        direction = "asc"
     filters = filters or ListingFilters()
-    key = _sort_key(sort, elo_collection_id)
+    key, direction = _ordering(conn, filters, sort, direction, elo_collection_id)
     row = conn.execute(
         f"SELECT {key.expr} FROM images WHERE content_hash = ?",
         (*key.params, content_hash),
@@ -450,9 +524,8 @@ def sequence(
 ) -> list[SequenceItem]:
     """The whole listing that sort, direction and filters define, in order.
     Pass `score_collection_id` to give each image its ELO score there."""
-    if direction not in ("asc", "desc"):
-        direction = "asc"
-    key = _sort_key(sort, elo_collection_id)
+    filters = filters or ListingFilters()
+    key, direction = _ordering(conn, filters, sort, direction, elo_collection_id)
     params: list[object] = list(key.params)
     score = "NULL"
     if score_collection_id is not None:
@@ -461,7 +534,7 @@ def sequence(
     sql = _apply_filters(
         f"SELECT content_hash, filename, {score} AS score, {key.expr} AS {key.alias} {_LIVE}",
         params,
-        filters or ListingFilters(),
+        filters,
     )
     sql += f" ORDER BY {key.alias} {direction}, content_hash {direction}"
     return [

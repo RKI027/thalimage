@@ -17,7 +17,7 @@ PERCEPTUAL_HASH_VERSION = 1
 
 _SIZE = 32  # the side of the greyscale picture transformed
 _KEPT = 8  # the lowest frequencies kept, per axis: 64 bits
-_BITS = _KEPT * _KEPT
+BITS = _KEPT * _KEPT  # the length of a hash
 
 _COSINES = [
     [math.cos(math.pi * (2 * x + 1) * u / (2 * _SIZE)) for x in range(_SIZE)]
@@ -40,12 +40,12 @@ def perceptual_hash(path: Path) -> int:
     freqs = [
         sum(c * across[y][u] for y, c in enumerate(cos)) for cos in _COSINES for u in range(_KEPT)
     ]
-    median = sorted(freqs)[_BITS // 2]
+    median = sorted(freqs)[BITS // 2]
     bits = sum(1 << i for i, f in enumerate(freqs) if f > median)
-    return bits - (1 << _BITS) if bits >= 1 << (_BITS - 1) else bits
+    return bits - (1 << BITS) if bits >= 1 << (BITS - 1) else bits
 
 
 def distance(a: int, b: int) -> float:
     """How far apart two perceptual hashes are: the share of their bits that
     differ, from 0 (the same) to 1."""
-    return ((a ^ b) & ((1 << _BITS) - 1)).bit_count() / _BITS
+    return ((a ^ b) & ((1 << BITS) - 1)).bit_count() / BITS
