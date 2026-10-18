@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # The widest threshold a search takes, as a perceptual distance.
 WIDEST_THRESHOLD = 0.30
-_WIDEST_BITS = int(WIDEST_THRESHOLD * BITS)
+_WIDEST_BITS = round(WIDEST_THRESHOLD * BITS)
 
 # Raised when the file's layout changes, so an older file is not read.
 _FILE_FORMAT = 1
@@ -55,7 +55,7 @@ def groups(conn: sqlite3.Connection, ordered: Sequence[str], threshold: float) -
     least, and an image lies in one group at most."""
     near = _near_pictures(conn)
     rank = {key: i for i, key in enumerate(ordered)}
-    within = int(threshold * BITS)
+    within = round(threshold * BITS)
     grouped: set[str] = set()
     found = []
     for key in ordered:

@@ -1,19 +1,22 @@
 """The perceptual hash: a 64-bit fingerprint of what a picture looks like.
 
 A DCT hash (pHash): the picture in greyscale at 32x32, transformed, keeps
-one bit per low frequency, set when that frequency is above their median.
+one bit per low frequency, set when that frequency is above their median:
+half the bits are set (fewer only where frequencies tie at the median),
+so two hashes nearly always differ by an even count of bits.
 Resizing, re-encoding and colour changes move few bits; cropping moves
 more the more is cut. Unlike the picture hash, it decodes the picture:
 decoders disagreeing on a few pixels shift it by a bit at most.
 """
 
 import math
+import statistics
 from pathlib import Path
 
 from PIL import Image
 
 # Raised when the hash changes, so the next scan computes it again.
-PERCEPTUAL_HASH_VERSION = 1
+PERCEPTUAL_HASH_VERSION = 2
 
 _SIZE = 32  # the side of the greyscale picture transformed
 _KEPT = 8  # the lowest frequencies kept, per axis: 64 bits
@@ -40,7 +43,7 @@ def perceptual_hash(path: Path) -> int:
     freqs = [
         sum(c * across[y][u] for y, c in enumerate(cos)) for cos in _COSINES for u in range(_KEPT)
     ]
-    median = sorted(freqs)[BITS // 2]
+    median = statistics.median(freqs)
     bits = sum(1 << i for i, f in enumerate(freqs) if f > median)
     return bits - (1 << BITS) if bits >= 1 << (BITS - 1) else bits
 

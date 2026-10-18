@@ -84,7 +84,11 @@ is described for users in
   unrelated pairs came within 0.15. dHash held crops slightly better but
   brought unrelated pairs closer; 256-bit hashes broke on crops. Our own
   code on Pillow, not `imagehash`, which pulls numpy, scipy and
-  PyWavelets. Videos get none.
+  PyWavelets. Videos get none. The median is the true one, between the
+  two middle frequencies (#155): the upper middle one alone moved with
+  the gap between them, enough to rank an unrelated picture closer than
+  a re-render. Half the bits being set, distances go in steps of 2/64;
+  thresholds round to the nearest bit.
 - **Near-duplicates are grouped around a start, not chained** (#110,
   `services/near_duplicates.py`): the first image left in the listing's
   order starts a group of every image left within the threshold of it.
