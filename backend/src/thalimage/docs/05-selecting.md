@@ -61,3 +61,39 @@ Under the pictures, their dimensions, file size, format, dates, files
 and tags are listed side by side, each line that differs highlighted.
 **X** swaps the reference and the current image. Escape goes back to the
 grid.
+
+## Reviewing a group
+
+A review goes through a group of images, one against another, to decide
+what to keep. Open one with **Review** in the selection bar (two images
+or more selected), or with **Review group** (**R**) in the viewer, when
+it was opened from a grid filtered to near-duplicates: the review then
+takes the group of the image shown.
+
+One image is the **reference**: the one with the most pixels, then the
+largest file. The others are the **current** image in turn, compared
+with the reference as in *Comparing two images*. A strip above shows
+the whole group, each image marked as the reference or with its flag.
+
+- **←** / **→**: the previous or next image after the reference.
+- **F**: make the current image the reference.
+- **A**, **G**, **D**: flag the current image to **archive**, to
+  **merge** into the reference, or to **delete** from disk. The same key
+  again clears the flag. With **Shift**, they flag the reference instead
+  (archive or delete only: it cannot merge into itself).
+- **U**: undo the last flag.
+- The current image's tags can be edited under the pictures; tags change
+  at once, unlike flags.
+
+Flags change nothing until you leave. **Escape** (or **Done**) lists the
+flagged images by action, each with the files it would remove, and
+offers to **Apply** them, **Keep reviewing**, or **Discard** the flags.
+Images left unflagged stay as they are. A review opened from the viewer
+also offers **Apply and next group**.
+
+Merging an image into the reference deletes its files from disk and
+gives the reference its tags, collections, votes and scores, and its
+file versions' metadata as earlier versions; votes between the two are
+dropped. Like deleting, it needs every copy of the image in a writable
+source, and if one file cannot be removed, that image is not merged.
+The reference cannot be deleted while other images merge into it.

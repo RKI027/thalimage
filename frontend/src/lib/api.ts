@@ -6,6 +6,7 @@ import type {
 	ImageDetail,
 	ImageCopy,
 	ImageDeletion,
+	ImageMerge,
 	SidecarContent,
 	EloStanding,
 	Source,
@@ -167,6 +168,17 @@ export function getImageSidecars(hash: string): Promise<SidecarContent[]> {
 /** Delete every copy of the image from disk. Refused as a whole if any may not be deleted. */
 export function deleteImage(hash: string): Promise<ImageDeletion> {
 	return fetchJSON(`${BASE}/images/${hash}/delete`, { method: 'POST' });
+}
+
+/** Merge these images into the one keyed `kept`: their files are deleted
+ * from disk and their history carried over. Refused as a whole if any of
+ * their copies may not be deleted. */
+export function mergeImages(kept: string, hashes: string[]): Promise<ImageMerge> {
+	return fetchJSON(`${BASE}/images/${kept}/merge`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ hashes })
+	});
 }
 
 /** Delete every copy of these images from disk. Refused as a whole if any may not be deleted. */

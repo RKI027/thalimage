@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	decidePossibleEdit,
+	mergeImages,
 	deleteSource,
 	displaySize,
 	getEloPair,
@@ -156,5 +157,18 @@ describe('decidePossibleEdit', () => {
 		expect(fetchMock.mock.lastCall![0]).toBe('/api/v1/images/abc/possible-edit');
 		expect(fetchMock.mock.lastCall![1]?.method).toBe('POST');
 		expect(JSON.parse(fetchMock.mock.lastCall![1]?.body as string)).toEqual({ decision: 'merge' });
+	});
+});
+
+describe('mergeImages', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('posts the images to merge into the one kept', async () => {
+		const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response('{}'));
+		vi.stubGlobal('fetch', fetchMock);
+		await mergeImages('kept', ['a', 'b']);
+		expect(fetchMock.mock.lastCall![0]).toBe('/api/v1/images/kept/merge');
+		expect(fetchMock.mock.lastCall![1]?.method).toBe('POST');
+		expect(JSON.parse(fetchMock.mock.lastCall![1]?.body as string)).toEqual({ hashes: ['a', 'b'] });
 	});
 });

@@ -26,6 +26,7 @@
 	import { slideshowStore } from '$lib/slideshowStore.svelte';
 	import { createSlidePreloader, neighborsToPreload } from '$lib/slidePreloader';
 	import { attachSwipe } from '$lib/swipe';
+	import { groupAround } from '$lib/review.svelte';
 	import { isVideoFilename } from '$lib/media';
 	import { readStored, writeStored } from '$lib/storage';
 	import Icon from '$lib/components/Icon.svelte';
@@ -156,7 +157,7 @@
 				...contextListing(ctx, $settingsStore.show_nsfw),
 				window: WINDOW
 			});
-			const fetched = [...nb.before, around, ...nb.after];
+			const fetched = [...nb.before, { ...around, duplicate_group: nb.duplicate_group }, ...nb.after];
 			// Navigation may have moved on meanwhile; the window is still worth
 			// having as long as the image now shown is in it.
 			const idx = fetched.findIndex((n) => n.content_hash === $page.params.hash);
@@ -249,6 +250,16 @@
 		};
 	});
 
+	// The near-duplicate group of the image shown, in a grid filtered to
+	// them; empty otherwise.
+	const reviewable = $derived(
+		ctx?.filters?.near_duplicates !== undefined && currentIndex >= 0 ? groupAround(neighbors, currentIndex) : []
+	);
+
+	function reviewGroup() {
+		if (reviewable.length >= 2) goto(`/review?images=${reviewable.join(',')}&next`);
+	}
+
 	function onKeydown(e: KeyboardEvent) {
 		const tag = (e.target as HTMLElement).tagName;
 		if (tag === 'INPUT' || tag === 'TEXTAREA') return;
@@ -295,6 +306,9 @@
 		} else if (e.key === 'k' && isVideo) {
 			e.preventDefault();
 			toggleVideoPlayback();
+		} else if (e.key === 'r' && !inSlideshow && reviewable.length >= 2) {
+			e.preventDefault();
+			reviewGroup();
 		}
 	}
 
@@ -562,6 +576,11 @@
 						onclick={toggleArchive}
 						title={image.archived ? 'Unarchive' : 'Archive'}
 					>{image.archived ? '↩ Unarchive' : '⬜ Archive'}</button>
+					{#if reviewable.length >= 2}
+						<button class="control" onclick={reviewGroup} title="Review this image's near-duplicate group (R)">
+							Review group
+						</button>
+					{/if}
 					<button class="control" onclick={askRename} title="Rename the image's files to its picture hash">
 						Rename…
 					</button>

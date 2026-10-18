@@ -207,6 +207,14 @@
 	>
 		Compare
 	</button>
+	<button
+		class="control"
+		disabled={selection.count < 2 || busy}
+		title="Review the selected images one against another, flagging what to keep"
+		onclick={() => goto(`/review?images=${selection.hashes.join(',')}`)}
+	>
+		Review
+	</button>
 	<button class="control" class:open={picker === 'tag'} disabled={none || busy} onclick={() => open('tag')}>Tag</button>
 	<button class="control" class:open={picker === 'untag'} disabled={none || busy} onclick={() => open('untag')}>Untag</button>
 	<button class="control" class:open={picker === 'collection'} disabled={none || busy} onclick={() => open('collection')}>
