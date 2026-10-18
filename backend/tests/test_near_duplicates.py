@@ -139,3 +139,50 @@ def test_the_viewer_steps_through_the_groups(client: TestClient, db: sqlite3.Con
     assert [i["content_hash"][0] for i in around["after"]] == ["b", "c"]
     assert around["position"] == 1
     assert [i["content_hash"][0] for i in walk] == ["a", "d", "b", "c"]
+
+
+def _delete(db: sqlite3.Connection, name: str) -> None:
+    db.execute("UPDATE images SET deleted = 1 WHERE content_hash = ?", (name * 64,))
+    db.commit()
+
+
+def test_a_deleted_image_leaves_its_group(client: TestClient, db: sqlite3.Connection) -> None:
+    far = _bits(*range(0, 64, 2))
+    for key, picture in (("a", 0), ("b", 1), ("c", far), ("d", far | 1)):
+        _image(db, key, picture)
+    assert _listed(client) == ["a", "b", "c", "d"]
+
+    _delete(db, "a")
+
+    assert _listed(client) == ["c", "d"]
+
+
+def test_an_image_whose_picture_changed_regroups(
+    client: TestClient, db: sqlite3.Connection
+) -> None:
+    far = _bits(*range(0, 64, 2))
+    _image(db, "a", 0)
+    _image(db, "b", 1)
+    _image(db, "c", far)
+    assert _listed(client) == ["a", "b"]
+
+    db.execute("UPDATE images SET perceptual_hash = ? WHERE content_hash = ?", (far | 1, "b" * 64))
+    db.commit()
+
+    assert _listed(client) == ["b", "c"]
+
+
+def test_an_image_left_out_of_the_groups_keeps_its_place_among_them(
+    client: TestClient, db: sqlite3.Connection
+) -> None:
+    far = _bits(*range(0, 64, 2))
+    other = _bits(*range(1, 64, 2))
+    for key, picture in (("a", 0), ("b", 1), ("c", far), ("d", far | 1), ("e", other), ("f", other | 1)):
+        _image(db, key, picture)
+    _delete(db, "c")
+
+    around = client.get(f"/api/v1/images/{'d' * 64}/neighbors", params={"near_duplicates": 0.15}).json()
+
+    assert [i["content_hash"][0] for i in around["before"]] == ["a", "b"]
+    assert [i["content_hash"][0] for i in around["after"]] == ["e", "f"]
+    assert around["position"] == 2

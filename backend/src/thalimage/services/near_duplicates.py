@@ -1,24 +1,27 @@
 """Near-duplicates: images whose pictures look alike, in groups.
 
-Every pair of live images within WIDEST_THRESHOLD of each other is found
-in one pass over all pairs, and kept in memory until a perceptual hash
-or key changes. A search at any threshold up to it only filters those
-pairs, so moving the threshold regroups at once.
+Every pair of live images within WIDEST_THRESHOLD of each other is kept
+in memory. The first search compares all pairs; later ones compare only
+the images added or changed since, and drop those gone, so a deletion or
+a scan does not stall the listing. A search at any threshold up to the
+widest only filters those pairs, so moving the threshold regroups at once.
 """
 
 import sqlite3
 import threading
 from collections.abc import Sequence
+from typing import Optional
 
 from thalimage.core.perceptual_hash import BITS
 
 # The widest threshold a search takes, as a perceptual distance.
 WIDEST_THRESHOLD = 0.30
 
-# Each image's near pictures, as (key, differing bits), for the rows
-# (key, perceptual hash) they were found among.
+# Each image's near pictures, as (key, differing bits).
 _Near = dict[str, list[tuple[str, int]]]
-_found: tuple[list[tuple[str, int]], _Near] | None = None
+# The perceptual hashes by key that the near pictures were found among.
+_Pictures = dict[str, int]
+_found: tuple[_Pictures, _Near] = ({}, {})
 _lock = threading.Lock()
 
 
@@ -46,30 +49,62 @@ def groups(conn: sqlite3.Connection, ordered: Sequence[str], threshold: float) -
     return found
 
 
+def places(
+    conn: sqlite3.Connection, ordered: Sequence[str], threshold: float
+) -> list[tuple[str, Optional[int]]]:
+    """Every image of `ordered` with its group (see `groups`), or None,
+    in the order a grouped listing walks them: each group where its first
+    image sorts, and each image in no group in its own place, so it keeps
+    neighbours among the groups."""
+    found = groups(conn, ordered, threshold)
+    starting = {images[0]: g for g, images in enumerate(found)}
+    grouped = {image for images in found for image in images}
+    walked: list[tuple[str, Optional[int]]] = []
+    for image in ordered:
+        if image in starting:
+            g = starting[image]
+            walked += [(member, g) for member in found[g]]
+        elif image not in grouped:
+            walked.append((image, None))
+    return walked
+
+
 def _near_pictures(conn: sqlite3.Connection) -> _Near:
     global _found
     mask = (1 << BITS) - 1
-    rows = [
-        (r[0], r[1] & mask)
+    pictures = {
+        r[0]: r[1] & mask
         for r in conn.execute(
             "SELECT content_hash, perceptual_hash FROM images"
-            " WHERE deleted = 0 AND perceptual_hash IS NOT NULL ORDER BY content_hash"
+            " WHERE deleted = 0 AND perceptual_hash IS NOT NULL"
         )
-    ]
+    }
     with _lock:
-        if _found is None or _found[0] != rows:
-            _found = (rows, _all_pairs(rows))
+        if _found[0] != pictures:
+            _found = (pictures, _updated(*_found, pictures))
         return _found[1]
 
 
-def _all_pairs(rows: list[tuple[str, int]]) -> _Near:
+def _updated(before: _Pictures, near: _Near, pictures: _Pictures) -> _Near:
+    """The near pictures among `pictures`, from those found among `before`.
+    A new mapping: a search may still be reading the old one."""
+    changed = [k for k, p in pictures.items() if before.get(k) != p]
+    changed_keys = set(changed)
+    gone = {k for k, p in before.items() if pictures.get(k) != p}
+    updated: _Near = {
+        k: [(o, bits) for o, bits in v if o not in gone] for k, v in near.items() if k not in gone
+    }
     widest = int(WIDEST_THRESHOLD * BITS)
-    pictures = [p for _, p in rows]
-    near: _Near = {}
-    for i, (key, picture) in enumerate(rows):
-        for j, other in enumerate(pictures[i + 1 :], i + 1):
+    # The changed images first: each meets every image after it, so the
+    # changed meet one another and the settled once, and settled pairs,
+    # already known, are not compared again.
+    keys = changed + [k for k in pictures if k not in changed_keys]
+    values = [pictures[k] for k in keys]
+    for i in range(len(changed)):
+        key, picture = keys[i], values[i]
+        for j, other in enumerate(values[i + 1 :], i + 1):
             bits = (picture ^ other).bit_count()
             if bits <= widest:
-                near.setdefault(key, []).append((rows[j][0], bits))
-                near.setdefault(rows[j][0], []).append((key, bits))
-    return near
+                updated.setdefault(key, []).append((keys[j], bits))
+                updated.setdefault(keys[j], []).append((key, bits))
+    return updated

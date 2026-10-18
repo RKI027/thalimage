@@ -85,11 +85,16 @@ is described for users in
   between two groups is the cost. The groups are a filter of the
   ordinary listing, so paging, the viewer and bulk actions work on them
   unchanged; the listing writes them to a per-connection temp table its
-  queries read.
-- **All pairs are compared, in memory, once per library state.** Every
-  pair within 0.30 is kept until a key or perceptual hash changes, so the
-  threshold moves without recomputing. At 10k images the pass takes
-  about 2 s in pure Python. A VP-tree was measured at 4x slower: 64-bit
+  queries read. An image in no group keeps its place in the sort there,
+  so the viewer, left on one whose pair was just deleted, steps on to the
+  groups around it.
+- **All pairs are compared once, in memory, then kept up to date.** Every
+  pair within 0.30 is kept, so the threshold moves without recomputing.
+  The first grouped listing after a start compares all pairs, about 2 s
+  at 10k images in pure Python; afterwards only images added or changed
+  are compared and those gone dropped (20 ms for a deletion, 70 ms for
+  100 new images). Recomputing everything on each change stalled the
+  viewer and the grid after every deletion. A VP-tree was measured at 4x slower: 64-bit
   Hamming distance takes few values and prunes little within 10 bits,
   and each node visit is a Python call. Revisit (a multi-index on hash
   blocks, or storing pairs at scan) if the library grows well past 10k.

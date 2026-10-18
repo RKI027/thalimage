@@ -16,7 +16,7 @@ from thalimage.services.folders import (
     tagged_folder,
 )
 from thalimage.services.locations import in_source_sql, resolve_paths
-from thalimage.services.near_duplicates import groups
+from thalimage.services.near_duplicates import places
 from thalimage.services.picture_edits import (
     PossibleEdit,
     is_possible_edit_sql,
@@ -220,7 +220,7 @@ def _apply_filters(q: str, p: list[object], f: ListingFilters) -> str:
     if f.possible_edits:
         q += f" AND {is_possible_edit_sql()}"
     if f.near_duplicates is not None:
-        q += f" AND content_hash IN (SELECT content_hash FROM {_GROUPS})"
+        q += f" AND content_hash IN (SELECT content_hash FROM {_GROUPS} WHERE grp IS NOT NULL)"
     if not f.show_nsfw:
         q += f" AND {safe_sql()}"
     return q
@@ -282,11 +282,12 @@ _NUMERIC_SORT_COLUMNS = frozenset({"file_size", "aspect_ratio"})
 _LIVE = "FROM images WHERE deleted = 0"
 
 # The near-duplicate groups of the listing being read, written by
-# `_ordering`: each image's group and its place in the listing.
+# `_ordering`: each image's place in the listing, and its group (NULL for
+# an image in none, which the listing leaves out but places).
 _GROUPS = "temp.near_duplicate_groups"
 
-# A grouped listing's key: the place `_ordering` gave the image; one it
-# left out sorts first.
+# A grouped listing's key: the place `_ordering` gave the image; one the
+# other filters leave out sorts first.
 _GROUPED = _SortKey(
     f"COALESCE((SELECT g.position FROM {_GROUPS} g"
     " WHERE g.content_hash = images.content_hash), -1)",
@@ -320,20 +321,16 @@ def _ordering(
     )
     sql += f" ORDER BY {key.alias} {direction}, content_hash {direction}"
     ordered = [r["content_hash"] for r in conn.execute(sql, params)]
-    members = [
-        (image, group)
-        for group, images in enumerate(groups(conn, ordered, f.near_duplicates))
-        for image in images
-    ]
+    walked = places(conn, ordered, f.near_duplicates)
     with conn:
         conn.execute(
             f"CREATE TEMP TABLE IF NOT EXISTS {_GROUPS} ("
-            " content_hash TEXT PRIMARY KEY, grp INTEGER NOT NULL, position INTEGER NOT NULL)"
+            " content_hash TEXT PRIMARY KEY, grp INTEGER, position INTEGER NOT NULL)"
         )
         conn.execute(f"DELETE FROM {_GROUPS}")
         conn.executemany(
             f"INSERT INTO {_GROUPS} (content_hash, grp, position) VALUES (?, ?, ?)",
-            [(image, group, i) for i, (image, group) in enumerate(members)],
+            [(image, group, i) for i, (image, group) in enumerate(walked)],
         )
     return _GROUPED, "asc"
 
