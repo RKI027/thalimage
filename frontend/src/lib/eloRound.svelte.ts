@@ -5,7 +5,14 @@
  * scope is dropped, so nothing from a previous collection can surface.
  */
 import { archiveImage, getEloPair, recordEloVote } from './api';
+import { readStored, writeStored } from './storage';
 import type { EloPair, FilterState, ImageSummary } from './types';
+
+/** Where a collection's vote count for this browser session is kept, so it
+ * outlasts leaving the vote page (for the rankings, say). */
+function votesKey(collectionId: number): string {
+	return `collection:${collectionId}:sessionVotes`;
+}
 
 /** How long the chosen side stays highlighted before the next pair. */
 const HIGHLIGHT_MS = 300;
@@ -34,8 +41,10 @@ export class EloRound {
 		this.#preload = preload;
 	}
 
-	/** Switch collection or filters; forgets the prefetched pair. */
+	/** Switch collection or filters; forgets the prefetched pair. The vote
+	 * count is the collection's for this browser session. */
 	setScope(scope: Scope): void {
+		this.voteCount = readStored(votesKey(scope.collectionId), 0, 'session');
 		this.#scope = scope;
 		this.#scopeKey = JSON.stringify(scope);
 		this.#next = null;
@@ -91,6 +100,7 @@ export class EloRound {
 		}
 		if (key !== this.#scopeKey) return;
 		this.voteCount++;
+		writeStored(votesKey(scope.collectionId), this.voteCount, 'session');
 		setTimeout(() => {
 			if (key === this.#scopeKey) this.loadPair();
 		}, HIGHLIGHT_MS);
