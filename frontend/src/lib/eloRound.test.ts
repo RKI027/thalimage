@@ -30,6 +30,7 @@ const scope = (collectionId: number) => ({ collectionId, filters: {}, showNsfw: 
 
 describe('EloRound', () => {
 	beforeEach(() => {
+		sessionStorage.clear();
 		getEloPair.mockReset();
 		recordEloVote.mockReset();
 		archiveImage.mockReset();
@@ -171,5 +172,20 @@ describe('EloRound', () => {
 		lateA.resolve(pair('a1', 'a2'));
 		await loadA;
 		expect(round.left?.content_hash).toBe('b1');
+	});
+
+	it('keeps the vote count of the session when the page comes back, per collection', async () => {
+		const first = new EloRound();
+		getEloPair.mockResolvedValue(pair('a', 'b'));
+		recordEloVote.mockResolvedValue({});
+		first.setScope(scope(1));
+		await first.loadPair();
+		await first.vote('left');
+
+		const again = new EloRound();
+		again.setScope(scope(1));
+		expect(again.voteCount).toBe(1);
+		again.setScope(scope(2));
+		expect(again.voteCount).toBe(0);
 	});
 });
