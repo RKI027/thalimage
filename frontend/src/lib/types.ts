@@ -90,6 +90,8 @@ export interface Neighbors {
 	after: ImageSummary[];
 	position: number;
 	total_count: number;
+	/** The image's own near-duplicate group, in a listing grouped by them. */
+	duplicate_group?: number | null;
 }
 
 /** One image of a listing, as a slideshow walks it. `score` is its ELO
@@ -278,6 +280,12 @@ export interface ImageDeletion {
 	deleted: number;
 	sidecars: number;
 	failed: { source_id: number; relative_path: string; error: string }[];
+}
+
+/** What merging images did: `merged` are the images merged, one whose files
+ * could not all be removed being left out. */
+export interface ImageMerge extends ImageDeletion {
+	merged: string[];
 }
 
 /** A sidecar of one copy, read from disk; `text` is null when it is binary or too large. */

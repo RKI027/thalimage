@@ -456,6 +456,8 @@ class Neighbors(BaseModel):
     after: list[ImageSummary]  # nearest first
     position: int  # 0-based place of the image in the listing
     total_count: int
+    # The image's own near-duplicate group, in a listing grouped by them.
+    duplicate_group: Optional[int] = None
 
 
 def neighbors(
@@ -493,12 +495,18 @@ def neighbors(
     sql += f" AND ({key.expr}, content_hash) {op} (?, ?)"
     params.extend([*key.params, row[0], content_hash])
     position = conn.execute(sql, params).fetchone()[0]
+    group = None
+    if filters.near_duplicates is not None:
+        group = conn.execute(
+            f"SELECT grp FROM {_GROUPS} WHERE content_hash = ?", (content_hash,)
+        ).fetchone()
 
     return Neighbors(
         before=list(reversed(before.items)),
         after=after.items,
         position=position,
         total_count=after.total_count,
+        duplicate_group=group[0] if group else None,
     )
 
 

@@ -198,14 +198,11 @@
 	</button>
 	<button
 		class="control"
-		disabled={selection.count !== 2 || busy}
-		title="Compare the two selected images"
-		onclick={() => {
-			const [reference, current] = selection.hashes;
-			goto(`/compare?reference=${reference}&current=${current}`);
-		}}
+		disabled={selection.count < 2 || busy}
+		title="Review the selected images one against another, flagging what to keep"
+		onclick={() => goto(`/review?images=${selection.hashes.join(',')}`)}
 	>
-		Compare
+		Review
 	</button>
 	<button class="control" class:open={picker === 'tag'} disabled={none || busy} onclick={() => open('tag')}>Tag</button>
 	<button class="control" class:open={picker === 'untag'} disabled={none || busy} onclick={() => open('untag')}>Untag</button>

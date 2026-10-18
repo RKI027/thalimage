@@ -142,6 +142,7 @@ def test_the_viewer_steps_through_the_groups(client: TestClient, db: sqlite3.Con
     assert [i["content_hash"][0] for i in around["after"]] == ["b", "c"]
     assert around["position"] == 1
     assert [i["content_hash"][0] for i in walk] == ["a", "d", "b", "c"]
+    assert around["duplicate_group"] == 0
 
 
 def _delete(db: sqlite3.Connection, name: str) -> None:
@@ -189,6 +190,7 @@ def test_an_image_left_out_of_the_groups_keeps_its_place_among_them(
     assert [i["content_hash"][0] for i in around["before"]] == ["a", "b"]
     assert [i["content_hash"][0] for i in around["after"]] == ["e", "f"]
     assert around["position"] == 2
+    assert around["duplicate_group"] is None
 
 
 def _kept(tmp_path: Path) -> Path:
