@@ -32,13 +32,19 @@ indexed.
    tag of that name, joining an existing tag whatever its case, and a
    rating a `rating:N` tag. Removing such a tag in Thalimage is final:
    reading the file again does not bring it back.
-3. **Thumbnail generation.** A 400px WebP is written to `cache/thumbs/`.
+3. **Perceptual hash.** Still images also get a 64-bit fingerprint of
+   what the picture looks like, read from its pixels. Unlike the hash
+   above, it barely changes when the picture is resized, re-encoded,
+   slightly cropped or its colours adjusted, so it can tell that two
+   different files show nearly the same picture. Videos get none.
+   Images scanned before this existed are read once more to get one.
+4. **Thumbnail generation.** A 400px WebP is written to `cache/thumbs/`.
    For videos, a frame is pulled with ffmpeg at 10% into the runtime,
    which usually avoids a black opening frame.
-4. **Recording.** The image and where it was found are written to the
+5. **Recording.** The image and where it was found are written to the
    database, a few dozen files at a time, so the rest of the app stays
    responsive during a long scan.
-5. **Playable videos.** Once everything is recorded, each video not seen
+6. **Playable videos.** Once everything is recorded, each video not seen
    before is checked, and those iOS cannot play get an MP4 copy (see
    Image delivery). The scan shows this as "Checking videos", then
    "Making videos playable on iOS"; the images are already browsable

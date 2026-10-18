@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from thalimage.core.derived_files import DerivedDirs, link_derived, remove_derived
 from thalimage.core.hasher import content_hash
 from thalimage.core.metadata import EXTRACTOR_VERSION, ImageMetadata, extract_metadata
+from thalimage.core.perceptual_hash import PERCEPTUAL_HASH_VERSION, perceptual_hash
 from thalimage.core.picture_hash import HASH_VERSION, picture_hash
 from thalimage.core.scanner import Listing, SourceUnavailable, scan_directory
 from thalimage.core.sidecars import digest, names_any
@@ -74,6 +75,7 @@ class _Indexed:
     aspect_ratio: float
     format: str
     meta: Optional[ImageMetadata]  # None for videos: no AI metadata
+    perceptual_hash: Optional[int]  # None for videos
     # The file is unchanged since the last scan, which keyed it with an
     # older hash: its image takes the new key rather than becoming new.
     rekey: bool = False
@@ -114,14 +116,17 @@ def run_scan(
     dirs = DerivedDirs(thumbs=thumb_dir, previews=preview_dir, videos=video_dir)
 
     # What the last scan found here, by relative path, with the extractor
-    # version its metadata came from and the hash version that keyed it.
+    # version its metadata came from, the hash version that keyed it and the
+    # version of its image's perceptual hash.
     known = {
         row["relative_path"]: row
         for row in conn.execute(
             "SELECT l.content_hash, l.relative_path, l.file_modified, l.file_size, l.hash_version,"
-            " COALESCE(m.extractor_version, 0) AS extractor_version"
+            " COALESCE(m.extractor_version, 0) AS extractor_version,"
+            " COALESCE(i.perceptual_hash_version, 0) AS perceptual_hash_version"
             " FROM image_locations l"
             " LEFT JOIN file_metadata m ON m.file_hash = l.file_hash"
+            " LEFT JOIN images i ON i.content_hash = l.content_hash"
             " WHERE l.source_id = ?",
             (source_id,),
         )
@@ -152,7 +157,8 @@ def run_scan(
         previous = known.get(relative)
         try:
             stat = file_path.stat()
-            # Step 2: skip unchanged files whose metadata and key are current
+            # Step 2: skip unchanged files whose metadata, key and perceptual
+            # hash are current
             # What the last scan recorded, if the file has not changed since.
             unchanged = (
                 previous if previous is not None and unchanged_since_scan(stat, previous) else None
@@ -161,6 +167,7 @@ def run_scan(
                 unchanged is not None
                 and unchanged["extractor_version"] >= EXTRACTOR_VERSION
                 and unchanged["hash_version"] >= HASH_VERSION
+                and unchanged["perceptual_hash_version"] >= PERCEPTUAL_HASH_VERSION
             ):
                 kept.add(relative)
                 result.skipped += 1
@@ -395,12 +402,14 @@ def _index_file(
         aspect = width / height if height else 1.0
         fmt = file_path.suffix.lstrip(".").upper()
         meta = None
+        perceptual: Optional[int] = None
     else:
         meta = extract_metadata(file_path)
         generate_thumbnail(file_path, dirs.thumbs, h)
         width, height = meta.file_info.width, meta.file_info.height
         aspect = meta.file_info.aspect_ratio
         fmt = meta.file_info.format
+        perceptual = perceptual_hash(file_path)
 
     return _Indexed(
         content_hash=h,
@@ -415,6 +424,7 @@ def _index_file(
         aspect_ratio=aspect,
         format=fmt,
         meta=meta,
+        perceptual_hash=perceptual,
         rekey=rekey_from is not None,
     )
 
@@ -468,18 +478,21 @@ def _upsert_image(conn: sqlite3.Connection, source_id: int, item: _Indexed) -> N
         """INSERT INTO images
            (content_hash, filename, source_id, relative_path,
             file_size, width, height, aspect_ratio, format,
-            file_modified, file_created, thumb_generated)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            file_modified, file_created, thumb_generated,
+            perceptual_hash, perceptual_hash_version)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
            ON CONFLICT(content_hash) DO UPDATE SET
             width=excluded.width,
             height=excluded.height,
             aspect_ratio=excluded.aspect_ratio,
             format=excluded.format,
-            thumb_generated=1
+            thumb_generated=1,
+            perceptual_hash=excluded.perceptual_hash,
+            perceptual_hash_version=excluded.perceptual_hash_version
         """,
         (item.content_hash, item.filename, source_id, item.relative_path,
          item.file_size, item.width, item.height, item.aspect_ratio, item.format,
-         item.file_modified, item.file_created),
+         item.file_modified, item.file_created, item.perceptual_hash, PERCEPTUAL_HASH_VERSION),
     )
 
 
