@@ -39,6 +39,12 @@ export function nextMode(mode: CompareMode, overlay = true): CompareMode {
 	return modes[(modes.indexOf(mode) + 1) % modes.length];
 }
 
+/** Where the wipe's divider stands, in percent of the picture `frame`,
+ * for a pointer at `x`: on the picture's edge when the pointer is past it. */
+export function wipeAt(x: number, frame: { left: number; width: number }): number {
+	return Math.min(100, Math.max(0, ((x - frame.left) / frame.width) * 100));
+}
+
 // Each line: what it shows, and the value it compares (when the text alone
 // would hide a difference, as rounded sizes do).
 const LINES: {

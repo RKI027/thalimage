@@ -3,6 +3,7 @@
 	import {
 		comparisonRows,
 		nextMode,
+		wipeAt,
 		type ComparedImage,
 		type CompareMode,
 		type OverlayKind
@@ -58,6 +59,24 @@
 		}
 	}
 
+	// Dragging anywhere on the picture moves the wipe's divider there.
+	let dragging = false;
+
+	function wipeTo(e: PointerEvent) {
+		amount = wipeAt(e.clientX, (e.currentTarget as HTMLElement).getBoundingClientRect());
+	}
+
+	function startWipe(e: PointerEvent) {
+		if (overlayKind !== 'wipe') return;
+		dragging = true;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		wipeTo(e);
+	}
+
+	function moveWipe(e: PointerEvent) {
+		if (dragging) wipeTo(e);
+	}
+
 	function onKeyup(e: KeyboardEvent) {
 		if (e.key === ' ') holdingReference = false;
 	}
@@ -93,14 +112,9 @@
 					Wipe
 				</button>
 			</div>
-			<input
-				class="amount"
-				type="range"
-				min="0"
-				max="100"
-				bind:value={amount}
-				aria-label={overlayKind === 'blend' ? 'Current image opacity' : 'Divider position'}
-			/>
+			{#if overlayKind === 'blend'}
+				<input class="amount" type="range" min="0" max="100" bind:value={amount} aria-label="Current image opacity" />
+			{/if}
 		{/if}
 		<span class="hint">M view{mode !== 'side' ? ' · hold Space: reference' : ''}</span>
 	</div>
@@ -123,22 +137,36 @@
 			</figure>
 		{:else}
 			<figure class="overlay">
-				<div class="frame" style="--ratio: {reference.detail.width / reference.detail.height}">
-					<img src={previewUrl(reference.detail.content_hash)} alt={reference.detail.filename} />
+				<div
+					class="frame"
+					class:wiping={overlayKind === 'wipe'}
+					style="--ratio: {reference.detail.width / reference.detail.height}"
+					role="presentation"
+					onpointerdown={startWipe}
+					onpointermove={moveWipe}
+					onpointerup={() => (dragging = false)}
+					onpointercancel={() => (dragging = false)}
+				>
+					<img src={previewUrl(reference.detail.content_hash)} alt={reference.detail.filename} draggable="false" />
 					{#if !holdingReference}
 						<img
 							class="top"
+							draggable="false"
 							src={previewUrl(current.detail.content_hash)}
 							alt={current.detail.filename}
 							style={overlayKind === 'blend' ? `opacity: ${amount / 100}` : `clip-path: inset(0 0 0 ${amount}%)`}
 						/>
 						{#if overlayKind === 'wipe'}
-							<div class="wipe-line" style="left: {amount}%"></div>
+							<div class="wipe-line" style="left: {amount}%"><span class="handle"></span></div>
 						{/if}
 					{/if}
 				</div>
 				<figcaption>
-					{holdingReference ? 'Reference' : overlayKind === 'blend' ? `Current at ${amount}%` : 'Reference | Current'}
+					{holdingReference
+						? 'Reference'
+						: overlayKind === 'blend'
+							? `Current at ${Math.round(amount)}%`
+							: 'Reference | Current · drag to wipe'}
 				</figcaption>
 			</figure>
 		{/if}
@@ -256,6 +284,13 @@
 		object-fit: contain;
 	}
 
+	/* No scrolling or zooming while dragging the divider on a touch screen. */
+	.frame.wiping {
+		cursor: ew-resize;
+		touch-action: none;
+		user-select: none;
+	}
+
 	.wipe-line {
 		position: absolute;
 		top: 0;
@@ -264,6 +299,18 @@
 		margin-left: -1px;
 		background: #c9a35b;
 		pointer-events: none;
+	}
+
+	.handle {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: 24px;
+		height: 24px;
+		margin: -12px 0 0 -12px;
+		border: 2px solid #c9a35b;
+		border-radius: 50%;
+		background: rgba(0, 0, 0, 0.6);
 	}
 
 	.metadata {

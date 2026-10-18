@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { comparisonRows, nextMode, type ComparedImage } from './comparison';
+import { comparisonRows, nextMode, wipeAt, type ComparedImage } from './comparison';
 import type { ImageDetail } from './types';
 
 function compared(detail: Partial<ImageDetail> = {}, extra: Partial<ComparedImage> = {}): ComparedImage {
@@ -109,5 +109,16 @@ describe('nextMode', () => {
 
 	it('skips the overlay when the two cannot be overlaid', () => {
 		expect(nextMode('toggle', false)).toBe('side');
+	});
+});
+
+describe('wipeAt', () => {
+	it('places the divider where the pointer is, in percent of the picture', () => {
+		expect(wipeAt(150, { left: 100, width: 200 })).toBe(25);
+	});
+
+	it('keeps it on the picture when the pointer leaves it', () => {
+		expect(wipeAt(50, { left: 100, width: 200 })).toBe(0);
+		expect(wipeAt(400, { left: 100, width: 200 })).toBe(100);
 	});
 });

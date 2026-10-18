@@ -49,10 +49,10 @@ image. Three views show them, switched with the buttons or **M**:
 - **Toggle**: one at a time, filling the view. **T** switches to the
   other.
 - **Overlay**: the current image over the reference, both fitted to the
-  same frame. The slider either **blends** them (how much of the current
-  image shows through) or **wipes** between them (a divider, reference on
-  the left of it). **O** switches between blend and wipe. Videos cannot
-  be overlaid.
+  same frame. **Blend** mixes them, a slider setting how much of the
+  current image shows through; **wipe** splits them at a divider, the
+  reference on its left: press or drag anywhere on the picture to move
+  it. **O** switches between blend and wipe. Videos cannot be overlaid.
 
 In the toggle and overlay views, holding **Space** shows only the
 reference until you let go, to flash between the two.
