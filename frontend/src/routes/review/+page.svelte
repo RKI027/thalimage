@@ -19,7 +19,9 @@
 	let mode: CompareMode = $state('side');
 	let error: string | null = $state(null);
 	let following: string[] = $state([]);
-	let leaving = $state(false);
+	// Where leaving goes once the flags are applied or discarded; null while
+	// reviewing.
+	let leaving: 'back' | 'next' | null = $state(null);
 	let busy = $state(false);
 	let dialog: HTMLDialogElement | undefined = $state();
 
@@ -32,7 +34,7 @@
 		const fromListing = params.has('next');
 		session = null;
 		following = [];
-		leaving = false;
+		leaving = null;
 		if (keys.length < 2) {
 			error = 'A review needs two images or more.';
 			return;
@@ -74,21 +76,26 @@
 		return (image?.copies ?? []).map((c) => `${c.source_path.replace(/\/$/, '')}/${c.relative_path}`);
 	}
 
-	function leave() {
-		goto(backDestination(get(browsingContext)));
+	const hasNext = $derived(following.length >= 2);
+
+	function go(where: 'back' | 'next') {
+		leaving = null;
+		if (where === 'next' && hasNext) goto(`/review?images=${following.join(',')}&next`);
+		else goto(backDestination(get(browsingContext)));
 	}
 
-	function done() {
-		if (session && session.flagged > 0) leaving = true;
-		else leave();
+	/** Leave for `where`, asking first what to do with the flags. */
+	function leave(where: 'back' | 'next') {
+		if (session && session.flagged > 0) leaving = where;
+		else go(where);
 	}
 
 	function failures(result: ImageDeletion): string[] {
 		return result.failed.map((f) => `${f.relative_path}: ${f.error}`);
 	}
 
-	async function apply(thenNext: boolean) {
-		if (!session || session.problem) return;
+	async function apply() {
+		if (!session || session.problem || !leaving) return;
 		const plan = session.plan;
 		busy = true;
 		error = null;
@@ -107,9 +114,7 @@
 			error = `Some files could not be removed: ${failed.join('; ')}`;
 			return;
 		}
-		leaving = false;
-		if (thenNext && following.length >= 2) goto(`/review?images=${following.join(',')}&next`);
-		else leave();
+		go(leaving);
 	}
 
 	function onKeydown(e: KeyboardEvent) {
@@ -120,7 +125,8 @@
 		else if (e.key === 'f') session.makeReference();
 		else if (e.key === 'u') session.undo();
 		else if (action) session.flag(action, e.shiftKey ? 'reference' : 'current');
-		else if (e.key === 'Escape') done();
+		else if (e.key === 'n' && hasNext) leave('next');
+		else if (e.key === 'Escape') leave('back');
 		else return;
 		e.preventDefault();
 	}
@@ -135,16 +141,23 @@
 			href="/"
 			onclick={(e) => {
 				e.preventDefault();
-				done();
+				leave('back');
 			}}>← Back</a
 		>
 		{#if session}
 			<span class="summary">
 				{session.images.length} images · {session.flagged} flagged
-				<span class="hint">←/→ · F reference · A G D flag (Shift: reference) · U undo</span>
+				<span class="hint">←/→ · F reference · A G D flag (Shift: reference) · U undo{hasNext ? ' · N next group' : ''}</span>
 			</span>
 		{/if}
-		<button class="control control-primary" onclick={done} disabled={!session}>Done</button>
+		<div class="leave">
+			{#if hasNext}
+				<button class="control" onclick={() => leave('next')} title="Go on to the next near-duplicate group (N)">
+					Next group
+				</button>
+			{/if}
+			<button class="control control-primary" onclick={() => leave('back')} disabled={!session}>Done</button>
+		</div>
 	</div>
 
 	{#if error && !leaving}
@@ -208,7 +221,7 @@
 	{/if}
 </div>
 
-<dialog bind:this={dialog} oncancel={(e) => (e.preventDefault(), (leaving = false))} aria-labelledby="review-title">
+<dialog bind:this={dialog} oncancel={(e) => (e.preventDefault(), (leaving = null))} aria-labelledby="review-title">
 	{#if session}
 		{@const plan = session.plan}
 		<h3 id="review-title">Apply {session.flagged} {session.flagged === 1 ? 'flag' : 'flags'}?</h3>
@@ -243,16 +256,13 @@
 		</div>
 		<div class="actions">
 			<!-- svelte-ignore a11y_autofocus -->
-			<button class="control" autofocus onclick={() => (leaving = false)} disabled={busy}>Keep reviewing</button>
-			<button class="control" onclick={leave} disabled={busy}>Discard flags</button>
-			<button class="control control-danger" onclick={() => apply(false)} disabled={busy || !!session.problem}>
-				Apply
+			<button class="control" autofocus onclick={() => (leaving = null)} disabled={busy}>Keep reviewing</button>
+			<button class="control" onclick={() => leaving && go(leaving)} disabled={busy}>
+				Discard flags{leaving === 'next' ? ' and go on' : ''}
 			</button>
-			{#if following.length >= 2}
-				<button class="control control-danger" onclick={() => apply(true)} disabled={busy || !!session.problem}>
-					Apply and next group
-				</button>
-			{/if}
+			<button class="control control-danger" onclick={apply} disabled={busy || !!session.problem}>
+				Apply{leaving === 'next' ? ' and go on' : ''}
+			</button>
 		</div>
 	{/if}
 </dialog>
@@ -275,6 +285,11 @@
 		background: #1a1a1a;
 		border-bottom: 1px solid #333;
 		flex-shrink: 0;
+	}
+
+	.leave {
+		display: flex;
+		gap: 8px;
 	}
 
 	.summary {
