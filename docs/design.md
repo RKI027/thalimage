@@ -64,6 +64,16 @@ is described for users in
   picture back on disk withdraws the question by itself. The edit
   threshold is its own setting: near-duplicate search (#110) asks a
   different question.
+- **Merging deletes the merged image's files** (#151,
+  `services/merging.py`): one picture is kept, and the other's tags,
+  collections, votes, scores and file versions go to it through
+  `rekey_image`, as for an edit merged. Keeping the merged files on disk
+  as variants was rejected: it needs images with several different
+  pictures. The files go first, under the rules of deleting an image,
+  since `rekey_image` would otherwise move their locations to the image
+  kept; an image whose files are not all removed keeps its history and
+  is not merged. Votes between the two are dropped, which `rekey_image`
+  does already.
 - **Near-identical pictures are found by a perceptual hash** (#121,
   `core/perceptual_hash.py`): a 64-bit DCT hash (pHash), stored per
   image and compared by the share of differing bits. It decodes the
