@@ -20,6 +20,7 @@
 	class="card"
 	class:nsfw={image.nsfw}
 	class:selected
+	class:odd-group={(image.duplicate_group ?? 0) % 2 === 1}
 	style="width: {size}px; height: {size}px;"
 	{onclick}
 >
@@ -62,6 +63,16 @@
 	.card.selected:hover {
 		outline: 3px solid #6ea8fe;
 		outline-offset: -3px;
+	}
+
+	/* Every other near-duplicate group is framed, so a group's end shows. */
+	.card.odd-group::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border: 3px solid #c9a35b;
+		border-radius: 4px;
+		pointer-events: none;
 	}
 
 	.check {

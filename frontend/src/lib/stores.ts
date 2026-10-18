@@ -20,7 +20,11 @@ function createDataStore<T>(fetcher: () => Promise<T[]>) {
 }
 
 function createSettingsStore() {
-	const { subscribe, set } = writable<UserSettings>({ show_nsfw: false, edit_threshold: 0.25 });
+	const { subscribe, set } = writable<UserSettings>({
+		show_nsfw: false,
+		edit_threshold: 0.25,
+		near_duplicate_threshold: 0.15
+	});
 
 	// Settles after the first refresh, failed or not, so a page can hold its
 	// first fetch until the server's settings (not the defaults) are known.

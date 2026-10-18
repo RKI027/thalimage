@@ -27,7 +27,8 @@ describe('listingQuery', () => {
 				media_type: 'video',
 				tags: ['a b', 'c'],
 				archived: true,
-				possible_edits: true
+				possible_edits: true,
+				near_duplicates: 0.15
 			}
 		});
 		expect(Object.fromEntries(q)).toEqual({
@@ -41,7 +42,8 @@ describe('listingQuery', () => {
 			media_type: 'video',
 			tags: 'c',
 			archived: 'true',
-			possible_edits: 'true'
+			possible_edits: 'true',
+			near_duplicates: '0.15'
 		});
 		expect(q.getAll('tags')).toEqual(['a b', 'c']);
 	});
@@ -114,10 +116,18 @@ describe('ELO requests', () => {
 	it('draws a pair under the collection filters, ELO cut included', async () => {
 		const url = requested();
 		// Voting never draws archived images, whatever the collection's grid
-		// shows, and draws from all images, not only possible edits.
+		// shows, and draws from all images, not only possible edits or
+		// near-duplicates.
 		await getEloPair(
 			3,
-			{ aspect_ratio: 'portrait', elo_end: 'top', elo_percent: 25, archived: true, possible_edits: true },
+			{
+				aspect_ratio: 'portrait',
+				elo_end: 'top',
+				elo_percent: 25,
+				archived: true,
+				possible_edits: true,
+				near_duplicates: 0.2
+			},
 			true
 		);
 		const q = new URL(url(), 'http://x').searchParams;

@@ -10,6 +10,9 @@ export interface ImageSummary {
 	thumb_generated: boolean;
 	archived: boolean;
 	nsfw: boolean;
+	/** The image's near-duplicate group, numbered from 0 in listing order;
+	 * set only in a listing grouped by near-duplicates. */
+	duplicate_group?: number | null;
 }
 
 export interface Tag {
@@ -23,6 +26,9 @@ export interface UserSettings {
 	/** The perceptual distance (0–1) at or under which a picture changed in
 	 * place is offered as an edit of the one it replaced. */
 	edit_threshold: number;
+	/** The perceptual distance (0–0.30) at or under which two images are
+	 * grouped as near-duplicates. */
+	near_duplicate_threshold: number;
 }
 
 export interface BackupConfig {
@@ -180,6 +186,8 @@ export interface FilterState {
 	archived?: boolean;
 	/** Only the images that may be edits of an earlier picture. */
 	possible_edits?: boolean;
+	/** Only the near-duplicates at this threshold, group after group. */
+	near_duplicates?: number;
 }
 
 export type EloEnd = 'top' | 'bottom';
