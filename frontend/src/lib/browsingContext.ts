@@ -69,6 +69,12 @@ export function backLabel(ctx: BrowsingContext | null): string {
 	return `← ${ctx.back?.label ?? ctx.name}`;
 }
 
+/** Whether the context's listing is grouped by near-duplicates. A threshold
+ * of 0 groups too: identical pictures. */
+export function groupsNearDuplicates(ctx: BrowsingContext | null): boolean {
+	return ctx?.filters?.near_duplicates !== undefined;
+}
+
 /** The listing a context shows, so the viewer can walk exactly that. */
 export function contextListing(ctx: BrowsingContext, showNsfw: boolean): ListingParams {
 	const common = { sort: ctx.sort, dir: ctx.dir, filters: ctx.filters, show_nsfw: showNsfw };
