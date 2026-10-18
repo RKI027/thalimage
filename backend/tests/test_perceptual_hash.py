@@ -55,3 +55,11 @@ def test_a_picture_with_transparency_or_a_palette_is_hashed(tmp_path: Path) -> N
 def test_the_hash_fits_a_sqlite_integer(tmp_path: Path) -> None:
     _picture(tmp_path / "a.png")
     assert -(2**63) <= perceptual_hash(tmp_path / "a.png") < 2**63
+
+
+def test_half_the_bits_are_set_split_at_the_true_median(tmp_path: Path) -> None:
+    _picture(tmp_path / "a.png")
+    _picture(tmp_path / "b.png", (-0.8, 0, -0.4, 0.4))
+
+    for name in ("a.png", "b.png"):
+        assert (perceptual_hash(tmp_path / name) & (2**64 - 1)).bit_count() == 32

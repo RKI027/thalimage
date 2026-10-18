@@ -81,6 +81,16 @@ def test_the_threshold_decides_what_looks_alike(
     assert _listed(client, near_duplicates=0.15) == ["a", "b"]
 
 
+def test_the_threshold_rounds_to_the_nearest_bit(
+    client: TestClient, db: sqlite3.Connection
+) -> None:
+    # 0.15 of 64 bits is 9.6: a pair 10 bits apart is within it.
+    _image(db, "a", 0)
+    _image(db, "b", _bits(*range(10)))
+
+    assert _listed(client, near_duplicates=0.15) == ["a", "b"]
+
+
 def test_a_threshold_past_the_widest_is_422(client: TestClient) -> None:
     assert client.get("/api/v1/images", params={"near_duplicates": 0.31}).status_code == 422
 
