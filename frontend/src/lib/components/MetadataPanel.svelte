@@ -5,6 +5,7 @@
 	import TagEditor from './TagEditor.svelte';
 	import { distinctSidecars, type DistinctSidecar } from '$lib/sidecars';
 	import { rankText, splitStandings } from '$lib/eloStanding';
+	import ClippedText from './ClippedText.svelte';
 
 	/** `collectionId` is the collection being browsed: its ELO standing comes first. */
 	let {
@@ -67,19 +68,23 @@
 		<div class="content">
 			<section>
 				<h3>File</h3>
-				<dl>
-					<dt>Name</dt><dd>{image.filename}</dd>
-					{#if image.original_name && image.original_name !== image.filename}
-						<dt>Original name</dt><dd>{image.original_name}</dd>
-					{/if}
-					<dt>Size</dt><dd>{formatSize(image.file_size)}</dd>
-					<dt>Format</dt><dd>{image.format}</dd>
-					<dt>Dimensions</dt><dd>{image.width} × {image.height}</dd>
-					<dt>Aspect</dt><dd>{image.aspect_ratio.toFixed(2)}</dd>
-					<dt>Modified</dt><dd>{new Date(image.file_modified).toLocaleString()}</dd>
-					{#if image.file_created}
-						<dt>Created</dt><dd>{new Date(image.file_created).toLocaleString()}</dd>
-					{/if}
+				<!-- One line per field, every field always there, so values sit in
+				     the same place from one image to the next. -->
+				<dl class="file">
+					<dt>Name</dt><dd><ClippedText text={image.filename} /></dd>
+					<dt>Original name</dt>
+					<dd>
+						<ClippedText
+							text={image.original_name && image.original_name !== image.filename ? image.original_name : '—'}
+						/>
+					</dd>
+					<dt>Size</dt><dd><ClippedText text={formatSize(image.file_size)} /></dd>
+					<dt>Format</dt><dd><ClippedText text={image.format} /></dd>
+					<dt>Dimensions</dt><dd><ClippedText text="{image.width} × {image.height}" /></dd>
+					<dt>Aspect</dt><dd><ClippedText text={image.aspect_ratio.toFixed(2)} /></dd>
+					<dt>Modified</dt><dd><ClippedText text={new Date(image.file_modified).toLocaleString()} /></dd>
+					<dt>Created</dt>
+					<dd><ClippedText text={image.file_created ? new Date(image.file_created).toLocaleString() : '—'} /></dd>
 				</dl>
 			</section>
 
@@ -224,6 +229,14 @@
 		margin: 0;
 		color: #ccc;
 		word-break: break-word;
+	}
+
+	dl.file {
+		grid-template-columns: auto minmax(0, 1fr);
+	}
+
+	dl.file dd {
+		min-width: 0;
 	}
 
 	.wrap {
