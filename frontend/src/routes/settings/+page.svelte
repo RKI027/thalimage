@@ -151,6 +151,27 @@
 				onchange={() => settingsStore.patch({ show_nsfw: !$settingsStore.show_nsfw })}
 			/>
 		</div>
+		<div class="pref-row">
+			<label
+				for="edit-threshold"
+				title="How different a picture changed in place may look and still be offered as an edit of the one it replaced, from 0 (identical) to 1"
+			>
+				Edit detection threshold
+			</label>
+			<input
+				id="edit-threshold"
+				class="control threshold"
+				type="number"
+				min="0"
+				max="1"
+				step="0.01"
+				value={$settingsStore.edit_threshold}
+				onchange={(e) => {
+					const value = (e.target as HTMLInputElement).valueAsNumber;
+					if (value >= 0 && value <= 1) settingsStore.patch({ edit_threshold: value });
+				}}
+			/>
+		</div>
 	</section>
 
 	<BackupSettings />
@@ -337,6 +358,11 @@
 	.pref-row label {
 		flex: 1;
 		cursor: pointer;
+	}
+
+	.pref-row .threshold {
+		width: 5em;
+		flex: none;
 	}
 
 	.pref-row input[type='checkbox'] {

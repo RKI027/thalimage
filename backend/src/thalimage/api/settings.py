@@ -3,7 +3,7 @@
 import sqlite3
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from thalimage.deps import get_db
 from thalimage.services import user_settings
@@ -14,6 +14,7 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 class UserSettingsPatch(BaseModel):
     show_nsfw: bool | None = None
+    edit_threshold: float | None = Field(None, ge=0, le=1)
 
 
 @router.get("", response_model=UserSettings)
@@ -26,4 +27,4 @@ def patch_user_settings(
     body: UserSettingsPatch,
     db: sqlite3.Connection = Depends(get_db),
 ) -> UserSettings:
-    return user_settings.write(db, show_nsfw=body.show_nsfw)
+    return user_settings.write(db, show_nsfw=body.show_nsfw, edit_threshold=body.edit_threshold)
