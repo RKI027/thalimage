@@ -28,7 +28,11 @@ describe('settingsStore.loaded', () => {
 	});
 
 	it('resolves once the server settings are in the store', async () => {
-		vi.mocked(getSettings).mockResolvedValue({ show_nsfw: true, edit_threshold: 0.25 });
+		vi.mocked(getSettings).mockResolvedValue({
+			show_nsfw: true,
+			edit_threshold: 0.25,
+			near_duplicate_threshold: 0.15
+		});
 		const store = await freshSettingsStore();
 		store.refresh();
 		await store.loaded;

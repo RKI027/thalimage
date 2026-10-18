@@ -74,6 +74,8 @@ export function listingQuery(params: ListingParams): URLSearchParams {
 		if (params.filters.tags) params.filters.tags.forEach((t) => q.append('tags', t));
 		if (params.filters.archived) q.set('archived', 'true');
 		if (params.filters.possible_edits) q.set('possible_edits', 'true');
+		if (params.filters.near_duplicates !== undefined)
+			q.set('near_duplicates', String(params.filters.near_duplicates));
 	}
 	return q;
 }

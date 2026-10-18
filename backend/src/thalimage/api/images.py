@@ -44,6 +44,7 @@ from thalimage.services.image_service import (
     sequence,
     set_archived,
 )
+from thalimage.services.near_duplicates import WIDEST_THRESHOLD
 from thalimage.services.picture_edits import keep_separate, merge, possible_edit_of
 
 logger = logging.getLogger(__name__)
@@ -93,6 +94,7 @@ def listing(
     elo_percent: Optional[int] = Query(None, ge=1, le=100),
     archived: bool = Query(False),
     possible_edits: bool = Query(False),
+    near_duplicates: Optional[float] = Query(None, ge=0, le=WIDEST_THRESHOLD),
     db: sqlite3.Connection = Depends(get_db),
 ) -> Listing:
     """The query parameters every listing route reads, as a Listing."""
@@ -123,6 +125,7 @@ def listing(
             elo_cut=cut,
             archived=archived,
             possible_edits=possible_edits,
+            near_duplicates=near_duplicates,
         ),
         browsed_collection_id=browsed_collection_id,
     )

@@ -172,6 +172,27 @@
 				}}
 			/>
 		</div>
+		<div class="pref-row">
+			<label
+				for="near-duplicate-threshold"
+				title="How different two pictures may look and still be grouped by the Alike filter, from 0 (identical) to 0.30"
+			>
+				Near-duplicate threshold
+			</label>
+			<input
+				id="near-duplicate-threshold"
+				class="control threshold"
+				type="number"
+				min="0"
+				max="0.3"
+				step="0.01"
+				value={$settingsStore.near_duplicate_threshold}
+				onchange={(e) => {
+					const value = (e.target as HTMLInputElement).valueAsNumber;
+					if (value >= 0 && value <= 0.3) settingsStore.patch({ near_duplicate_threshold: value });
+				}}
+			/>
+		</div>
 	</section>
 
 	<BackupSettings />

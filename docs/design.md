@@ -75,6 +75,34 @@ is described for users in
   brought unrelated pairs closer; 256-bit hashes broke on crops. Our own
   code on Pillow, not `imagehash`, which pulls numpy, scipy and
   PyWavelets. Videos get none.
+- **Near-duplicates are grouped around a start, not chained** (#110,
+  `services/near_duplicates.py`): the first image left in the listing's
+  order starts a group of every image left within the threshold of it.
+  Chaining pairs drifts, so two unrelated pictures could share a group
+  through a third. Overlapping groups (each image with all its near
+  pictures) were wanted, but the grid shows each image once and the
+  viewer steps through it, so an image takes one group: a pair split
+  between two groups is the cost. The groups are a filter of the
+  ordinary listing, so paging, the viewer and bulk actions work on them
+  unchanged; the listing writes them to a per-connection temp table its
+  queries read. An image in no group keeps its place in the sort there,
+  so the viewer, left on one whose pair was just deleted, steps on to the
+  groups around it.
+- **All pairs are compared once, in memory, then kept up to date.** Every
+  pair within 0.30 is kept, so the threshold moves without recomputing.
+  The first grouped listing after a start compares all pairs, about 2 s
+  at 10k images in pure Python; afterwards only images added or changed
+  are compared and those gone dropped (20 ms for a deletion, 70 ms for
+  100 new images). Recomputing everything on each change stalled the
+  viewer and the grid after every deletion. The pairs are also written to
+  `cache/near-duplicates.json` after each change (1.4 MB and 25 ms at
+  10k) and read at startup, so a restart only compares what changed
+  meanwhile. The file holds the hashes it was computed from, so a stale
+  one costs comparisons, never wrong groups. It sits in the cache, not
+  the database: it is derived, and would only bloat the backups. A VP-tree was measured at 4x slower: 64-bit
+  Hamming distance takes few values and prunes little within 10 bits,
+  and each node visit is a Python call. Revisit (a multi-index on hash
+  blocks, or storing pairs at scan) if the library grows well past 10k.
 - **Merging replays ELO** rather than combining scores: `elo_scores`
   holds running scores, so the merged image's votes are replayed in order
   (`replay_scores`), and only in the collections they touched, so a

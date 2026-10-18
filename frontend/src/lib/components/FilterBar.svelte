@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { withEloCut } from '$lib/eloCut';
 	import { withFilters } from '$lib/filters';
+	import { settingsStore } from '$lib/stores';
 	import type { EloEnd, FilterState } from '$lib/types';
 
 	let {
@@ -29,6 +30,17 @@
 
 	function update(patch: Partial<FilterState>) {
 		onchange?.(withFilters(filters, patch));
+	}
+
+	// The threshold shown while its slider moves; the listing regroups once
+	// it is let go.
+	let draggedThreshold: number | undefined = $state();
+	const shownThreshold = $derived(draggedThreshold ?? filters.near_duplicates ?? 0);
+
+	function setThreshold(value: number) {
+		draggedThreshold = undefined;
+		update({ near_duplicates: value });
+		settingsStore.patch({ near_duplicate_threshold: value });
 	}
 </script>
 
@@ -138,6 +150,44 @@
 			<option value="only">Possible edits</option>
 		</select>
 	</div>
+
+	<div class="filter-group">
+		<label for="filter-near-duplicates">Alike</label>
+		<select
+			id="filter-near-duplicates"
+			class="control"
+			title="Near-duplicates: images that look like another, group after group"
+			value={filters.near_duplicates === undefined ? '' : 'grouped'}
+			onchange={(e) =>
+				update({
+					near_duplicates:
+						(e.target as HTMLSelectElement).value === 'grouped'
+							? $settingsStore.near_duplicate_threshold
+							: undefined
+				})}
+		>
+			<option value="">All images</option>
+			<option value="grouped">Near-duplicates</option>
+		</select>
+	</div>
+
+	{#if filters.near_duplicates !== undefined}
+		<div class="filter-group">
+			<label for="filter-near-threshold">Threshold</label>
+			<input
+				id="filter-near-threshold"
+				type="range"
+				min="0"
+				max="0.3"
+				step="0.01"
+				title="How different two pictures may look and still be grouped, from 0 (identical)"
+				value={filters.near_duplicates}
+				oninput={(e) => (draggedThreshold = (e.target as HTMLInputElement).valueAsNumber)}
+				onchange={(e) => setThreshold((e.target as HTMLInputElement).valueAsNumber)}
+			/>
+			<span class="unit">{shownThreshold.toFixed(2)}</span>
+		</div>
+	{/if}
 
 	{#if allowElo}
 		<div class="filter-group">
