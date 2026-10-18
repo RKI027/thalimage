@@ -123,18 +123,20 @@
 			</figure>
 		{:else}
 			<figure class="overlay">
-				<img src={previewUrl(reference.detail.content_hash)} alt={reference.detail.filename} />
-				{#if !holdingReference}
-					<img
-						class="top"
-						src={previewUrl(current.detail.content_hash)}
-						alt={current.detail.filename}
-						style={overlayKind === 'blend' ? `opacity: ${amount / 100}` : `clip-path: inset(0 0 0 ${amount}%)`}
-					/>
-					{#if overlayKind === 'wipe'}
-						<div class="wipe-line" style="left: {amount}%"></div>
+				<div class="frame" style="--ratio: {reference.detail.width / reference.detail.height}">
+					<img src={previewUrl(reference.detail.content_hash)} alt={reference.detail.filename} />
+					{#if !holdingReference}
+						<img
+							class="top"
+							src={previewUrl(current.detail.content_hash)}
+							alt={current.detail.filename}
+							style={overlayKind === 'blend' ? `opacity: ${amount / 100}` : `clip-path: inset(0 0 0 ${amount}%)`}
+						/>
+						{#if overlayKind === 'wipe'}
+							<div class="wipe-line" style="left: {amount}%"></div>
+						{/if}
 					{/if}
-				{/if}
+				</div>
 				<figcaption>
 					{holdingReference ? 'Reference' : overlayKind === 'blend' ? `Current at ${amount}%` : 'Reference | Current'}
 				</figcaption>
@@ -231,7 +233,18 @@
 	}
 
 	.overlay {
+		align-items: center;
+		justify-content: center;
 		background: #000;
+		container-type: size;
+	}
+
+	/* The reference's shape, as large as the pane allows: the blend and the
+	   wipe are measured on the picture, not on the bars around it. */
+	.frame {
+		position: relative;
+		width: min(100cqw, 100cqh * var(--ratio));
+		aspect-ratio: var(--ratio);
 	}
 
 	/* Both pictures fitted to the same frame, the current one on top. */
