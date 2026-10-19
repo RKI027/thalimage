@@ -4,6 +4,9 @@ A DCT hash (pHash): the picture in greyscale at 32x32, transformed, keeps
 one bit per low frequency, set when that frequency is above their median:
 half the bits are set (fewer only where frequencies tie at the median),
 so two hashes nearly always differ by an even count of bits.
+A picture that is not square is centred on a white square first, rather
+than stretched: measured on a library, that held edits as close with a
+quarter of the unrelated pictures coming as near (#158).
 Resizing, re-encoding and colour changes move few bits; cropping moves
 more the more is cut. Unlike the picture hash, it decodes the picture:
 decoders disagreeing on a few pixels shift it by a bit at most.
@@ -16,7 +19,7 @@ from pathlib import Path
 from PIL import Image
 
 # Raised when the hash changes, so the next scan computes it again.
-PERCEPTUAL_HASH_VERSION = 2
+PERCEPTUAL_HASH_VERSION = 3
 
 _SIZE = 32  # the side of the greyscale picture transformed
 _KEPT = 8  # the lowest frequencies kept, per axis: 64 bits
@@ -30,11 +33,12 @@ _COSINES = [
 
 def perceptual_hash(path: Path) -> int:
     """The picture's perceptual hash, as a signed 64-bit integer (what
-    SQLite stores). Transparent areas count as white."""
+    SQLite stores). Transparent areas and the padding count as white."""
     with Image.open(path) as img:
         rgba = img.convert("RGBA")
-    flat = Image.new("RGBA", rgba.size, "white")
-    flat.alpha_composite(rgba)
+    side = max(rgba.size)
+    flat = Image.new("RGBA", (side, side), "white")
+    flat.alpha_composite(rgba, ((side - rgba.width) // 2, (side - rgba.height) // 2))
     grey = flat.convert("L").resize((_SIZE, _SIZE), Image.Resampling.LANCZOS)
     pixels = grey.tobytes()
     rows = [pixels[y * _SIZE : (y + 1) * _SIZE] for y in range(_SIZE)]
