@@ -122,6 +122,44 @@ is described for users in
   (`replay_scores`), and only in the collections they touched, so a
   change of formula does not shift scores elsewhere.
 
+## Image analysis
+
+Decided by the evaluation (#164) for auto-tagging (#126), before it is
+built. Measured on a copy of a library of 11,730 pictures, against
+graded pairs: same picture (resize, re-encode), edit (crops of 5% and
+10%, blur, colour), re-render (same prompt and seed, another model),
+variation (same prompt, another seed), and unrelated.
+
+- **Embeddings find edits; the perceptual hash stays as the fallback.**
+  DINOv2 and SigLIP2 held every edit apart from every unrelated pair; the
+  hash missed some 10% crops. The hash still decides edits during a scan,
+  before the worker has seen the new picture, and near-duplicates where
+  no worker runs. It pads the picture to a square instead of stretching
+  it (#158): a quarter of the false positives at the same recall (0.4%
+  against 1.6%). 16×16 hashes did worse than 8×8 however the picture was
+  fitted.
+- **No model tells a re-render from a variation**: their distances
+  overlap (DINOv2 medians 0.19 and 0.19). Near-duplicates are a
+  threshold the user slides, with marks where edits and same-generation
+  pictures fall for the model in use; past the edit mark, re-renders and
+  variations come in together.
+- **Groups are formed by complete linkage**: every pair in a group is
+  within the threshold. Connected components chained 3,861 pictures into
+  one group; groups around a start depend on the order (36,209 pairs
+  changed between newest and oldest first). The merge tree is built once
+  and the slider only cuts it.
+- **The analysis image is the original, decoded and shrunk to 1280,
+  sent losslessly**, not the WebP preview. Shrinking flipped 4-6 of
+  8,465 pairs across the thresholds, as much as fp16 did; the lossy
+  preview flipped 15-82. Sending it through the real transport must be
+  checked end to end against the in-memory image.
+- **fp32, on CPU or GPU.** CPU and GPU agreed to 1e-6 with no flips, so
+  the runtime is recorded but not part of a vector's version. fp16 moved
+  distances by up to 0.005. On the CPU the evaluation took 0.6 s a
+  picture for five models and the hashes.
+- The primary embedding (DINOv2 or SigLIP2) is left to the decision
+  gate of #164, with the tagging experiments.
+
 ## Renaming files
 
 - **Files are renamed to their picture hash** (#14), not a GUID: the
