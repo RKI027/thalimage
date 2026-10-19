@@ -137,6 +137,9 @@
 		{#if collection}
 			<a class="control" href="/collections/{collection.id}/rankings">Rankings</a>
 			<a class="control" href="/elo/{collection.id}">ELO Vote</a>
+			{#if collection.type === 'manual'}
+				<a class="control" href="/label/{collection.id}">Label</a>
+			{/if}
 		{/if}
 	{/snippet}
 	{#snippet sheetExtras()}
@@ -152,6 +155,9 @@
 		{#if collection}
 			<a class="control elo-sheet-link" href="/collections/{collection.id}/rankings">Rankings</a>
 			<a class="control elo-sheet-link" href="/elo/{collection.id}">ELO Vote</a>
+			{#if collection.type === 'manual'}
+				<a class="control elo-sheet-link" href="/label/{collection.id}">Label</a>
+			{/if}
 		{/if}
 	{/snippet}
 </GridToolbar>

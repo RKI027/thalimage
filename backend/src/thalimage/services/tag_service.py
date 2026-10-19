@@ -131,3 +131,32 @@ def untag_images(conn: sqlite3.Connection, tag_id: int, hashes: list[str]) -> in
     )
     conn.commit()
     return conn.total_changes - before
+
+
+class ImageLabels(BaseModel):
+    content_hash: str
+    labels: list[str]
+
+
+def collection_labels(
+    conn: sqlite3.Connection, collection_id: int, namespaces: list[str]
+) -> list[ImageLabels]:
+    """Each live image of a manual collection, in the order it was added,
+    with its tags named `<namespace>:<value>` in one of `namespaces`."""
+    prefixes = tuple(f"{n}:" for n in namespaces)
+    rows = conn.execute(
+        """SELECT ci.content_hash, t.name
+           FROM collection_images ci
+           JOIN images i ON i.content_hash = ci.content_hash AND i.deleted = 0
+           LEFT JOIN image_tags it ON it.image_hash = ci.content_hash
+           LEFT JOIN tags t ON t.id = it.tag_id
+           WHERE ci.collection_id = ?
+           ORDER BY ci.rowid, t.name""",
+        (collection_id,),
+    ).fetchall()
+    out: dict[str, list[str]] = {}
+    for content_hash, name in rows:
+        labels = out.setdefault(content_hash, [])
+        if name is not None and name.startswith(prefixes):
+            labels.append(name)
+    return [ImageLabels(content_hash=h, labels=names) for h, names in out.items()]

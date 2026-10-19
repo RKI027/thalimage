@@ -28,6 +28,7 @@ import type {
 	SequenceItem,
 	VersionInfo
 } from './types';
+import type { ImageLabels } from './labels';
 
 const BASE = '/api/v1';
 
@@ -410,6 +411,13 @@ export function getEloStats(collectionId: number, top = 20): Promise<EloStats> {
 }
 
 // Tags
+
+/** The collection's images with their tags in `namespaces`, in the order
+ * they were added. */
+export function getCollectionLabels(collectionId: number, namespaces: string[]): Promise<ImageLabels[]> {
+	const q = new URLSearchParams(namespaces.map((n) => ['namespace', n]));
+	return fetchJSON(`${BASE}/collections/${collectionId}/labels?${q}`);
+}
 
 export function listTags(search?: string): Promise<Tag[]> {
 	const q = search ? `?search=${encodeURIComponent(search)}` : '';
