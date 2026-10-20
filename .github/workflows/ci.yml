@@ -28,8 +28,30 @@ jobs:
 
       # The video tests (requires_ffmpeg) skip without it. A static build
       # (ffmpeg and ffprobe) installs in seconds, where apt takes ~17 s.
-      # Pinned to a commit: the latest tag still runs on Node 20.
-      - uses: federicocarboni/setup-ffmpeg@8073ccb51e517ed576e6871c7f2360c6de4ebb7c # main, 2026-06-01
+      # BtbN's GitHub release first, johnvansickle.com if that fails; the
+      # two archives lay out their binaries differently, hence the find.
+      - name: Install ffmpeg
+        run: |
+          dest="$RUNNER_TEMP/ffmpeg"
+          mkdir -p "$dest/bin"
+          for url in \
+            https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz \
+            https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+          do
+            rm -rf "$dest/src" && mkdir -p "$dest/src"
+            if curl -fsSL --retry 3 --connect-timeout 20 "$url" | tar -xJ -C "$dest/src" &&
+               find "$dest/src" -type f \( -name ffmpeg -o -name ffprobe \) -exec mv {} "$dest/bin/" \; &&
+               "$dest/bin/ffmpeg" -version >/dev/null && "$dest/bin/ffprobe" -version >/dev/null
+            then
+              break
+            fi
+            echo "::warning::ffmpeg download failed: $url"
+          done
+          if ! "$dest/bin/ffmpeg" -version | head -1; then
+            echo "::error::Could not install ffmpeg"
+            exit 1
+          fi
+          echo "$dest/bin" >> "$GITHUB_PATH"
 
       - run: make install
       - run: make fe-install
