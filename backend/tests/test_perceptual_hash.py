@@ -63,3 +63,15 @@ def test_half_the_bits_are_set_split_at_the_true_median(tmp_path: Path) -> None:
 
     for name in ("a.png", "b.png"):
         assert (perceptual_hash(tmp_path / name) & (2**64 - 1)).bit_count() == 32
+
+
+def test_a_picture_framed_by_white_borders_is_the_same_picture(tmp_path: Path) -> None:
+    # A non-square picture is padded with white to a square, not stretched:
+    # bordering it in white up to that square changes nothing.
+    img = Image.effect_mandelbrot((256, 128), (-2, -1, 1, 0.5), 100).convert("RGB")
+    img.save(tmp_path / "wide.png")
+    framed = Image.new("RGB", (256, 256), "white")
+    framed.paste(img, (0, 64))
+    framed.save(tmp_path / "framed.png")
+
+    assert distance(perceptual_hash(tmp_path / "wide.png"), perceptual_hash(tmp_path / "framed.png")) == 0

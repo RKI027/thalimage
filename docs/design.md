@@ -88,7 +88,12 @@ is described for users in
   two middle frequencies (#155): the upper middle one alone moved with
   the gap between them, enough to rank an unrelated picture closer than
   a re-render. Half the bits being set, distances go in steps of 2/64;
-  thresholds round to the nearest bit.
+  thresholds round to the nearest bit. A picture that is not square is padded
+  with white to a square, not stretched (#158): on an 11,730-picture
+  library, at the distance keeping 95% of edits, 0.4% of unrelated pairs
+  came as near against 1.6% stretched. Padding moved edits closer by a
+  bit or two, so the defaults stayed: 0.25 for edits still keeps the
+  unrelated reference pair of #155 (0.28) out.
 - **Near-duplicates are grouped around a start, not chained** (#110,
   `services/near_duplicates.py`): the first image left in the listing's
   order starts a group of every image left within the threshold of it.
