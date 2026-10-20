@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 
-from tests.helpers import scan_source
+from tests.helpers import insert_image, scan_source
 
 
 def test_list_collections_empty(client: TestClient) -> None:
@@ -200,3 +200,28 @@ def test_source_preset_counts_copies_in_one_source_once(
     presets = client.get("/api/v1/collections?type=source_preset").json()
     preset = next(p for p in presets if p["source_id"] == source_id)
     assert preset["image_count"] == len(hashes)
+
+
+def test_labels_lists_each_image_with_its_tags_in_the_namespaces_asked(
+    client: TestClient, db: sqlite3.Connection
+) -> None:
+    a, b, c = (insert_image(db, ch * 64) for ch in "abc")
+    cid = client.post("/api/v1/collections", json={"name": "Labelling"}).json()["id"]
+    client.post(f"/api/v1/collections/{cid}/images", json={"hashes": [b, a, c]})
+    for name, hashes in (("medium:photographic", [a, b]), ("rating:sfw", [a]), ("landscape", [a, c])):
+        tid = client.post("/api/v1/tags", json={"name": name}).json()["id"]
+        client.post(f"/api/v1/tags/{tid}/images", json={"hashes": hashes})
+    db.execute("UPDATE images SET deleted = 1 WHERE content_hash = ?", (c,))
+    db.commit()
+
+    resp = client.get(f"/api/v1/collections/{cid}/labels", params={"namespace": ["medium", "rating"]})
+
+    assert resp.status_code == 200
+    assert resp.json() == [
+        {"content_hash": b, "labels": ["medium:photographic"]},
+        {"content_hash": a, "labels": ["medium:photographic", "rating:sfw"]},
+    ]
+
+
+def test_labels_of_an_unknown_collection_is_404(client: TestClient) -> None:
+    assert client.get("/api/v1/collections/999/labels").status_code == 404
