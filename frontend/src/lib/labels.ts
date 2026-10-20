@@ -45,7 +45,7 @@ export const VOCABULARY: Namespace[] = [
 		]
 	},
 	{ name: 'rating', multiple: false, values: ['sfw', 'suggestive', 'erotic', 'porn'] },
-	{ name: 'age', multiple: true, values: ['none', 'child', 'teen', 'adult', 'senior'] }
+	{ name: 'age', multiple: true, values: ['none', 'child', 'teen', 'indeterminate', 'adult', 'senior'] }
 ];
 
 function namespaceOf(label: string): string {
