@@ -4,13 +4,15 @@ archived images."""
 
 import os
 import shutil
+import time
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image, PngImagePlugin
 
-from tests.helpers import scan_source
+from tests.helpers import ensure_source, insert_image, scan_source
+from thalimage.services.source_summary import Sidecar, source_summary
 
 
 def _summary(client: TestClient, source_id: int) -> dict:
@@ -60,6 +62,50 @@ def test_each_copy_has_its_file_version(client: TestClient, image_dir: Path) -> 
     assert group["paths"] == ["p-copy.png", "p-edit.png", "p.png"]
     assert versions["p.png"] == versions["p-copy.png"]
     assert versions["p-edit.png"] != versions["p.png"]
+
+
+def test_a_summary_with_many_copies_reads_no_folders(
+    db, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The summary used to list the folder once per duplicate path, then
+    read every sidecar in it again: O(paths x folder size)."""
+    source_id = ensure_source(db, str(tmp_path / "source"))
+    content_hash = "a" * 64
+    insert_image(db, content_hash, source_id=source_id, filename="img0000.png")
+    db.execute("DELETE FROM image_locations WHERE source_id = ?", (source_id,))
+    db.executemany(
+        "INSERT INTO image_locations"
+        " (source_id, relative_path, content_hash, filename, file_size, file_modified)"
+        " VALUES (?, ?, ?, ?, 1, '2024-01-01T00:00:00')",
+        [(source_id, f"img{i:04}.png", content_hash, f"img{i:04}.png") for i in range(1000)],
+    )
+    db.executemany(
+        "INSERT INTO sidecars"
+        " (source_id, relative_path, digest, file_size, file_modified, orphan)"
+        " VALUES (?, ?, 'd', 1, '2024-01-01T00:00:00', ?)",
+        [
+            (source_id, f"img{i:04}.txt" if i < 1000 else f"other{i:04}.txt", int(i >= 1000))
+            for i in range(5000)
+        ],
+    )
+    db.commit()
+
+    def no_listing(self: Path) -> None:
+        raise AssertionError(f"listed {self}")
+
+    monkeypatch.setattr(Path, "iterdir", no_listing)
+    started = time.perf_counter()
+    summary = source_summary(db, source_id)
+    elapsed = time.perf_counter() - started
+
+    assert summary is not None
+    [group] = summary.duplicates
+    assert len(group.paths) == 1000
+    assert group.sidecars["img0000.png"] == [
+        Sidecar(relative_path="img0000.txt", digest="d")
+    ]
+    assert summary.orphans == [f"other{i:04}.txt" for i in range(1000, 5000)]
+    assert elapsed < 1.0
 
 
 def test_a_file_that_fails_is_listed_with_its_reason(client: TestClient, image_dir: Path) -> None:
