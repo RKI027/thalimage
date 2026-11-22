@@ -9,9 +9,13 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from thalimage.core.sidecars import claimed, sidecars_of
-from thalimage.services.file_changes import change_file, writable_root
+from thalimage.services.file_changes import (
+    change_file,
+    location_row,
+    still_as_scanned,
+    writable_root,
+)
 from thalimage.services.locations import sync_images
-from thalimage.services.scan_service import unchanged_since_scan
 
 
 class UnknownCopy(ValueError):
@@ -48,12 +52,6 @@ class _Target:
     location: sqlite3.Row
 
 
-_LOCATION = (
-    "SELECT content_hash, file_modified, file_size FROM image_locations"
-    " WHERE source_id = ? AND relative_path = ?"
-)
-
-
 def delete_copies(conn: sqlite3.Connection, source_id: int, paths: list[str]) -> DeletionResult:
     """Delete these files (relative to the source) from disk, each a copy
     of an image that keeps at least one other copy.
@@ -67,7 +65,7 @@ def delete_copies(conn: sqlite3.Connection, source_id: int, paths: list[str]) ->
     root = writable_root(conn, source_id)
     targets = []
     for path in dict.fromkeys(paths):
-        row = conn.execute(_LOCATION, (source_id, path)).fetchone()
+        row = location_row(conn, source_id, path)
         if row is None:
             raise UnknownCopy(f"{path} is not an indexed file of this source.")
         targets.append(_Target(source_id, root, path, row))
@@ -132,15 +130,11 @@ def delete_images(conn: sqlite3.Connection, hashes: list[str]) -> DeletionResult
     """
     copies = [c for h in dict.fromkeys(hashes) for c in image_copies(conn, h) or []]
     roots = {c.source_id: writable_root(conn, c.source_id) for c in copies}
-    targets = [
-        _Target(
-            c.source_id,
-            roots[c.source_id],
-            c.relative_path,
-            conn.execute(_LOCATION, (c.source_id, c.relative_path)).fetchone(),
-        )
-        for c in copies
-    ]
+    targets = []
+    for c in copies:
+        location = location_row(conn, c.source_id, c.relative_path)
+        assert location is not None  # image_copies came from these rows
+        targets.append(_Target(c.source_id, roots[c.source_id], c.relative_path, location))
     return _remove(conn, targets)
 
 
@@ -149,11 +143,7 @@ def _remove(conn: sqlite3.Connection, targets: list[_Target]) -> DeletionResult:
     recording every attempt and dropping its location. Each file's sidecars
     go with it, unless another media file in its folder claims them."""
     for t in targets:
-        try:
-            unchanged = unchanged_since_scan((t.root / t.path).stat(), t.location)
-        except FileNotFoundError:
-            unchanged = False
-        if not unchanged:
+        if not still_as_scanned(conn, t.source_id, t.root, t.path, t.location):
             raise DeletionRefused(f"{t.path} changed since the last scan; rescan first.")
 
     result = DeletionResult()

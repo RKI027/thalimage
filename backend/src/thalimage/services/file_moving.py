@@ -17,10 +17,15 @@ from pathlib import Path, PurePath
 
 from thalimage.core.sidecars import claimed, digest, renamed_for, sidecars_of
 from thalimage.services.file_access import describe, read_error
-from thalimage.services.file_changes import change_file, record_change, writable_root
+from thalimage.services.file_changes import (
+    change_file,
+    location_row,
+    record_change,
+    still_as_scanned,
+    writable_root,
+)
 from thalimage.services.file_deletion import UnknownCopy, remove_copy
 from thalimage.services.locations import sync_images
-from thalimage.services.scan_service import unchanged_since_scan
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +60,6 @@ class _Copy:
     location: sqlite3.Row
 
 
-_LOCATION = (
-    "SELECT content_hash, file_modified, file_size FROM image_locations"
-    " WHERE source_id = ? AND relative_path = ?"
-)
-
-
 def move_copies(
     conn: sqlite3.Connection, source_id: int, to_source_id: int, paths: list[str]
 ) -> MoveResult:
@@ -88,7 +87,7 @@ def move_copies(
         for path in dict.fromkeys(paths)
     ]
     for t in targets:
-        if not _unchanged(t):
+        if not still_as_scanned(conn, t.source_id, t.root, t.path, t.location):
             raise MoveRefused(f"{t.path} changed since the last scan; rescan first.")
     destinations = [t.target for t in targets if not t.left_behind]
     if len(set(destinations)) < len(destinations):
@@ -109,7 +108,7 @@ def _resolve(
     path: str,
 ) -> _Copy:
     """Where the file goes, refusing a destination another file holds."""
-    row = conn.execute(_LOCATION, (source_id, path)).fetchone()
+    row = location_row(conn, source_id, path)
     if row is None:
         raise UnknownCopy(f"{path} is not an indexed file of this source.")
     content_hash = row["content_hash"]
@@ -136,15 +135,7 @@ def _resolve(
 
 
 def _indexed(conn: sqlite3.Connection, source_id: int, path: str) -> sqlite3.Row | None:
-    row: sqlite3.Row | None = conn.execute(_LOCATION, (source_id, path)).fetchone()
-    return row
-
-
-def _unchanged(t: _Copy) -> bool:
-    try:
-        return unchanged_since_scan((t.root / t.path).stat(), t.location)
-    except FileNotFoundError:
-        return False
+    return location_row(conn, source_id, path)
 
 
 def _move(conn: sqlite3.Connection, t: _Copy, result: MoveResult) -> None:

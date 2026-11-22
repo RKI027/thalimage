@@ -3,7 +3,8 @@
 import sqlite3
 
 from tests.test_elo_service import _seed_collection_with_images
-from thalimage.services.elo_service import get_rankings, record_vote, replay_scores
+from thalimage.services.elo_service import get_rankings, record_vote
+from thalimage.services.scoring import replay_scores
 
 # (winner, loser) by index into the seeded images.
 VOTES = [(0, 1), (2, 0), (0, 3), (1, 2), (3, 1), (0, 2), (2, 3)]

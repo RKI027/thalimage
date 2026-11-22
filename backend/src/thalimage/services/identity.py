@@ -4,7 +4,7 @@ the new key if there is one."""
 import json
 import sqlite3
 
-from thalimage.services.elo_service import replay_scores
+from thalimage.services.scoring import replay_scores
 from thalimage.services.locations import EARLIEST_CREATED
 
 # Tables holding an image key, and its column. votes is handled apart: a

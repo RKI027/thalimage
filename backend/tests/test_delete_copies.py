@@ -123,6 +123,18 @@ def test_a_file_changed_since_the_scan_is_refused(
     assert (image_dir / COPY).exists()
 
 
+def test_a_file_gone_since_the_scan_is_refused(
+    client: TestClient, image_dir: Path, duplicated: tuple[int, str]
+) -> None:
+    source_id, _ = duplicated
+    (image_dir / COPY).unlink()
+
+    resp = _delete(client, source_id, COPY)
+
+    assert resp.status_code == 409
+    assert "changed since the last scan" in resp.json()["detail"]
+
+
 def test_a_failed_removal_is_reported_and_recorded(
     client: TestClient,
     db: sqlite3.Connection,

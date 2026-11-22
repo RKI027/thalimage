@@ -12,9 +12,14 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePath
 
 from thalimage.core.sidecars import claimed, digest, renamed_for, sidecars_of
-from thalimage.services.file_changes import change_file, record_change, writable_root
+from thalimage.services.file_changes import (
+    change_file,
+    location_row,
+    record_change,
+    still_as_scanned,
+    writable_root,
+)
 from thalimage.services.file_deletion import image_copies, remove_copy
-from thalimage.services.scan_service import unchanged_since_scan
 
 
 class RenameRefused(Exception):
@@ -43,12 +48,6 @@ class _Copy:
         its extension."""
         path = PurePath(self.path)
         return str(path.with_name(self.content_hash + path.suffix))
-
-
-_LOCATION = (
-    "SELECT content_hash, file_modified, file_size FROM image_locations"
-    " WHERE source_id = ? AND relative_path = ?"
-)
 
 
 def rename_image(conn: sqlite3.Connection, content_hash: str) -> RenameResult | None:
@@ -104,12 +103,7 @@ def _refusal(conn: sqlite3.Connection, t: _Copy) -> str | None:
     """Why the copy may not be renamed, if it may not."""
     if t.path == t.target:
         return None
-    location = conn.execute(_LOCATION, (t.source_id, t.path)).fetchone()
-    try:
-        unchanged = unchanged_since_scan((t.root / t.path).stat(), location)
-    except FileNotFoundError:
-        unchanged = False
-    if not unchanged:
+    if not still_as_scanned(conn, t.source_id, t.root, t.path):
         return f"{t.path} changed since the last scan; rescan first."
     if (t.root / t.target).exists() and not _holds_image(conn, t):
         return f"{t.target} already exists and is not a copy of this image."
@@ -118,7 +112,7 @@ def _refusal(conn: sqlite3.Connection, t: _Copy) -> str | None:
 
 def _holds_image(conn: sqlite3.Connection, t: _Copy) -> bool:
     """Whether the copy's hash name is an indexed copy of its image."""
-    row = conn.execute(_LOCATION, (t.source_id, t.target)).fetchone()
+    row = location_row(conn, t.source_id, t.target)
     return row is not None and row["content_hash"] == t.content_hash
 
 

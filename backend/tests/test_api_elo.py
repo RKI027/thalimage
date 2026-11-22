@@ -203,7 +203,8 @@ def test_concurrent_votes_match_a_serial_replay(tmp_path) -> None:
     import threading
 
     from thalimage.db.engine import connect, migrate
-    from thalimage.services.elo_service import K_FACTOR, record_vote
+    from thalimage.services.elo_service import record_vote
+    from thalimage.services.scoring import K_FACTOR
 
     path = tmp_path / "race.db"
     setup = connect(path)

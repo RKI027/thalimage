@@ -214,6 +214,135 @@ def test_a_hash_name_taken_by_another_file_refuses_the_whole_rename(
     assert (image_dir / f"{h}.png").read_text() == "not this image"
 
 
+def test_a_file_gone_since_the_scan_refuses_the_whole_rename(
+    client: TestClient, image_dir: Path, writable: tuple[int, dict[str, str]]
+) -> None:
+    _, hashes = writable
+    (image_dir / "a.png").unlink()
+
+    resp = _rename(client, hashes["a.png"])
+
+    assert resp.status_code == 409
+    assert "changed since the last scan" in resp.json()["detail"]
+
+
+def test_a_failed_rename_is_reported_and_recorded(
+    client: TestClient,
+    db: sqlite3.Connection,
+    image_dir: Path,
+    writable: tuple[int, dict[str, str]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, hashes = writable
+    h = hashes["a.png"]
+
+    def refuse(source: object, target: object) -> None:
+        raise PermissionError(13, "Permission denied", str(source))
+
+    monkeypatch.setattr(os, "rename", refuse)
+
+    resp = _rename(client, h)
+
+    assert resp.status_code == 200
+    assert resp.json()["renamed"] == 0
+    [failure] = resp.json()["failed"]
+    assert failure["relative_path"] == "a.png" and "Permission denied" in failure["error"]
+    assert (image_dir / "a.png").exists() and not (image_dir / f"{h}.png").exists()
+    assert db.execute(
+        "SELECT relative_path FROM image_locations WHERE content_hash = ?", (h,)
+    ).fetchone()[0] == "a.png"
+    assert [tuple(r) for r in db.execute(
+        "SELECT operation, path, target, outcome FROM file_changes"
+    )] == [("rename", "a.png", f"{h}.png", "failed")]
+
+
+def test_a_redundant_copy_that_cannot_be_deleted_is_reported(
+    client: TestClient,
+    image_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    shutil.copy(image_dir / "a.png", image_dir / "a (1).png")
+    source_id, _ = scan_source(client, image_dir)
+    client.patch(f"/api/v1/sources/{source_id}", json={"writable": True})
+    h = client.get("/api/v1/images", params={"source_id": source_id}).json()["items"][0][
+        "content_hash"
+    ]
+    real_remove = os.remove
+
+    def refuse(path: object) -> None:
+        if Path(str(path)) == image_dir / "a.png":
+            raise PermissionError(13, "Permission denied", str(path))
+        real_remove(path)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(os, "remove", refuse)
+
+    resp = _rename(client, h)
+
+    assert resp.status_code == 200
+    assert resp.json()["renamed"] == 1
+    assert resp.json()["deleted"] == 0
+    [failure] = resp.json()["failed"]
+    assert failure["relative_path"] == "a.png" and "Permission denied" in failure["error"]
+    assert (image_dir / f"{h}.png").exists() and (image_dir / "a.png").exists()
+    assert not (image_dir / "a (1).png").exists()
+
+
+def test_a_hash_name_that_appears_before_the_rename_is_reported(
+    client: TestClient,
+    image_dir: Path,
+    writable: tuple[int, dict[str, str]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, hashes = writable
+    h = hashes["a.png"]
+    (image_dir / f"{h}.png").write_text("not this image")
+    # _refusal would see it; skip it to act as if the file appeared in between.
+    monkeypatch.setattr(
+        "thalimage.services.file_renaming._refusal", lambda conn, t: None
+    )
+
+    resp = _rename(client, h)
+
+    assert resp.status_code == 200
+    assert resp.json()["renamed"] == 0
+    [failure] = resp.json()["failed"]
+    assert failure["relative_path"] == "a.png" and "already exists" in failure["error"]
+    assert (image_dir / "a.png").exists()
+    assert (image_dir / f"{h}.png").read_text() == "not this image"
+
+
+def test_a_sidecar_that_cannot_follow_is_reported(
+    client: TestClient,
+    db: sqlite3.Connection,
+    image_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (image_dir / "a.txt").write_text("steps: 20")
+    source_id, _ = scan_source(client, image_dir)
+    client.patch(f"/api/v1/sources/{source_id}", json={"writable": True})
+    h = client.get("/api/v1/images", params={"source_id": source_id}).json()["items"][0][
+        "content_hash"
+    ]
+    real_rename = os.rename
+
+    def refuse(source: object, target: object) -> None:
+        if Path(str(source)).suffix == ".txt":
+            raise PermissionError(13, "Permission denied", str(source))
+        real_rename(source, target)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(os, "rename", refuse)
+
+    resp = _rename(client, h)
+
+    assert resp.status_code == 200
+    assert resp.json()["renamed"] == 1
+    [failure] = resp.json()["failed"]
+    assert failure["relative_path"] == "a.txt" and "Permission denied" in failure["error"]
+    assert (image_dir / f"{h}.png").exists()
+    assert (image_dir / "a.txt").read_text() == "steps: 20"
+    assert db.execute("SELECT relative_path FROM sidecars").fetchone()[0] == "a.txt"
+
+
 def test_sidecars_take_the_new_name(
     client: TestClient, db: sqlite3.Connection, image_dir: Path
 ) -> None:

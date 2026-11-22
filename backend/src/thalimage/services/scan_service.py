@@ -7,7 +7,6 @@ import sqlite3
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -27,7 +26,13 @@ from thalimage.core.video import (
     ffmpeg_available,
     is_video,
 )
-from thalimage.services.file_changes import SourceNotWritable
+from thalimage.services.collection_service import get_or_create_source_preset
+from thalimage.services.file_changes import (
+    SourceNotWritable,
+    iso_timestamp,
+    unchanged_since_scan,
+)
+from thalimage.services.file_renaming import rename_source_files
 from thalimage.services.folders import is_folder_tag
 from thalimage.services.identity import rekey_image
 from thalimage.services import user_settings
@@ -264,8 +269,6 @@ def run_scan(
         )
 
     # Ensure the source preset collection exists (no image sync needed — it's dynamic)
-    from thalimage.services.collection_service import get_or_create_source_preset
-
     label = source["label"] or source_path.name
     get_or_create_source_preset(conn, source_id, label)
 
@@ -287,8 +290,6 @@ def _rename_files(conn: sqlite3.Connection, source_id: int, result: ScanResult) 
     """Rename the source's files to their picture hash, listing those that
     could not be among the scan's failures; the source folder itself when
     it refuses writes."""
-    from thalimage.services.file_renaming import rename_source_files
-
     try:
         renaming = rename_source_files(conn, source_id)
         failed = [(path, error) for _, path, error in renaming.failed]
@@ -353,7 +354,7 @@ def _read_sidecars(
             result.sidecars_changed += 1
         orphan = not names_any(path, media.get(path.parent, []))
         rows.append(
-            (source_id, relative, d, stat.st_size, _iso(stat.st_mtime), int(orphan))
+            (source_id, relative, d, stat.st_size, iso_timestamp(stat.st_mtime), int(orphan))
         )
 
     gone = [
@@ -375,18 +376,6 @@ def _birthtime(stat: os.stat_result) -> Optional[float]:
     """The file's creation time where the platform reports one (macOS,
     BSD); Linux does not, and gives None."""
     return getattr(stat, "st_birthtime", None)
-
-
-def unchanged_since_scan(stat: os.stat_result, location: sqlite3.Row) -> bool:
-    """Whether a file still has the modification time and size its
-    location row recorded: the scan's test for "not changed"."""
-    return bool(
-        location["file_modified"] == _iso(stat.st_mtime) and location["file_size"] == stat.st_size
-    )
-
-
-def _iso(timestamp: float) -> str:
-    return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
 
 
 def _index_file(
@@ -432,8 +421,8 @@ def _index_file(
         filename=file_path.name,
         relative_path=relative,
         file_size=stat.st_size,
-        file_modified=_iso(stat.st_mtime),
-        file_created=_iso(birthtime) if birthtime else None,
+        file_modified=iso_timestamp(stat.st_mtime),
+        file_created=iso_timestamp(birthtime) if birthtime else None,
         width=width,
         height=height,
         aspect_ratio=aspect,

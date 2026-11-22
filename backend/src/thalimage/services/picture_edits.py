@@ -13,6 +13,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from thalimage.core.perceptual_hash import distance
+from thalimage.services.identity import rekey_image
 
 
 class PossibleEdit(BaseModel):
@@ -97,10 +98,6 @@ def merge_keys(conn: sqlite3.Connection, old: str, new: str) -> None:
 
     Runs inside the caller's transaction; does not commit.
     """
-    # Imported here: identity leads back to image_service, which reads
-    # possible edits from this module.
-    from thalimage.services.identity import rekey_image
-
     conn.execute("DELETE FROM picture_edits WHERE old_hash = ?", (old,))
     conn.execute("UPDATE OR IGNORE picture_edits SET new_hash = ? WHERE new_hash = ?", (new, old))
     conn.execute("DELETE FROM picture_edits WHERE new_hash = ?", (old,))
